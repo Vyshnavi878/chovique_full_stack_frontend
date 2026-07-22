@@ -1,0 +1,57 @@
+/* === CSS Variables / Design Tokens === */
+:root {
+  /* Primary Colors */
+  --chocolate-brown: #3B1E08;
+  --dark-chocolate: #1A0D00;
+  --rich-cocoa: #5C3317;
+  --espresso: #2C1503;
+  
+  /* Accent Colors */
+  --gold: #C9A84C;
+  --gold-light: #E8D48B;
+  --gold-dark: #8B7332;
+  --rose-gold: #B76E79;
+  
+  /* Neutral Colors */
+  --cream: #F5E6D3;
+  --beige: #DBC8A9;
+  --ivory: #FEFAF0;
+  --white: #FFFFFF;
+  --black: #0A0A0A;
+  --grey-dark: #48474C;
+  --grey-mid: #6D747E;
+  --grey-cool: #7F7F8B;
+  --grey-steel: #595D66;
+  --grey-light: #9395A1;
+
+  /* Gradient Backgrounds */
+  --gradient-hero: linear-gradient(135deg, var(--black) 0%, var(--dark-chocolate) 40%, var(--chocolate-brown) 100%);
+  --gradient-section-1: linear-gradient(160deg, var(--dark-chocolate) 0%, var(--chocolate-brown) 100%);
+  --gradient-section-2: linear-gradient(135deg, var(--grey-dark) 0%, var(--grey-steel) 35%, var(--grey-mid) 65%, var(--grey-dark) 100%);
+  --gradient-section-3: linear-gradient(160deg, var(--chocolate-brown) 0%, var(--dark-chocolate) 50%, var(--black) 100%);
+  --gradient-section-4: linear-gradient(135deg, var(--grey-steel) 0%, var(--grey-cool) 50%, var(--grey-light) 100%);
+  --gradient-section-5: linear-gradient(160deg, var(--black) 0%, var(--dark-chocolate) 40%, var(--chocolate-brown) 100%);
+  --gradient-section-6: linear-gradient(135deg, var(--grey-mid) 0%, var(--grey-steel) 50%, var(--grey-dark) 100%);
+  --gradient-section-7: linear-gradient(160deg, var(--dark-chocolate) 0%, var(--black) 60%, var(--chocolate-brown) 100%);
+  --gradient-footer: linear-gradient(180deg, var(--black) 0%, var(--dark-chocolate) 100%);
+  --gradient-gold: linear-gradient(135deg, var(--gold), var(--gold-light), var(--gold));
+  --gradient-gold-text: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-dark));
+
+  /* Glass Effect */
+  --glass-bg: rgba(var(--dark-chocolate-rgb, 26, 13, 0), 0.6);
+  --glass-border: rgba(var(--gold-dark), 0.15);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  /* Typography */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-elegant: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Spacing */
+  --section-padding: clamp(60px, 8vw, 120px);
+  --container-width: min(90%, 1400px);
+
+  /* Transitions */
+  --transition-smooth: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}

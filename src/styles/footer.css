@@ -1,0 +1,13 @@
+.site-footer {
+  background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.8));
+  color: #d4c08a;
+  padding: 24px 16px;
+}
+.footer-inner { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.footer-brand { font-weight: 700; letter-spacing: 2px; }
+.footer-nav a { color: inherit; margin: 0 8px; text-decoration: none; font-size: 14px; }
+.footer-copy { font-size: 13px; opacity: 0.9; }
+
+@media (min-width: 768px) {
+  .footer-inner { flex-direction: row; justify-content: space-between; align-items: center; }
+}
