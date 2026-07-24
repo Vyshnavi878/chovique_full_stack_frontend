@@ -112,7 +112,7 @@ export const demoLogin = (email: string, password: string): AuthResponse => {
   const { password: _pw, ...user } = match;
   const token = makeDemoToken(user.id);
   setToken(token);
-  return { access_token: token, token_type: 'bearer', user };
+  return { message: 'Login successful.', user };
 };
 
 /**
@@ -142,7 +142,7 @@ export const demoRegister = (name: string, email: string, password: string): Aut
   const { password: _pw, ...user } = newUser;
   const token = makeDemoToken(user.id);
   setToken(token);
-  return { access_token: token, token_type: 'bearer', user };
+  return { message: 'Registration successful.', user };
 };
 
 /**

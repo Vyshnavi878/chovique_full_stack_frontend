@@ -37,12 +37,19 @@ const buildHeaders = (isFormData = false): HeadersInit => {
   return headers;
 };
 
-/** Handle 401 Unauthorized globally */
+/** Handle 401 Unauthorized globally — skip redirect when already on auth pages */
 const handleUnauthorized = (): void => {
   clearToken();
   localStorage.removeItem('chovique_user');
   localStorage.removeItem('chovique_role');
-  window.location.href = '/login';
+  localStorage.removeItem('chovique_session');
+  // Prevent infinite redirect loop: don't redirect if already on an auth page
+  const { pathname } = window.location;
+  const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const isOnAuthPage = authPages.some((p) => pathname.startsWith(p));
+  if (!isOnAuthPage) {
+    window.location.href = '/login';
+  }
 };
 
 /** Generic API error */
@@ -77,6 +84,7 @@ export const apiGet = async <T>(path: string): Promise<T> => {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: buildHeaders(),
+    credentials: 'include',
   });
 
   if (response.status === 401) {
@@ -96,6 +104,7 @@ export const apiPost = async <T>(path: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: buildHeaders(),
+    credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -116,6 +125,7 @@ export const apiPostFormData = async <T>(path: string, formData: FormData): Prom
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: buildHeaders(true), // no Content-Type; browser sets it with boundary
+    credentials: 'include',
     body: formData,
   });
 
@@ -136,6 +146,7 @@ export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'PATCH',
     headers: buildHeaders(),
+    credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -156,6 +167,7 @@ export const apiPut = async <T>(path: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'PUT',
     headers: buildHeaders(),
+    credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -176,6 +188,7 @@ export const apiDelete = async <T>(path: string): Promise<T> => {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'DELETE',
     headers: buildHeaders(),
+    credentials: 'include',
   });
 
   if (response.status === 401) {

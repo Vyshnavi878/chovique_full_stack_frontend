@@ -116,6 +116,7 @@ export const RegisterPage: React.FC = () => {
         name: name.trim(),
         email: email.trim(),
         password,
+        confirmPassword,
       });
       setStep('OTP');
       setTimeLeft(response.expires_in || 30);
@@ -144,7 +145,7 @@ export const RegisterPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    const result = await verifyOtp(email.trim(), otp.trim());
+    const result = await verifyOtp(email.trim(), otp.trim(), name.trim(), password);
     setIsLoading(false);
 
     if (!result.success) {

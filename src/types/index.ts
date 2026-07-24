@@ -107,6 +107,7 @@ export interface Banner {
 
 export interface OfflineSale {
   id: string;
+  /** camelCase — matches backend OfflineSaleResponse */
   productName: string;
   quantity: number;
   totalPrice: number;
@@ -170,6 +171,7 @@ export interface SystemUser {
   name: string;
   email: string;
   role: 'customer' | 'admin' | 'superadmin';
+  /** Permissions object — derived from role on the backend */
   permissions: {
     manageInventory: boolean;
     viewAnalytics: boolean;
@@ -177,6 +179,21 @@ export interface SystemUser {
     configureThemes: boolean;
     exportData: boolean;
   };
+}
+
+// =============================================================================
+// FORGOT / RESET PASSWORD PAYLOADS
+// =============================================================================
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  otp: string;
+  password: string;
+  confirmPassword: string;
 }
 
 // =============================================================================
@@ -192,17 +209,21 @@ export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 export interface SendOtpPayload {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 export interface VerifyOtpPayload {
   email: string;
   otp: string;
+  fullName: string;
+  password: string;
 }
 
 export interface SendOtpResponse {
@@ -269,20 +290,22 @@ export interface OfflineSalePayload {
 // API RESPONSE TYPES
 // =============================================================================
 
-/** JWT auth response from /auth/login and /auth/register */
+/** Auth response from /auth/login, /auth/verify-otp, /auth/google, /auth/set-password.
+ *  The backend delivers the JWTs as httponly cookies (not readable from JS) —
+ *  the JSON body only carries the message and user profile. */
 export interface AuthResponse {
-  access_token: string;
-  token_type: 'bearer';
+  message: string;
   user: User;
 }
 
 export interface GoogleAuthResponse {
-  require_otp: boolean;
-  access_token?: string;
-  token_type?: 'bearer';
-  user?: User;
+  message: string;
+  user: User;
+  /** Not currently returned by the backend — /auth/google always logs in or
+   *  creates the account directly. Kept optional so existing UI branches
+   *  that check for it degrade gracefully instead of breaking. */
+  require_otp?: boolean;
   email?: string;
-  message?: string;
   expires_in?: number;
 }
 

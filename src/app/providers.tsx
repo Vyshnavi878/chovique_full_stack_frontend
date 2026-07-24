@@ -29,8 +29,8 @@ interface AppContextType {
   role: UserRole;
   isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (email: string, otp: string, fullName: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 
   // Products
@@ -150,22 +150,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    */
   useEffect(() => {
     const rehydrate = async () => {
-      const token = getToken();
-      if (token) {
+      // 'chovique_session' is a lightweight flag set after a successful login.
+      // We only attempt getMe() if this flag exists — avoids calling the backend
+      // on every page load (including the login page) and prevents 401 redirect loops.
+      const hasSession =
+        localStorage.getItem('chovique_session') === '1' || getToken() !== null;
+
+      if (hasSession) {
         try {
           const freshUser = await authService.getMe();
           setUser(freshUser);
-          setRole(freshUser.role);
+          setRole(freshUser.role as UserRole);
           localStorage.setItem('chovique_user', JSON.stringify(freshUser));
+          localStorage.setItem('chovique_session', '1');
           setIsAuthLoading(false);
           return;
         } catch {
-          // Token may be expired — fall through to localStorage cache
+          // Session expired — clear everything
           clearToken();
+          localStorage.removeItem('chovique_session');
+          localStorage.removeItem('chovique_user');
         }
       }
 
-      // Fallback: read cached user from localStorage (offline / no token)
+      // Fallback: read cached user from localStorage (offline / demo mode)
       const savedUser = localStorage.getItem('chovique_user');
       if (savedUser) {
         try {
@@ -196,6 +204,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(loggedInUser);
         setRole(loggedInUser.role);
         localStorage.setItem('chovique_user', JSON.stringify(loggedInUser));
+        // Mark that a session exists so rehydration will call getMe() on next mount
+        localStorage.setItem('chovique_session', '1');
         return { success: true, role: loggedInUser.role };
       } catch (err: unknown) {
         const message =
@@ -207,13 +217,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const register = useCallback(
-    async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    async (name: string, email: string, password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        const response = await authService.register({ name, email, password });
-        const newUser = response.user as User;
-        setUser(newUser);
-        setRole(newUser.role);
-        localStorage.setItem('chovique_user', JSON.stringify(newUser));
+        // This only triggers the OTP email — the account is created in verifyOtp below.
+        await authService.register({ name, email, password, confirmPassword });
         return { success: true };
       } catch (err: unknown) {
         const message =
@@ -225,13 +232,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const verifyOtp = useCallback(
-    async (email: string, otp: string): Promise<{ success: boolean; error?: string }> => {
+    async (email: string, otp: string, fullName: string, password: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        const response = await authService.verifyOtp({ email, otp });
+        const response = await authService.verifyOtp({ email, otp, fullName, password });
         const newUser = response.user as User;
         setUser(newUser);
         setRole(newUser.role);
         localStorage.setItem('chovique_user', JSON.stringify(newUser));
+        localStorage.setItem('chovique_session', '1');
         return { success: true };
       } catch (err: unknown) {
         const message =
@@ -249,6 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Best-effort server-side logout — always clear local state
     } finally {
       localStorage.removeItem('chovique_user');
+      localStorage.removeItem('chovique_session');
       setUser(null);
       setRole('guest');
       setCart([]);

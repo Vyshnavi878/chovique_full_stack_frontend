@@ -129,9 +129,9 @@ export const LoginPage: React.FC = () => {
               />
               <span>Remember Me</span>
             </label>
-            <a href="#" style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>
+            <Link to="/forgot-password" style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>
               Forgot Password?
-            </a>
+            </Link>
           </div>
 
           <Button
@@ -180,6 +180,7 @@ export const LoginPage: React.FC = () => {
                       if (setUser) setUser(loggedInUser);
                       if (setRole) setRole(loggedInUser.role);
                       localStorage.setItem('chovique_user', JSON.stringify(loggedInUser));
+                      localStorage.setItem('chovique_session', '1');
                       if (loggedInUser.role === 'admin') navigate('/admin');
                       else if (loggedInUser.role === 'superadmin') navigate('/superadmin');
                       else navigate(from, { replace: true });

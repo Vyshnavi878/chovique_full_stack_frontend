@@ -3,18 +3,20 @@
  * and site-wide order/ticket views.
  * Falls back to demo localStorage store when backend is unreachable.
  *
- * FastAPI endpoints expected:
+ * FastAPI endpoints (all require admin or superadmin role):
+ *   GET  /admin/stats                    → DashboardStatsResponse
  *   GET  /admin/users                    → SystemUser[]
  *   GET  /admin/orders                   → Order[]
+ *   PATCH /admin/orders/{id}/status      → Order
  *   GET  /admin/tickets                  → SupportTicket[]
+ *   POST /admin/tickets/{id}/resolve     → SupportTicket
  *   GET  /admin/offline-sales            → OfflineSale[]
  *   POST /admin/offline-sales            → OfflineSale
- *   POST /admin/offline-sales/import     → { imported: number, skipped: number, message: string }  (multipart/form-data CSV)
- *   POST /admin/tickets/{id}/resolve     → SupportTicket
- *   POST /admin/banners/{id}/image       → { image_url: string }  (multipart/form-data)
+ *   POST /admin/offline-sales/import     → { imported, skipped, message } (multipart CSV)
+ *   POST /admin/banners/{id}/image       → { image_url: string } (multipart)
  */
 
-import { apiGet, apiPost, apiPostFormData } from '../lib/api';
+import { apiGet, apiPatch, apiPost, apiPostFormData } from '../lib/api';
 import { withDemoFallback } from '../lib/demoMode';
 import {
   demoGetOrders,
@@ -28,10 +30,32 @@ import type {
   Order,
   SupportTicket,
   SystemUser,
-  OfflineSalePayload,
   ImportSalesResponse,
   ResolveTicketPayload,
 } from '../types';
+
+/** Payload for /admin/offline-sales POST — matches backend OfflineSalePayload */
+export interface AdminOfflineSalePayload {
+  product_name: string;
+  quantity: number;
+  total_price: number;
+  payment_method: string;
+}
+
+/** Payload for /admin/orders/{id}/status PATCH */
+export interface UpdateOrderStatusPayload {
+  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+}
+
+/** Dashboard stats shape from /admin/stats */
+export interface DashboardStats {
+  total_sales: number;
+  total_orders: number;
+  total_customers: number;
+  total_products: number;
+  low_stock_products_count: number;
+  pending_tickets_count: number;
+}
 
 // Demo system users seeded in localStorage by demoAuth
 const getDemoUsers = (): SystemUser[] => {
@@ -46,6 +70,10 @@ const getDemoUsers = (): SystemUser[] => {
 };
 
 export const adminService = {
+  /** Fetch admin dashboard analytics stats. */
+  getStats: (): Promise<DashboardStats> =>
+    apiGet<DashboardStats>('/admin/stats'),
+
   /** Fetch all registered users. Demo fallback: reads from demoAuth store. */
   getUsers: (): Promise<SystemUser[]> =>
     withDemoFallback(
@@ -60,6 +88,10 @@ export const adminService = {
       () => demoGetOrders()
     ),
 
+  /** Update an order's status. */
+  updateOrderStatus: (orderId: string, payload: UpdateOrderStatusPayload): Promise<Order> =>
+    apiPatch<Order>(`/admin/orders/${orderId}/status`, payload),
+
   /** Fetch all support tickets site-wide. Demo fallback: reads demo tickets store. */
   getAllTickets: (): Promise<SupportTicket[]> =>
     withDemoFallback(
@@ -67,34 +99,7 @@ export const adminService = {
       () => demoGetTickets()
     ),
 
-  /** Fetch all offline (POS) sales records. */
-  getOfflineSales: (): Promise<OfflineSale[]> =>
-    withDemoFallback(
-      () => apiGet<OfflineSale[]>('/admin/offline-sales'),
-      () => demoGetOfflineSales()
-    ),
-
-  /** Manually log a single offline sale. */
-  addOfflineSale: (payload: OfflineSalePayload): Promise<OfflineSale> =>
-    withDemoFallback(
-      () => apiPost<OfflineSale>('/admin/offline-sales', payload),
-      () => demoAddOfflineSale(payload)
-    ),
-
-  /**
-   * Upload a CSV file for bulk offline sales import.
-   * Demo fallback: returns success without actual parsing.
-   */
-  importOfflineSales: (formData: FormData): Promise<ImportSalesResponse> =>
-    withDemoFallback(
-      () => apiPostFormData<ImportSalesResponse>('/admin/offline-sales/import', formData),
-      () => demoImportOfflineSales(formData)
-    ),
-
-  /**
-   * Resolve a support ticket (admin action).
-   * Demo fallback: updates ticket status in localStorage.
-   */
+  /** Resolve a support ticket (admin action). */
   resolveTicket: (ticketId: string, payload: ResolveTicketPayload): Promise<SupportTicket> =>
     withDemoFallback(
       () => apiPost<SupportTicket>(`/admin/tickets/${ticketId}/resolve`, payload),
@@ -110,6 +115,35 @@ export const adminService = {
         if (!found) throw new Error('Ticket not found');
         return found;
       }
+    ),
+
+  /** Fetch all offline (POS) sales records. */
+  getOfflineSales: (): Promise<OfflineSale[]> =>
+    withDemoFallback(
+      () => apiGet<OfflineSale[]>('/admin/offline-sales'),
+      () => demoGetOfflineSales()
+    ),
+
+  /** Manually log a single offline sale. */
+  addOfflineSale: (payload: AdminOfflineSalePayload): Promise<OfflineSale> =>
+    withDemoFallback(
+      () => apiPost<OfflineSale>('/admin/offline-sales', payload),
+      () => demoAddOfflineSale({
+        product_name: payload.product_name,
+        quantity: payload.quantity,
+        total_price: payload.total_price,
+        payment_method: payload.payment_method,
+      })
+    ),
+
+  /**
+   * Upload a CSV file for bulk offline sales import.
+   * Demo fallback: returns success without actual parsing.
+   */
+  importOfflineSales: (formData: FormData): Promise<ImportSalesResponse> =>
+    withDemoFallback(
+      () => apiPostFormData<ImportSalesResponse>('/admin/offline-sales/import', formData),
+      () => demoImportOfflineSales(formData)
     ),
 
   /**
