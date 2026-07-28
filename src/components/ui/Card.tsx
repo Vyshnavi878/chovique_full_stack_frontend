@@ -5,6 +5,7 @@ import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../app/providers';
 import { hoverLift } from '../../lib/framer';
+import { getImageUrl } from '../../utils/imageUrl';
 
 interface CardProps {
   product: Product;
@@ -17,6 +18,7 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
   const navigate = useNavigate();
 
   const isLiked = wishlist.some((p) => p.id === product.id);
+
 
   const handleCardClick = () => {
     if (role === 'guest') {
@@ -75,7 +77,7 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
       {/* Product Image Container */}
       <div style={{ position: 'relative', overflow: 'hidden', aspectRatio: '1.25/1' }}>
         <img
-          src={product.image}
+          src={getImageUrl(product.image)}
           alt={product.name}
           style={{
             width: '100%',
@@ -89,8 +91,9 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
         />
         {product.hoverImage && (
           <img
-            src={product.hoverImage}
+            src={getImageUrl(product.hoverImage)}
             alt={`${product.name} alternate view`}
+
             style={{
               position: 'absolute',
               top: 0,

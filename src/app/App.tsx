@@ -14,6 +14,8 @@ import { CheckoutPage } from '../features/checkout/CheckoutPage';
 import { WishlistPage } from '../features/wishlist/WishlistPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
+import { SetPasswordPage } from '../features/auth/SetPasswordPage';
+import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage';
 import { CustomerDashboard } from '../features/dashboard/CustomerDashboard';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { SuperadminDashboard } from '../features/superadmin/SuperadminDashboard';
@@ -42,8 +44,8 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const { role } = useApp();
 
-  // Hide Customer Navbar & Footer on Login/Register and Admin/Superadmin dashboard views
-  const isAuthRoute = ['/login', '/register'].includes(location.pathname);
+  // Hide Customer Navbar & Footer on Login/Register/SetPassword/ForgotPassword and Admin/Superadmin dashboard views
+  const isAuthRoute = ['/login', '/register', '/set-password', '/forgot-password'].includes(location.pathname);
   const isDashboardRoute = ['/admin', '/superadmin'].includes(location.pathname);
   const showNavAndFooter = !isAuthRoute && !isDashboardRoute;
 
@@ -62,6 +64,7 @@ const AppContent: React.FC = () => {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           {/* Guest-accessible but redirects to login at checkout */}
           <Route path="/cart" element={<CartPage />} />
@@ -81,6 +84,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['customer', 'admin', 'superadmin']}>
                 <CustomerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/set-password"
+            element={
+              <ProtectedRoute allowedRoles={['customer', 'admin', 'superadmin']}>
+                <SetPasswordPage />
               </ProtectedRoute>
             }
           />

@@ -2,50 +2,25 @@
  * Centralized API client for Chovique frontend.
  * Connects to a FastAPI backend. Base URL is configured via VITE_API_URL env var.
  *
- * Responsibilities:
- *  - Attach Authorization: Bearer <token> header to every request
- *  - Handle 401 → clear token + redirect to /login
- *  - Return typed responses
+ * Auth Strategy:
+ *  - The backend sets httpOnly cookies (access_token, refresh_token) on login/register.
+ *  - All requests use credentials: 'include' so cookies are sent automatically.
+ *  - NO JWT stored in localStorage. NO Bearer token header injection.
+ *  - 401 → redirect to /login (session expired or not authenticated).
  */
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1';
 
-const TOKEN_KEY = 'chovique_token';
-
-/** Retrieve stored JWT token */
-export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
-
-/** Persist JWT token after login */
-export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
-
-/** Remove JWT token on logout */
-export const clearToken = (): void => localStorage.removeItem(TOKEN_KEY);
-
-/** Build default headers, injecting Bearer token when available */
+/** Build default headers — JSON only, no auth header (cookies handle auth) */
 const buildHeaders = (isFormData = false): HeadersInit => {
-  const headers: Record<string, string> = {};
-
-  if (!isFormData) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const token = getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  return headers;
+  if (isFormData) return {};
+  return { 'Content-Type': 'application/json' };
 };
 
 /** Handle 401 Unauthorized globally — skip redirect when already on auth pages */
 const handleUnauthorized = (): void => {
-  clearToken();
-  localStorage.removeItem('chovique_user');
-  localStorage.removeItem('chovique_role');
-  localStorage.removeItem('chovique_session');
-  // Prevent infinite redirect loop: don't redirect if already on an auth page
   const { pathname } = window.location;
-  const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const authPages = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-otp'];
   const isOnAuthPage = authPages.some((p) => pathname.startsWith(p));
   if (!isOnAuthPage) {
     window.location.href = '/login';
@@ -79,9 +54,20 @@ const parseError = async (response: Response): Promise<ApiError> => {
   }
 };
 
+const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  try {
+    return await fetch(input, init);
+  } catch (err: unknown) {
+    throw new ApiError(
+      0,
+      'Unable to connect to the backend API server. Please verify that the FastAPI backend is running on http://localhost:8000.'
+    );
+  }
+};
+
 /** Core GET request */
 export const apiGet = async <T>(path: string): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: buildHeaders(),
     credentials: 'include',
@@ -101,7 +87,7 @@ export const apiGet = async <T>(path: string): Promise<T> => {
 
 /** Core POST request (JSON body) */
 export const apiPost = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: buildHeaders(),
     credentials: 'include',
@@ -117,12 +103,17 @@ export const apiPost = async <T>(path: string, body?: unknown): Promise<T> => {
     throw await parseError(response);
   }
 
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 };
 
 /** Core POST request with FormData (multipart/form-data) */
 export const apiPostFormData = async <T>(path: string, formData: FormData): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: buildHeaders(true), // no Content-Type; browser sets it with boundary
     credentials: 'include',
@@ -143,7 +134,7 @@ export const apiPostFormData = async <T>(path: string, formData: FormData): Prom
 
 /** Core PATCH request (JSON body) */
 export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'PATCH',
     headers: buildHeaders(),
     credentials: 'include',
@@ -164,7 +155,7 @@ export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
 
 /** Core PUT request (JSON body) */
 export const apiPut = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'PUT',
     headers: buildHeaders(),
     credentials: 'include',
@@ -185,7 +176,7 @@ export const apiPut = async <T>(path: string, body?: unknown): Promise<T> => {
 
 /** Core DELETE request */
 export const apiDelete = async <T>(path: string): Promise<T> => {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await safeFetch(`${BASE_URL}${path}`, {
     method: 'DELETE',
     headers: buildHeaders(),
     credentials: 'include',
@@ -207,3 +198,4 @@ export const apiDelete = async <T>(path: string): Promise<T> => {
 
   return response.json() as Promise<T>;
 };
+

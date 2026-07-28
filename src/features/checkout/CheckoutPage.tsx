@@ -14,8 +14,17 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Progress } from '../../components/ui/Progress';
 import { pageTransition, scaleUp } from '../../lib/framer';
+import { apiPost } from '../../lib/api';
 import { orderService } from '../../services/orderService';
-import type { Order } from '../../types';
+import type { Order, CheckoutInitiateResponse, VerifyPaymentPayload } from '../../types';
+
+// Razorpay global type declaration
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Razorpay: new (options: Record<string, any>) => { open: () => void };
+  }
+}
 
 /** Coupon data passed from CartPage via sessionStorage */
 interface CheckoutCouponData {
@@ -86,46 +95,119 @@ export const CheckoutPage: React.FC = () => {
     }
 
     if (activeStep === 5) {
-      // Place order via backend API
+      // ================================================================
+      // PAYMENT FLOW: Razorpay (card/UPI/netbanking) or COD
+      // ================================================================
       setIsPlacingOrder(true);
       setOrderError('');
       setActiveStep(6); // Show processing screen immediately
 
+      const orderPayload = {
+        items: cart.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+        shipping_address: {
+          name: shippingForm.name,
+          street: shippingForm.street,
+          city: shippingForm.city,
+          state: shippingForm.state,
+          zip: shippingForm.zip,
+          phone: shippingForm.phone,
+        },
+        delivery_option: deliveryOption,
+        payment_method: paymentMethod,
+        ...(couponData ? { coupon_code: couponData.code } : {}),
+      };
+
+      // For COD or if Razorpay SDK is not loaded — go directly to POST /orders
+      const isCOD =
+        paymentMethod === 'Cash on Delivery' ||
+        paymentMethod === 'Cash' ||
+        !window.Razorpay;
+
+      if (isCOD) {
+        // Direct order placement (no payment gateway needed)
+        try {
+          const order = await orderService.placeOrder(orderPayload);
+          placeOrderLocal(order);
+          setCreatedOrder(order);
+          sessionStorage.removeItem('chovique_checkout_coupon');
+          setActiveStep(7);
+        } catch (err: unknown) {
+          const message =
+            err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+          setOrderError(message);
+          setActiveStep(5);
+        } finally {
+          setIsPlacingOrder(false);
+        }
+        return;
+      }
+
+      // Razorpay flow:
+      // 1. POST /checkout/initiate → get Razorpay order ID
+      // 2. Open Razorpay modal
+      // 3. On success → POST /payments/verify → confirm order
       try {
-        const payload = {
-          items: cart.map((item) => ({
-            product_id: item.product.id,
-            quantity: item.quantity,
-          })),
-          shipping_address: {
-            name: shippingForm.name,
-            street: shippingForm.street,
-            city: shippingForm.city,
-            state: shippingForm.state,
-            zip: shippingForm.zip,
-            phone: shippingForm.phone,
+        const checkoutData = await apiPost<CheckoutInitiateResponse>('/checkout/initiate', orderPayload);
+
+        const rzpOptions = {
+          key: checkoutData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: checkoutData.amount,
+          currency: checkoutData.currency || 'INR',
+          name: 'Chovique',
+          description: 'Premium Handmade Chocolates',
+          order_id: checkoutData.razorpay_order_id,
+          handler: async (response: {
+            razorpay_payment_id: string;
+            razorpay_order_id: string;
+            razorpay_signature: string;
+          }) => {
+            try {
+              // Verify payment on backend
+              const verifyPayload: VerifyPaymentPayload = {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                order_id: checkoutData.order_id,
+              };
+              const confirmedOrder = await apiPost<Order>('/payments/verify', verifyPayload);
+              placeOrderLocal(confirmedOrder);
+              setCreatedOrder(confirmedOrder);
+              sessionStorage.removeItem('chovique_checkout_coupon');
+              setActiveStep(7);
+            } catch (verifyErr) {
+              const msg =
+                verifyErr instanceof Error
+                  ? verifyErr.message
+                  : 'Payment verification failed. Please contact support.';
+              setOrderError(msg);
+              setActiveStep(5);
+            } finally {
+              setIsPlacingOrder(false);
+            }
           },
-          delivery_option: deliveryOption,
-          payment_method: paymentMethod,
-          ...(couponData ? { coupon_code: couponData.code } : {}),
+          prefill: {
+            name: shippingForm.name,
+            contact: shippingForm.phone,
+          },
+          theme: { color: '#C9A84C' },
+          modal: {
+            ondismiss: () => {
+              setIsPlacingOrder(false);
+              setActiveStep(5); // Return to review step if modal closed
+            },
+          },
         };
 
-        const order = await orderService.placeOrder(payload);
-
-        // Optimistic local state update after successful backend response
-        placeOrderLocal(order);
-        setCreatedOrder(order);
-
-        // Clear coupon from sessionStorage after successful order
-        sessionStorage.removeItem('chovique_checkout_coupon');
-
-        setActiveStep(7);
-      } catch (err: unknown) {
+        const rzp = new window.Razorpay(rzpOptions);
+        rzp.open();
+      } catch (initErr: unknown) {
         const message =
-          err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+          initErr instanceof Error ? initErr.message : 'Failed to initiate payment. Please try again.';
         setOrderError(message);
-        setActiveStep(5); // Return to review step on failure
-      } finally {
+        setActiveStep(5);
         setIsPlacingOrder(false);
       }
     } else {

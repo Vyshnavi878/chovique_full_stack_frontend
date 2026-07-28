@@ -25,6 +25,7 @@ import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { pageTransition } from '../../lib/framer';
+import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
 import type { UserCoupon } from '../../types';
 
@@ -114,6 +115,26 @@ export const CustomerDashboard: React.FC = () => {
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
 
+  // --- Profile save state ---
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  // --- Preferences save state ---
+  const [isPreferencesSaving, setIsPreferencesSaving] = useState(false);
+  const [preferencesSaved, setPreferencesSaved] = useState(false);
+  const [preferencesError, setPreferencesError] = useState('');
+
+  // --- Change password state ---
+  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
+  const [changePasswordForm, setChangePasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [changePasswordMessage, setChangePasswordMessage] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState('');
+
   // --- Coupons: fetched from backend, not hardcoded ---
   const [coupons, setCoupons] = useState<UserCoupon[]>([]);
   const [isCouponsLoading, setIsCouponsLoading] = useState(false);
@@ -143,14 +164,78 @@ export const CustomerDashboard: React.FC = () => {
     };
   }, [activeTab]);
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateUserProfile({
-      name: profileForm.name,
-      phone: profileForm.phone
-    });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 3000);
+    setProfileError('');
+    setIsProfileSaving(true);
+    try {
+      await updateUserProfile({
+        name: profileForm.name,
+        phone: profileForm.phone,
+      });
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update profile.';
+      setProfileError(msg);
+    } finally {
+      setIsProfileSaving(false);
+    }
+  };
+
+  const handlePreferencesSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const dob = (form.elements.namedItem('dob') as HTMLInputElement).value;
+    const gender = (form.elements.namedItem('gender') as HTMLSelectElement).value;
+    const preferences = (form.elements.namedItem('preferences') as HTMLTextAreaElement).value;
+    setPreferencesError('');
+    setIsPreferencesSaving(true);
+    try {
+      await updateUserProfile({ dob, gender, preferences });
+      setPreferencesSaved(true);
+      setTimeout(() => setPreferencesSaved(false), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save preferences.';
+      setPreferencesError(msg);
+    } finally {
+      setIsPreferencesSaving(false);
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError('');
+    setChangePasswordMessage('');
+
+    if (!changePasswordForm.currentPassword) {
+      setChangePasswordError('Please enter your current password.');
+      return;
+    }
+    if (changePasswordForm.newPassword.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters.');
+      return;
+    }
+    if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+      setChangePasswordError('New passwords do not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await authService.changePassword(
+        changePasswordForm.currentPassword,
+        changePasswordForm.newPassword,
+        changePasswordForm.confirmPassword
+      );
+      setChangePasswordMessage(res.message || 'Password changed successfully.');
+      setChangePasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to change password.';
+      setChangePasswordError(msg);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const totalSpent = orders.reduce((sum, ord) => sum + ord.total, 0);
@@ -548,6 +633,22 @@ export const CustomerDashboard: React.FC = () => {
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                   />
 
+                  {profileError && (
+                    <div
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(231, 76, 60, 0.1)',
+                        border: '1px solid #e74c3c',
+                        color: '#e74c3c',
+                        borderRadius: '4px',
+                        marginBottom: '20px',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      {profileError}
+                    </div>
+                  )}
+
                   {profileSaved && (
                     <div
                       style={{
@@ -567,8 +668,14 @@ export const CustomerDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  <Button variant="gold" type="submit" glow>
-                    Save Changes
+                  <Button variant="gold" type="submit" glow disabled={isProfileSaving}>
+                    {isProfileSaving ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
                   </Button>
                 </form>
               </div>
@@ -950,15 +1057,7 @@ export const CustomerDashboard: React.FC = () => {
                   Account Preferences & Settings
                 </h2>
                 
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const form = e.currentTarget;
-                  const dob = (form.elements.namedItem('dob') as HTMLInputElement).value;
-                  const gender = (form.elements.namedItem('gender') as HTMLSelectElement).value;
-                  const preferences = (form.elements.namedItem('preferences') as HTMLTextAreaElement).value;
-                  updateUserProfile({ dob, gender, preferences });
-                  alert('Account preferences updated successfully.');
-                }} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <form onSubmit={handlePreferencesSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   
                   <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', margin: 0 }}>
@@ -1024,23 +1123,123 @@ export const CustomerDashboard: React.FC = () => {
                     />
                   </div>
 
-                  <div className="glass-panel" style={{ padding: '20px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.1)' }}>
-                    <h4 style={{ color: 'var(--gold)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
-                      Security credentials
-                    </h4>
-                    <Button
-                      variant="glass"
-                      size="sm"
-                      type="button"
-                      onClick={() => alert('Change password request dispatched to your registered email.')}
+                  {preferencesError && (
+                    <div
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(231, 76, 60, 0.1)',
+                        border: '1px solid #e74c3c',
+                        color: '#e74c3c',
+                        borderRadius: '4px',
+                        fontSize: '0.9rem',
+                      }}
                     >
-                      Change Account Password
-                    </Button>
+                      {preferencesError}
+                    </div>
+                  )}
+
+                  {preferencesSaved && (
+                    <div
+                      style={{
+                        padding: '12px',
+                        background: 'rgba(46, 204, 113, 0.1)',
+                        border: '1px solid #2ecc71',
+                        color: '#2ecc71',
+                        borderRadius: '4px',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <CheckCircle size={16} /> Account preferences saved successfully.
+                    </div>
+                  )}
+
+                  <div className="glass-panel" style={{ padding: '20px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h4 style={{ color: 'var(--gold)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
+                          Security Credentials
+                        </h4>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--grey-light)' }}>
+                          Update your account password using your current password.
+                        </p>
+                      </div>
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        type="button"
+                        onClick={() => {
+                          setShowChangePasswordForm(!showChangePasswordForm);
+                          setChangePasswordError('');
+                          setChangePasswordMessage('');
+                        }}
+                      >
+                        {showChangePasswordForm ? 'Close Password Form' : 'Change Password'}
+                      </Button>
+                    </div>
+
+                    {showChangePasswordForm && (
+                      <form onSubmit={handleChangePasswordSubmit} style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <Input
+                          label="Current Password"
+                          type="password"
+                          placeholder="Enter current password"
+                          value={changePasswordForm.currentPassword}
+                          onChange={(e) => setChangePasswordForm({ ...changePasswordForm, currentPassword: e.target.value })}
+                        />
+                        <Input
+                          label="New Password"
+                          type="password"
+                          placeholder="Enter new password (min 6 chars)"
+                          value={changePasswordForm.newPassword}
+                          onChange={(e) => setChangePasswordForm({ ...changePasswordForm, newPassword: e.target.value })}
+                        />
+                        <Input
+                          label="Confirm New Password"
+                          type="password"
+                          placeholder="Confirm new password"
+                          value={changePasswordForm.confirmPassword}
+                          onChange={(e) => setChangePasswordForm({ ...changePasswordForm, confirmPassword: e.target.value })}
+                        />
+
+                        {changePasswordError && (
+                          <div style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '4px', fontSize: '0.85rem' }}>
+                            {changePasswordError}
+                          </div>
+                        )}
+
+                        {changePasswordMessage && (
+                          <div style={{ padding: '10px', background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '4px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <CheckCircle size={14} /> {changePasswordMessage}
+                          </div>
+                        )}
+
+                        <div>
+                          <Button variant="gold" size="sm" type="submit" disabled={isChangingPassword} glow>
+                            {isChangingPassword ? (
+                              <>
+                                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Updating...
+                              </>
+                            ) : (
+                              'Update Password'
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', gap: '15px' }}>
-                    <Button variant="gold" type="submit" glow>
-                      Save Preferences
+                    <Button variant="gold" type="submit" glow disabled={isPreferencesSaving}>
+                      {isPreferencesSaving ? (
+                        <>
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving Preferences...
+                        </>
+                      ) : (
+                        'Save Preferences'
+                      )}
                     </Button>
                   </div>
                 </form>

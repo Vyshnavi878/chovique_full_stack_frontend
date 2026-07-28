@@ -1,16 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Grid, List, Star, SlidersHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, ShoppingBag, Heart } from 'lucide-react';
+import { Search, Grid, List, Star, SlidersHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, ShoppingBag, Heart, Loader2 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Product } from '../../types';
 import { pageTransition, hoverLift } from '../../lib/framer';
+import { productService } from '../../services/productService';
+
+import { getImageUrl } from '../../utils/imageUrl';
 
 export const ShopPage: React.FC = () => {
-  const { products, addToCart, toggleWishlist, wishlist, role } = useApp();
+  const { addToCart, toggleWishlist, wishlist, role } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // --- Product Data from Backend ---
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const itemsPerPage = 6;
 
   // --- Filter states ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,9 +29,8 @@ export const ShopPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<string>('featured');
   const [isGridView, setIsGridView] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
 
-  // Sync state with URL params
+  // Sync state with URL params on mount
   useEffect(() => {
     const categoryParam = searchParams.get('category');
     const filterParam = searchParams.get('filter');
@@ -35,13 +43,55 @@ export const ShopPage: React.FC = () => {
 
     if (filterParam) {
       if (filterParam === 'bestseller') setSortBy('bestseller');
-      if (filterParam === 'new') setSortBy('new');
-      if (filterParam === 'premium') setSortBy('premium');
+      if (filterParam === 'new') setSortBy('newest');
+      if (filterParam === 'premium') setSortBy('featured');
     } else {
       setSortBy('featured');
     }
     setCurrentPage(1);
   }, [searchParams]);
+
+  // --- Map client sortBy values to backend sort param ---
+  const getSortParam = (sort: string): string | undefined => {
+    switch (sort) {
+      case 'price-low': return 'price_asc';
+      case 'price-high': return 'price_desc';
+      case 'rating': return 'rating';
+      case 'newest': return 'newest';
+      case 'name_asc': return 'name_asc';
+      default: return undefined; // 'featured' → default backend ordering
+    }
+  };
+
+  // --- Fetch products from backend ---
+  const fetchProducts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await productService.getProducts({
+        search: searchQuery || undefined,
+        category: selectedCategory === 'all' ? undefined : selectedCategory,
+        price_min: priceRange.min > 0 ? priceRange.min : undefined,
+        price_max: priceRange.max < 4000 ? priceRange.max : undefined,
+        min_rating: minRating ?? undefined,
+        sort: getSortParam(sortBy),
+        page: currentPage,
+        per_page: itemsPerPage,
+      });
+      setProducts(result.items);
+      setTotalProducts(result.total);
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+      setProducts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, sortBy, currentPage]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const totalPages = Math.ceil(totalProducts / itemsPerPage);
 
   // Categories list
   const categoriesList = [
@@ -67,54 +117,15 @@ export const ShopPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // --- Filtering Logic ---
-  const filteredProducts = products.filter((product) => {
-    // 1. Search Query
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // 2. Category
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-
-    // 3. Price
-    const matchesPrice = product.price >= priceRange.min && product.price <= priceRange.max;
-
-    // 4. Rating
-    const matchesRating = minRating === null || product.rating >= minRating;
-
-    return matchesSearch && matchesCategory && matchesPrice && matchesRating;
-  });
-
-  // --- Sorting Logic ---
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortBy === 'price-low') return a.price - b.price;
-    if (sortBy === 'price-high') return b.price - a.price;
-    if (sortBy === 'rating') return b.rating - a.rating;
-    if (sortBy === 'bestseller') {
-      return (b.badge === 'Bestseller' ? 1 : 0) - (a.badge === 'Bestseller' ? 1 : 0);
-    }
-    if (sortBy === 'new') {
-      return (b.badge === 'New' ? 1 : 0) - (a.badge === 'New' ? 1 : 0);
-    }
-    if (sortBy === 'premium') {
-      return (b.badge === 'Premium' ? 1 : 0) - (a.badge === 'Premium' ? 1 : 0);
-    }
-    return 0; // 'featured'
-  });
-
-  // --- Pagination Logic ---
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = sortedProducts.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
-
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  const indexOfFirstItem = (currentPage - 1) * itemsPerPage + 1;
+  const indexOfLastItem = Math.min(currentPage * itemsPerPage, totalProducts);
 
   return (
     <motion.div
@@ -286,8 +297,14 @@ export const ShopPage: React.FC = () => {
             {/* Toolbar Upper */}
             <div className="shop-toolbar">
               <span style={{ fontSize: '0.9rem', color: 'var(--beige)' }}>
-                Showing <strong>{indexOfFirstItem + 1} - {Math.min(indexOfLastItem, sortedProducts.length)}</strong> of{' '}
-                <strong>{sortedProducts.length}</strong> products
+                {isLoading ? (
+                  <Loader2 size={16} className="spin" style={{ display: 'inline', color: 'var(--gold)' }} />
+                ) : (
+                  <>
+                    Showing <strong>{totalProducts > 0 ? indexOfFirstItem : 0} - {indexOfLastItem}</strong> of{' '}
+                    <strong>{totalProducts}</strong> products
+                  </>
+                )}
               </span>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -296,7 +313,7 @@ export const ShopPage: React.FC = () => {
                   <ArrowUpDown size={14} style={{ color: 'var(--gold)' }} />
                   <select
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -310,8 +327,7 @@ export const ShopPage: React.FC = () => {
                     <option value="price-low" style={{ background: 'var(--dark-chocolate)' }}>Price: Low to High</option>
                     <option value="price-high" style={{ background: 'var(--dark-chocolate)' }}>Price: High to Low</option>
                     <option value="rating" style={{ background: 'var(--dark-chocolate)' }}>Highest Rated</option>
-                    <option value="bestseller" style={{ background: 'var(--dark-chocolate)' }}>Bestsellers</option>
-                    <option value="new" style={{ background: 'var(--dark-chocolate)' }}>New Arrivals</option>
+                    <option value="newest" style={{ background: 'var(--dark-chocolate)' }}>New Arrivals</option>
                   </select>
                 </div>
 
@@ -342,7 +358,12 @@ export const ShopPage: React.FC = () => {
             </div>
 
             {/* List / Grid Display */}
-            {currentItems.length === 0 ? (
+            {isLoading ? (
+              <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--gold)' }}>
+                <Loader2 size={40} style={{ animation: 'spin 1s linear infinite' }} />
+                <p style={{ marginTop: '16px', color: 'var(--beige)' }}>Loading products...</p>
+              </div>
+            ) : products.length === 0 ? (
               <div className="shop-empty-state">
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '10px' }}>
                   No Products Found
@@ -357,14 +378,14 @@ export const ShopPage: React.FC = () => {
             ) : isGridView ? (
               /* Grid Layout */
               <div className="shop-product-grid">
-                {currentItems.map((prod) => (
+                {products.map((prod) => (
                   <Card key={prod.id} product={prod} />
                 ))}
               </div>
             ) : (
               /* List Layout */
               <div className="shop-list-layout">
-                {currentItems.map((prod) => {
+                {products.map((prod) => {
                   const inWish = wishlist.some((p) => p.id === prod.id);
                   return (
                     <motion.div
@@ -376,7 +397,7 @@ export const ShopPage: React.FC = () => {
                     >
                       <div style={{ overflow: 'hidden', borderRadius: '4px' }}>
                         <img
-                          src={prod.image}
+                          src={getImageUrl(prod.image)}
                           alt={prod.name}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           onError={(e) => {
@@ -456,7 +477,7 @@ export const ShopPage: React.FC = () => {
             )}
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
+            {totalPages > 1 && !isLoading && (
               <div
                 style={{
                   display: 'flex',

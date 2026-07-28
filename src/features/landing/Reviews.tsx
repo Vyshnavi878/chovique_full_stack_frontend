@@ -1,43 +1,58 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Play, Quote } from 'lucide-react';
 import { scaleUp } from '../../lib/framer';
+import { homeService } from '../../services/homeService';
+import type { Testimonial } from '../../types';
+
+// Video reviews are static marketing content (no backend model for these)
+const videoReviews = [
+  { id: 1, name: 'Priya Sharma', image: '/assets/product-1.jpg', text: 'Absolutely divine! The dark truffle melted like silk...', stars: 5 },
+  { id: 2, name: 'Arjun Mehta', image: '/assets/product-3.jpg', text: 'Gifted the Royal Box to my wife. Best reaction ever!', stars: 5 },
+  { id: 3, name: 'Sara Khan', image: '/assets/product-5.jpg', text: 'The salted caramel is unreal. Can\'t stop ordering!', stars: 5 },
+  { id: 4, name: 'Rahul Desai', image: '/assets/product-7.jpg', text: 'Premium quality. Packaging is so elegant, worth every rupee.', stars: 5 },
+];
+
+// Fallback written testimonials while loading
+const FALLBACK_TESTIMONIALS: Testimonial[] = [
+  {
+    stars: 5,
+    text: 'I\'ve tried chocolates from Belgium, Switzerland, and France — but Chovique genuinely stands apart. The depth of flavor in their single-origin bars is extraordinary.',
+    author: 'Vikram Kapoor',
+    title: 'Food Critic, Mumbai',
+    initials: 'VK',
+  },
+  {
+    stars: 5,
+    text: 'Ordered a bespoke gift box for my mother\'s birthday. The presentation was flawless, and the chocolates were even better. Chovique turned a gift into a memory.',
+    author: 'Neha Patel',
+    title: 'Loyal Customer, Delhi',
+    initials: 'NP',
+  },
+  {
+    stars: 5,
+    text: 'As a pastry chef, I\'m incredibly particular about chocolate. Chovique\'s cocoa is consistent, rich, and tempers beautifully. It\'s my go-to for all premium work.',
+    author: 'Chef Ravi Joshi',
+    title: 'Pastry Chef, Bangalore',
+    initials: 'RJ',
+  },
+];
 
 export const Reviews: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [textTestimonials, setTextTestimonials] = useState<Testimonial[]>(FALLBACK_TESTIMONIALS);
 
-  // Video reviews mock list
-  const videoReviews = [
-    { id: 1, name: 'Priya Sharma', image: '/assets/product-1.jpg', text: 'Absolutely divine! The dark truffle melted like silk...', stars: 5 },
-    { id: 2, name: 'Arjun Mehta', image: '/assets/product-3.jpg', text: 'Gifted the Royal Box to my wife. Best reaction ever!', stars: 5 },
-    { id: 3, name: 'Sara Khan', image: '/assets/product-5.jpg', text: 'The salted caramel is unreal. Can\'t stop ordering!', stars: 5 },
-    { id: 4, name: 'Rahul Desai', image: '/assets/product-7.jpg', text: 'Premium quality. Packaging is so elegant, worth every rupee.', stars: 5 },
-  ];
-
-  // Written testimonials
-  const textTestimonials = [
-    {
-      stars: 5,
-      text: 'I\'ve tried chocolates from Belgium, Switzerland, and France — but Chovique genuinely stands apart. The depth of flavor in their single-origin bars is extraordinary.',
-      author: 'Vikram Kapoor',
-      title: 'Food Critic, Mumbai',
-      initials: 'VK',
-    },
-    {
-      stars: 5,
-      text: 'Ordered a bespoke gift box for my mother\'s birthday. The presentation was flawless, and the chocolates were even better. Chovique turned a gift into a memory.',
-      author: 'Neha Patel',
-      title: 'Loyal Customer, Delhi',
-      initials: 'NP',
-    },
-    {
-      stars: 5,
-      text: 'As a pastry chef, I\'m incredibly particular about chocolate. Chovique\'s cocoa is consistent, rich, and tempers beautifully. It\'s my go-to for all premium work.',
-      author: 'Chef Ravi Joshi',
-      title: 'Pastry Chef, Bangalore',
-      initials: 'RJ',
-    },
-  ];
+  useEffect(() => {
+    homeService.getTestimonials()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setTextTestimonials(data);
+        }
+      })
+      .catch(() => {
+        // Keep fallback testimonials on error — non-critical display content
+      });
+  }, []);
 
   return (
     <section
@@ -57,7 +72,7 @@ export const Reviews: React.FC = () => {
             What Our <span className="gold">Chocolate Lovers</span> Say
           </h2>
           <p className="section-subtitle" style={{ margin: '0 auto' }}>
-            Real stories from real people who\'ve experienced the magic of Chovique chocolates.
+            Real stories from real people who've experienced the magic of Chovique chocolates.
           </p>
         </div>
 
@@ -161,7 +176,7 @@ export const Reviews: React.FC = () => {
         >
           {textTestimonials.map((test, index) => (
             <motion.div
-              key={test.author}
+              key={test.author + index}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -221,7 +236,7 @@ export const Reviews: React.FC = () => {
                     border: '1px solid var(--gold)',
                   }}
                 >
-                  {test.initials}
+                  {test.initials || test.author.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <h5 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cream)', margin: 0 }}>

@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/authService';
 
 export const LoginPage: React.FC = () => {
-  const { login, setUser, setRole } = useApp() as any;
+  const { login, googleLogin } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -162,28 +162,21 @@ export const LoginPage: React.FC = () => {
               onSuccess={async (credentialResponse) => {
                 if (credentialResponse.credential) {
                   setIsGoogleLoading(true);
+                  setError('');
                   try {
-                    const res = await authService.googleSignIn(credentialResponse.credential);
-                    if (res.require_otp && res.email) {
-                      navigate('/register', {
-                        state: {
-                          googleOtp: true,
-                          email: res.email,
-                          expires_in: res.expires_in,
-                          message: res.message,
-                        },
-                      });
-                      return;
-                    }
-                    if (res.user) {
-                      const loggedInUser = res.user;
-                      if (setUser) setUser(loggedInUser);
-                      if (setRole) setRole(loggedInUser.role);
-                      localStorage.setItem('chovique_user', JSON.stringify(loggedInUser));
-                      localStorage.setItem('chovique_session', '1');
-                      if (loggedInUser.role === 'admin') navigate('/admin');
-                      else if (loggedInUser.role === 'superadmin') navigate('/superadmin');
-                      else navigate(from, { replace: true });
+                    const result = await googleLogin(credentialResponse.credential);
+                    if (result.success) {
+                      if (result.user && result.user.has_password === false) {
+                        navigate('/set-password', { state: { from } });
+                      } else if (result.role === 'admin') {
+                        navigate('/admin');
+                      } else if (result.role === 'superadmin') {
+                        navigate('/superadmin');
+                      } else {
+                        navigate(from, { replace: true });
+                      }
+                    } else {
+                      setError(result.error || 'Google Sign-In failed.');
                     }
                   } catch (err: unknown) {
                     const msg = err instanceof Error ? err.message : 'Google Sign-In failed.';

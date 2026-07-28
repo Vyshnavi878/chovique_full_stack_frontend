@@ -1,16 +1,14 @@
 /**
  * Auth Service — handles login, register, logout, OTP, forgot-password, and session refresh.
- * Supports backend API and demo mode fallback.
  *
  * Auth Strategy:
- *   - The backend sets httponly cookies (access_token, refresh_token) on login/register.
- *   - All API calls use `credentials: 'include'` so cookies are sent automatically.
- *   - No manual token storage or Bearer header is needed for cookie-based auth.
- *   - Demo mode stores a fake token string in localStorage for non-backend testing.
+ *   - The backend sets httpOnly cookies (access_token, refresh_token) on login/register.
+ *   - All API calls use credentials: 'include' so cookies are sent automatically.
+ *   - No manual token storage or Bearer header is needed.
+ *   - No demo mode, no localStorage auth fallbacks.
  */
 
-import { apiGet, apiPost, clearToken, getToken } from '../lib/api';
-import { demoLogin, demoRegister, demoGetMe } from '../lib/demoAuth';
+import { apiGet, apiPost } from '../lib/api';
 import type {
   User,
   LoginPayload,
@@ -22,62 +20,29 @@ import type {
   GoogleAuthResponse,
 } from '../types';
 
-/** True when explicitly set in .env */
-const DEMO_MODE = (import.meta.env.VITE_DEMO_MODE as string) === 'true';
-
-/** Check if a stored token is a demo token */
-const isDemoToken = (token: string | null): boolean =>
-  token !== null && token.startsWith('demo_token_');
-
 export const authService = {
   /**
-   * Login — tries backend first; falls back to demo mode on network failure.
-   * Auth is via httponly cookies set by the backend, not a token in the response body.
+   * Login — POST /auth/login.
+   * Backend sets httpOnly access + refresh cookies on success.
    */
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
-    if (DEMO_MODE) {
-      return demoLogin(payload.email, payload.password);
-    }
-
-    try {
-      return await apiPost<AuthResponse>('/auth/login', {
-        email: payload.email,
-        password: payload.password,
-      });
-    } catch (err: unknown) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[Chovique] Backend unreachable — using demo mode auth.');
-        return demoLogin(payload.email, payload.password);
-      }
-      throw err;
-    }
+    return apiPost<AuthResponse>('/auth/login', {
+      email: payload.email,
+      password: payload.password,
+    });
   },
 
   /**
-   * Register — Step 1 of the two-step signup flow: sends an OTP to the
-   * user's email. No account is created at this point.
+   * Register — Step 1: POST /auth/register.
+   * Sends OTP to the user's email. No account is created at this point.
    */
   register: async (payload: RegisterPayload): Promise<SendOtpResponse> => {
-    if (DEMO_MODE) {
-      await demoRegister(payload.name, payload.email, payload.password);
-      return { message: 'OTP sent successfully.', email: payload.email, expires_in: 30 };
-    }
-
-    try {
-      return await apiPost<SendOtpResponse>('/auth/register', {
-        full_name: payload.name,
-        email: payload.email,
-        password: payload.password,
-        confirm_password: payload.confirmPassword,
-      });
-    } catch (err: unknown) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[Chovique] Backend unreachable — using demo mode registration.');
-        await demoRegister(payload.name, payload.email, payload.password);
-        return { message: 'OTP sent successfully.', email: payload.email, expires_in: 30 };
-      }
-      throw err;
-    }
+    return apiPost<SendOtpResponse>('/auth/register', {
+      full_name: payload.name,
+      email: payload.email,
+      password: payload.password,
+      confirm_password: payload.confirmPassword,
+    });
   },
 
   /**
@@ -115,8 +80,8 @@ export const authService = {
   /**
    * Forgot password — sends reset OTP to email.
    */
-  forgotPassword: async (email: string): Promise<{ message: string }> => {
-    return apiPost<{ message: string }>('/auth/forgot-password', { email });
+  forgotPassword: async (email: string): Promise<{ message: string; dev_otp?: string }> => {
+    return apiPost<{ message: string; dev_otp?: string }>('/auth/forgot-password', { email });
   },
 
   /**
@@ -132,8 +97,8 @@ export const authService = {
   /**
    * Resend forgot-password OTP.
    */
-  resendForgotOtp: async (email: string): Promise<{ message: string }> => {
-    return apiPost<{ message: string }>('/auth/resend-forgot-otp', { email });
+  resendForgotOtp: async (email: string): Promise<{ message: string; dev_otp?: string }> => {
+    return apiPost<{ message: string; dev_otp?: string }>('/auth/resend-forgot-otp', { email });
   },
 
   /**
@@ -176,25 +141,29 @@ export const authService = {
   },
 
   /**
-   * Logout — clears server-side session (cookie) and local state.
+   * Set password for OAuth / Google users who don't have a password yet — POST /auth/set-password.
+   */
+  setPassword: async (password: string, confirmPassword: string): Promise<AuthResponse> => {
+    return apiPost<AuthResponse>('/auth/set-password', {
+      password,
+      confirm_password: confirmPassword,
+    });
+  },
+
+  /**
+   * Logout — clears server-side session (cookie).
+   * Best-effort: even if server logout fails, session cookie will eventually expire.
    */
   logout: async (): Promise<void> => {
-    const token = getToken();
-    if (isDemoToken(token)) {
-      clearToken();
-      return;
-    }
     try {
       await apiPost<void>('/auth/logout');
     } catch {
-      // Best-effort: even if server logout fails, clear local state
-    } finally {
-      clearToken();
+      // Best-effort: even if server logout fails, the cookie will expire
     }
   },
 
   /**
-   * Refresh access token using the httponly refresh cookie.
+   * Refresh access token using the httpOnly refresh cookie.
    * The backend replaces both cookies on success.
    */
   refreshToken: async (): Promise<{ message: string }> => {
@@ -203,14 +172,10 @@ export const authService = {
 
   /**
    * Fetch authenticated user's profile.
-   * Uses httponly cookie session — no token needed from localStorage.
-   * Backend now returns the nested { id, name, email, role, profile: {...} } shape.
+   * Uses httpOnly cookie session — no token needed from localStorage.
+   * Returns null-equivalent if not authenticated (401 redirects to /login).
    */
   getMe: async (): Promise<User> => {
-    const token = getToken();
-    if (isDemoToken(token!)) {
-      return demoGetMe(token!);
-    }
     return apiGet<User>('/users/me');
   },
 };

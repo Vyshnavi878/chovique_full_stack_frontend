@@ -20,6 +20,8 @@ import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { adminService } from '../../services/adminService';
+import { productService } from '../../services/productService';
+import { inventoryService } from '../../services/inventoryService';
 import { Product, OfflineSale, SystemUser } from '../../types';
 
 // SystemUser is imported from types/index.ts
@@ -31,6 +33,7 @@ export const AdminDashboard: React.FC = () => {
     updateProductInventory,
     deleteProduct,
     offlineSales,
+    setOfflineSales,
     orders,
     addOfflineSale,
     importOfflineSales,
@@ -76,20 +79,8 @@ export const AdminDashboard: React.FC = () => {
   const [productAddedSuccess, setProductAddedSuccess] = useState(false);
 
   // --- Dynamic local state for stock/units sold to keep them interactive ---
-  const [productMetrics, setProductMetrics] = useState<{ [productId: string]: { stock: number; sold: number } }>(() => {
-    const saved = localStorage.getItem('chovique_product_metrics');
-    if (saved) return JSON.parse(saved);
-    return {
-      'p1': { stock: 45, sold: 148 },
-      'p2': { stock: 12, sold: 92 },
-      'p3': { stock: 8, sold: 74 },
-      'p4': { stock: 60, sold: 110 },
-      'p5': { stock: 3, sold: 88 },
-      'p6': { stock: 25, sold: 56 },
-      'p7': { stock: 18, sold: 63 },
-      'p8': { stock: 35, sold: 120 },
-    };
-  });
+  // Stock is now stored in the Product object from backend (product.stock)
+  const [productMetrics, setProductMetrics] = useState<{ [productId: string]: { stock: number; sold: number } }>({});
 
   // --- Inventory Editor State ---
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -111,8 +102,7 @@ export const AdminDashboard: React.FC = () => {
     setNewProd(prev => ({ ...prev, imageFile: file, imagePreviewUrl: previewUrl }));
   };
 
-  // Handle adding product
-  // TODO: When backend is live, replace addProduct() with productService.createProduct(formData)
+  // Handle adding product — calls productService.createProduct with real FormData
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || newProd.price <= 0) return;
@@ -137,43 +127,15 @@ export const AdminDashboard: React.FC = () => {
     formData.append('nutrition_total_carb', newProd.totalCarb);
     formData.append('nutrition_protein', newProd.protein);
 
-    // TODO: Uncomment when backend is live:
-    // try {
-    //   const created = await productService.createProduct(formData);
-    //   addProduct(created); // or refresh product list from API
-    // } catch (err) {
-    //   console.error('Failed to create product:', err);
-    //   return;
-    // }
-
-    // Fallback: local state update (remove when backend is live)
-    const newId = `p${products.length + 1}`;
-    addProduct({
-      name: newProd.name,
-      category: newProd.category,
-      price: newProd.price,
-      weight: newProd.weight,
-      description: newProd.description,
-      ingredients: newProd.ingredients,
-      badge: newProd.badge || undefined,
-      image: newProd.imagePreviewUrl || 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80',
-      nutrition: {
-        calories: newProd.calories,
-        totalFat: newProd.totalFat,
-        saturatedFat: newProd.saturatedFat,
-        cholesterol: newProd.cholesterol,
-        sodium: newProd.sodium,
-        totalCarb: newProd.totalCarb,
-        protein: newProd.protein,
-      },
-    });
-
-    const updatedMetrics = {
-      ...productMetrics,
-      [newId]: { stock: newProd.stock, sold: 0 }
-    };
-    setProductMetrics(updatedMetrics);
-    localStorage.setItem('chovique_product_metrics', JSON.stringify(updatedMetrics));
+    try {
+      const created = await productService.createProduct(formData);
+      addProduct(created);
+    } catch (err: any) {
+      console.error('Failed to create product:', err);
+      const detail = err?.detail || err?.message || 'Failed to create product. Please try again.';
+      alert(detail);
+      return;
+    }
 
     setProductAddedSuccess(true);
     setNewProd({
@@ -201,20 +163,25 @@ export const AdminDashboard: React.FC = () => {
     }, 2000);
   };
 
-  // Handle inventory edit save
-  const handleSaveInventory = (productId: string) => {
-    updateProductInventory(productId, editWeight, editPrice);
-    
-    const updatedMetrics = {
-      ...productMetrics,
-      [productId]: {
-        ...productMetrics[productId],
-        stock: editStock
-      }
-    };
-    setProductMetrics(updatedMetrics);
-    localStorage.setItem('chovique_product_metrics', JSON.stringify(updatedMetrics));
+  // Handle inventory edit save — calls inventoryService.updateStock + productService.updateProduct
+  const handleSaveInventory = async (productId: string) => {
+    try {
+      // Update price, weight, and stock via product service
+      await productService.updateProduct(productId, { price: editPrice, weight: editWeight, stock: editStock });
+      // Update stock log via inventory service
+      await inventoryService.updateStock({ product_id: productId, new_stock: editStock, reason: 'Admin manual update' });
+      // Update local context
+      updateProductInventory(productId, editWeight, editPrice, editStock);
+      setProductMetrics((prev) => ({
+        ...prev,
+        [productId]: { ...prev[productId], stock: editStock },
+      }));
 
+    } catch (err: any) {
+      console.error('Failed to update inventory:', err);
+      const detail = err?.detail || err?.message || 'Failed to update inventory. Please try again.';
+      alert(detail);
+    }
     setEditingId(null);
   };
 
@@ -231,19 +198,16 @@ export const AdminDashboard: React.FC = () => {
   const [importSuccess, setImportSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Customers Inspector State ---
-  // TODO: Replace initial state with adminService.getUsers() when backend is live
+  // --- Customers Inspector State — fetched from backend on mount ---
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [inspectedCustomer, setInspectedCustomer] = useState<SystemUser | null>(null);
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([
-    { id: 'u1', name: 'Priya Sharma', email: 'customer@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-    { id: 'u2', name: 'Vikram Kapoor', email: 'vikram@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-    { id: 'u3', name: 'Neha Patel', email: 'neha@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-    { id: 'u4', name: 'Chef Ravi Joshi', email: 'ravi@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-    { id: 'u5', name: 'Alok Mishra', email: 'alok@chovique.com', role: 'admin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: false, configureThemes: false, exportData: true } },
-    { id: 'u6', name: 'Karen Dsouza', email: 'karen@chovique.com', role: 'admin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: false, configureThemes: false, exportData: false } },
-    { id: 'u7', name: 'Enterprise Chief', email: 'superadmin@chovique.com', role: 'superadmin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: true, configureThemes: true, exportData: true } },
-  ]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+
+  useEffect(() => {
+    adminService.getUsers()
+      .then((users) => setSystemUsers(users))
+      .catch((err) => console.error('Failed to fetch users:', err));
+  }, []);
 
   // Trigger file select dialog
   const triggerFileSelect = () => {
@@ -253,9 +217,7 @@ export const AdminDashboard: React.FC = () => {
   /**
    * Handle CSV file upload for bulk offline sales import.
    * Sends the raw CSV file to the backend as multipart/form-data.
-   * All CSV parsing logic is handled by the backend — NOT the frontend.
-   *
-   * TODO: Uncomment the adminService call when backend is live.
+   * All CSV parsing is handled server-side.
    */
   const handleFileUploadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -264,50 +226,22 @@ export const AdminDashboard: React.FC = () => {
     const file = files[0];
     setImporting(true);
 
-    // Build FormData and send to backend
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      // TODO: Uncomment when backend is live:
-      // const result = await adminService.importOfflineSales(formData);
-      // setImportSuccess(true);
-      // console.log(`Imported ${result.imported} sales records.`);
-      // setTimeout(() => setImportSuccess(false), 4000);
-
-      // Fallback: client-side CSV parse (remove when backend is live)
-      const text = await file.text();
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length < 2) {
-        alert('CSV file must contain a header row and at least one data row.');
-        return;
-      }
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const nameIdx = headers.findIndex(h => h.includes('product') || h.includes('item') || h.includes('name'));
-      const qtyIdx = headers.findIndex(h => h.includes('qty') || h.includes('quantity'));
-      const priceIdx = headers.findIndex(h => h.includes('price') || h.includes('total') || h.includes('amount'));
-      const payIdx = headers.findIndex(h => h.includes('payment') || h.includes('method') || h.includes('pay'));
-      const parsedSales: Omit<OfflineSale, 'id' | 'date'>[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.trim().replace(/^["']|["']$/g, ''));
-        if (row.length === 0 || !row[0]) continue;
-        parsedSales.push({
-          productName: nameIdx !== -1 && row[nameIdx] ? row[nameIdx] : 'Belgian Dark Truffle Bar',
-          quantity: qtyIdx !== -1 && row[qtyIdx] ? parseInt(row[qtyIdx]) || 1 : 1,
-          totalPrice: priceIdx !== -1 && row[priceIdx] ? parseFloat(row[priceIdx].replace(/[^0-9.]/g, '')) || 0 : 849,
-          paymentMethod: payIdx !== -1 && row[payIdx] ? row[payIdx] : 'Cash',
-        });
-      }
-      if (parsedSales.length > 0) {
-        importOfflineSales(parsedSales);
-        setImportSuccess(true);
-        setTimeout(() => setImportSuccess(false), 4000);
-      } else {
-        alert('Could not parse any valid sale rows from the CSV file.');
-      }
+      const result = await adminService.importOfflineSales(formData);
+      setImportSuccess(true);
+      console.log(`Imported ${result.imported} sales records, skipped ${result.skipped}.`);
+      // Refresh offline sales list from backend
+      adminService.getOfflineSales()
+        .then((sales) => setOfflineSales(sales))
+        .catch(() => {});
+      setTimeout(() => setImportSuccess(false), 4000);
     } catch (err) {
       console.error('CSV upload error:', err);
-      alert('Failed to upload CSV file.');
+      const msg = err instanceof Error ? err.message : 'Failed to upload CSV file.';
+      alert(msg);
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -340,26 +274,37 @@ export const AdminDashboard: React.FC = () => {
     setSaleBasket(prev => prev.filter((_, idx) => idx !== index));
   };
 
-  // Handle manual batch sales logging
-  const handleLogTransaction = (e: React.FormEvent) => {
+  // Handle manual batch sales logging — calls adminService.addOfflineSale for each basket item
+  const handleLogTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saleBasket.length === 0) {
-      alert("Please add at least one product to the basket first.");
+      alert('Please add at least one product to the basket first.');
       return;
     }
-    
-    saleBasket.forEach(item => {
-      addOfflineSale({
-        productName: item.productName,
-        quantity: item.quantity,
-        totalPrice: item.totalPrice,
-        paymentMethod: manualSale.paymentMethod,
-      });
-    });
 
-    setSaleBasket([]);
-    setSaleAddedSuccess(true);
-    setTimeout(() => setSaleAddedSuccess(false), 3000);
+    try {
+      for (const item of saleBasket) {
+        const created = await adminService.addOfflineSale({
+          product_name: item.productName,
+          quantity: item.quantity,
+          total_price: item.totalPrice,
+          payment_method: manualSale.paymentMethod,
+        });
+        addOfflineSale({
+          productName: created.productName,
+          quantity: created.quantity,
+          totalPrice: created.totalPrice,
+          paymentMethod: created.paymentMethod,
+        });
+      }
+      setSaleBasket([]);
+      setSaleAddedSuccess(true);
+      setTimeout(() => setSaleAddedSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to log transaction:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to log sales.';
+      alert(msg);
+    }
   };
 
   // Specific Customer Inspection Details
@@ -641,7 +586,7 @@ export const AdminDashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {products.map((prod) => {
-                    const metrics = productMetrics[prod.id] || { stock: 0, sold: 0 };
+                    const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
                     return (
                       <tr key={prod.id}>
                         <td>{prod.name}</td>
@@ -699,11 +644,12 @@ export const AdminDashboard: React.FC = () => {
                               }}
                             />
                           ) : (
-                            <span style={{ fontWeight: 700, color: metrics.stock < 10 ? 'var(--rose-gold)' : 'var(--cream)' }}>
-                              {metrics.stock} units
+                            <span style={{ fontWeight: 700, color: displayStock < 10 ? 'var(--rose-gold)' : 'var(--cream)' }}>
+                              {displayStock} units
                             </span>
                           )}
                         </td>
+
                         <td>
                           {editingId === prod.id ? (
                             <div style={{ display: 'flex', gap: '8px' }}>
@@ -728,7 +674,9 @@ export const AdminDashboard: React.FC = () => {
                                 setEditingId(prod.id);
                                 setEditPrice(prod.price);
                                 setEditWeight(prod.weight);
-                                setEditStock(metrics.stock);
+                                setEditStock(displayStock);
+
+
                               }}
                               style={{ color: 'var(--gold)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
@@ -1001,34 +949,21 @@ export const AdminDashboard: React.FC = () => {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            {cust.email === 'customer@chovique.com' && localStorage.getItem('chovique_customer_profile_image') ? (
-                              <img
-                                src={localStorage.getItem('chovique_customer_profile_image') || ''}
-                                alt={cust.name}
-                                style={{
-                                  width: '36px',
-                                  height: '36px',
-                                  borderRadius: '50%',
-                                  objectFit: 'cover',
-                                  border: '1px solid var(--gold)',
-                                }}
-                              />
-                            ) : (
-                              <div style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '50%',
-                                background: 'var(--gradient-gold)',
-                                color: 'var(--dark-chocolate)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                              }}>
-                                {cust.name.substring(0, 2).toUpperCase()}
-                              </div>
-                            )}
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: 'var(--chocolate-brown)',
+                              color: 'var(--gold)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 600,
+                              fontSize: '0.85rem',
+                              border: '1px solid var(--gold)',
+                            }}>
+                              {cust.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                            </div>
                             <div>
                               <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: '1rem', fontWeight: 600 }}>{cust.name}</h4>
                               <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{cust.email}</span>
@@ -1083,34 +1018,21 @@ export const AdminDashboard: React.FC = () => {
                     </button>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-                      {inspectedCustomer.email === 'customer@chovique.com' && localStorage.getItem('chovique_customer_profile_image') ? (
-                        <img
-                          src={localStorage.getItem('chovique_customer_profile_image') || ''}
-                          alt={inspectedCustomer.name}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                            border: '2px solid var(--gold)',
-                          }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '50%',
-                          background: 'var(--gradient-gold)',
-                          color: 'var(--dark-chocolate)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '1.2rem',
-                        }}>
-                          {inspectedCustomer.name.substring(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        background: 'var(--chocolate-brown)',
+                        color: 'var(--gold)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 600,
+                        fontSize: '1rem',
+                        border: '2px solid var(--gold)',
+                      }}>
+                        {inspectedCustomer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
                       <div>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', margin: 0 }}>
                           {inspectedCustomer.name}

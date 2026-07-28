@@ -50,6 +50,8 @@ import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { pageTransition } from '../../lib/framer';
+import { adminService } from '../../services/adminService';
+import type { SystemUser, Order } from '../../types';
 
 // Theme Presets interface
 interface ThemePreset {
@@ -116,20 +118,7 @@ const builtInPresets: ThemePreset[] = [
   },
 ];
 
-// Users list interface for Roles & Permissions
-interface SystemUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'customer' | 'admin' | 'superadmin';
-  permissions: {
-    manageInventory: boolean;
-    viewAnalytics: boolean;
-    manageUsers: boolean;
-    configureThemes: boolean;
-    exportData: boolean;
-  };
-}
+
 
 export const SuperadminDashboard: React.FC = () => {
   const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products } = useApp();
@@ -198,41 +187,28 @@ export const SuperadminDashboard: React.FC = () => {
   const bannerFileRef = useRef<HTMLInputElement>(null);
 
   // --- Admin Accounts Management State ---
-  const [admins, setAdmins] = useState([
-    { id: 'a1', name: 'Alok Mishra', email: 'alok@chovique.com', status: 'Active', scope: 'All Boutiques' },
-    { id: 'a2', name: 'Karen Dsouza', email: 'karen@chovique.com', status: 'Active', scope: 'West Region' },
-  ]);
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', scope: 'All Boutiques' });
+  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '', scope: 'All Boutiques' });
+  const [adminCreateError, setAdminCreateError] = useState('');
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
   // --- Roles & Permissions User List State ---
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>(() => {
-    const saved = localStorage.getItem('chovique_system_users');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'u1', name: 'Priya Sharma', email: 'customer@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-      { id: 'u2', name: 'Vikram Kapoor', email: 'vikram@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-      { id: 'u3', name: 'Neha Patel', email: 'neha@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-      { id: 'u4', name: 'Chef Ravi Joshi', email: 'ravi@chovique.com', role: 'customer', permissions: { manageInventory: false, viewAnalytics: false, manageUsers: false, configureThemes: false, exportData: false } },
-      { id: 'u5', name: 'Alok Mishra', email: 'alok@chovique.com', role: 'admin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: false, configureThemes: false, exportData: true } },
-      { id: 'u6', name: 'Karen Dsouza', email: 'karen@chovique.com', role: 'admin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: false, configureThemes: false, exportData: false } },
-      { id: 'u7', name: 'Enterprise Chief', email: 'superadmin@chovique.com', role: 'superadmin', permissions: { manageInventory: true, viewAnalytics: true, manageUsers: true, configureThemes: true, exportData: true } },
-    ];
-  });
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('chovique_system_users', JSON.stringify(systemUsers));
-  }, [systemUsers]);
+    adminService.getUsers()
+      .then((users) => setSystemUsers(users))
+      .catch((err) => console.error('Failed to fetch system users:', err));
+  }, []);
 
   // --- Orders State with live modifications ---
-  const [superOrders, setSuperOrders] = useState(() => {
-    const saved = localStorage.getItem('chovique_orders');
-    return saved ? JSON.parse(saved) : orders;
-  });
+  const [superOrders, setSuperOrders] = useState<Order[]>(orders);
 
   useEffect(() => {
-    localStorage.setItem('chovique_orders', JSON.stringify(superOrders));
-  }, [superOrders]);
+    adminService.getAllOrders()
+      .then((fetchedOrders) => setSuperOrders(fetchedOrders))
+      .catch((err) => console.error('Failed to fetch superadmin orders:', err));
+  }, []);
 
   // --- Platform Settings State & Handlers ---
   const [platformSettings, setPlatformSettings] = useState(() => {
@@ -369,52 +345,51 @@ export const SuperadminDashboard: React.FC = () => {
     if (bannerFileRef.current) bannerFileRef.current.value = '';
   };
 
-  // Add mock admin
-  const handleAddAdmin = (e: React.FormEvent) => {
+  // Create real admin user in database via FastAPI backend
+  const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdmin.name || !newAdmin.email) return;
-    
-    // Add to side list
-    setAdmins([
-      ...admins,
-      {
-        id: `a${admins.length + 3}`,
-        name: newAdmin.name,
-        email: newAdmin.email,
-        status: 'Active',
-        scope: newAdmin.scope,
-      },
-    ]);
+    if (!newAdmin.name.trim() || !newAdmin.email.trim() || !newAdmin.password.trim()) {
+      setAdminCreateError('Please fill out Name, Email Address, and Password.');
+      return;
+    }
+    if (newAdmin.password.length < 6) {
+      setAdminCreateError('Password must be at least 6 characters.');
+      return;
+    }
 
-    // Add to global roles list
-    const newUser: SystemUser = {
-      id: `u-${Date.now()}`,
-      name: newAdmin.name,
-      email: newAdmin.email,
-      role: 'admin',
-      permissions: {
-        manageInventory: true,
-        viewAnalytics: true,
-        manageUsers: false,
-        configureThemes: false,
-        exportData: true
-      }
-    };
-    setSystemUsers(prev => [...prev, newUser]);
-    
-    addLogEntry(`Registered new administrator account: ${newAdmin.name}`, 'security');
-    setNewAdmin({ name: '', email: '', scope: 'All Boutiques' });
-    setShowAddAdminForm(false);
+    setIsCreatingAdmin(true);
+    setAdminCreateError('');
+
+    try {
+      const created = await adminService.createAdmin({
+        full_name: newAdmin.name,
+        email: newAdmin.email,
+        password: newAdmin.password,
+        scope: newAdmin.scope,
+      });
+
+      setSystemUsers((prev) => [created, ...prev]);
+      addLogEntry(`Registered new administrator account: ${created.name} (${created.email})`, 'security');
+
+      setNewAdmin({ name: '', email: '', password: '', scope: 'All Boutiques' });
+      setShowAddAdminForm(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to register admin account.';
+      setAdminCreateError(msg);
+    } finally {
+      setIsCreatingAdmin(false);
+    }
   };
 
-  // Delete mock admin
-  const handleRemoveAdmin = (id: string) => {
-    const adm = admins.find(a => a.id === id);
-    setAdmins(admins.filter((a) => a.id !== id));
-    if (adm) {
-      // Also demote or remove from systemUsers
-      setSystemUsers(prev => prev.filter(u => u.email !== adm.email));
-      addLogEntry(`Revoked administrator account: ${adm.name}`, 'security');
+  // Delete admin user from database via FastAPI backend
+  const handleRemoveAdmin = async (id: string, name: string, email: string) => {
+    try {
+      await adminService.deleteUser(id);
+      setSystemUsers((prev) => prev.filter((u) => u.id !== id));
+      addLogEntry(`Revoked administrator account: ${name} (${email})`, 'security');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revoke administrator account.';
+      alert(msg);
     }
   };
 
@@ -708,7 +683,7 @@ export const SuperadminDashboard: React.FC = () => {
                   Active Admins
                 </span>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {admins.length} accounts
+                  {systemUsers.filter(u => u.role === 'admin' || u.role === 'superadmin').length} accounts
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#2ecc71', display: 'block', marginTop: '6px' }}>
                   100% Security Audited
@@ -1254,19 +1229,51 @@ export const SuperadminDashboard: React.FC = () => {
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
                       Add New Administrator Account
                     </h3>
-                    <form onSubmit={handleAddAdmin} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr) auto', gap: '20px', alignItems: 'end' }}>
+                    {adminCreateError && (
+                      <div
+                        style={{
+                          background: 'rgba(231, 76, 60, 0.15)',
+                          border: '1px solid #e74c3c',
+                          color: '#e74c3c',
+                          borderRadius: '4px',
+                          padding: '10px 14px',
+                          fontSize: '0.85rem',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        {adminCreateError}
+                      </div>
+                    )}
+                    <form onSubmit={handleAddAdmin} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(4, 1fr) auto', gap: '16px', alignItems: 'end' }}>
                       <Input
                         label="Full Name"
                         required
                         value={newAdmin.name}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
+                        onChange={(e) => {
+                          setNewAdmin({ ...newAdmin, name: e.target.value });
+                          if (adminCreateError) setAdminCreateError('');
+                        }}
                       />
                       <Input
                         label="Email Address"
                         type="email"
                         required
                         value={newAdmin.email}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
+                        onChange={(e) => {
+                          setNewAdmin({ ...newAdmin, email: e.target.value });
+                          if (adminCreateError) setAdminCreateError('');
+                        }}
+                      />
+                      <Input
+                        label="Initial Password"
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={newAdmin.password}
+                        onChange={(e) => {
+                          setNewAdmin({ ...newAdmin, password: e.target.value });
+                          if (adminCreateError) setAdminCreateError('');
+                        }}
                       />
                       <Select
                         label="Assigned Scope"
@@ -1278,8 +1285,8 @@ export const SuperadminDashboard: React.FC = () => {
                         value={newAdmin.scope}
                         onChange={(e) => setNewAdmin({ ...newAdmin, scope: e.target.value })}
                       />
-                      <Button variant="gold" type="submit" glow style={{ height: '42px' }}>
-                        Register Account
+                      <Button variant="gold" type="submit" glow disabled={isCreatingAdmin} style={{ height: '42px' }}>
+                        {isCreatingAdmin ? 'Creating...' : 'Register Account'}
                       </Button>
                     </form>
                   </div>
@@ -1300,39 +1307,47 @@ export const SuperadminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {admins.map((adm) => (
-                    <tr key={adm.id}>
-                      <td style={{ fontWeight: 600 }}>{adm.name}</td>
-                      <td>{adm.email}</td>
-                      <td>
-                        <span style={{
-                          background: 'rgba(201, 168, 76, 0.15)',
-                          color: 'var(--gold-light)',
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          fontSize: '0.8rem',
-                          border: '1px solid rgba(201, 168, 76, 0.2)',
-                        }}>
-                          {adm.scope}
-                        </span>
-                      </td>
-                      <td style={{ color: '#2ecc71', fontWeight: 600 }}>{adm.status}</td>
-                      <td>
-                        <button
-                          onClick={() => handleRemoveAdmin(adm.id)}
-                          style={{
-                            color: 'var(--rose-gold)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <Trash2 size={16} /> Revoke
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {systemUsers
+                    .filter((u) => u.role === 'admin' || u.role === 'superadmin')
+                    .map((u) => (
+                      <tr key={u.id}>
+                        <td style={{ fontWeight: 600 }}>{u.name}</td>
+                        <td>{u.email}</td>
+                        <td>
+                          <span style={{
+                            background: 'rgba(201, 168, 76, 0.15)',
+                            color: 'var(--gold-light)',
+                            padding: '4px 10px',
+                            borderRadius: '4px',
+                            fontSize: '0.8rem',
+                            border: '1px solid rgba(201, 168, 76, 0.2)',
+                          }}>
+                            {u.role === 'superadmin' ? 'Global Superadmin' : 'All Boutiques'}
+                          </span>
+                        </td>
+                        <td style={{ color: '#2ecc71', fontWeight: 600 }}>Active</td>
+                        <td>
+                          {u.role === 'admin' ? (
+                            <button
+                              onClick={() => handleRemoveAdmin(u.id, u.name, u.email)}
+                              style={{
+                                color: 'var(--rose-gold)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'transparent',
+                                border: 'none',
+                              }}
+                            >
+                              <Trash2 size={16} /> Revoke
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>Superadmin</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
                 </table>
               </div>

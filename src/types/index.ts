@@ -29,6 +29,7 @@ export interface User {
   email: string;
   role: UserRole;
   profile: UserProfile;
+  has_password?: boolean;
 }
 
 export interface Review {
@@ -66,6 +67,7 @@ export interface Product {
   image: string;
   hoverImage?: string;
   reviews: Review[];
+  stock?: number;
 }
 
 export interface CartItem {
@@ -92,6 +94,8 @@ export interface Order {
   };
   deliveryOption: string;
   paymentMethod: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
 }
 
 export interface Banner {
@@ -159,6 +163,90 @@ export interface UserCoupon {
   desc: string;
   exp: string;
   discountPercent?: number;
+}
+
+// =============================================================================
+// HOME PAGE TYPES
+// =============================================================================
+
+export interface Testimonial {
+  id?: string;
+  author: string;
+  title?: string;
+  text: string;
+  stars: number;
+  initials?: string;
+  avatar_url?: string;
+}
+
+export interface HomeStats {
+  happy_customers: number;
+  unique_flavors: number;
+  countries_shipped: number;
+  five_star_reviews_percent: number;
+}
+
+export interface ContactInfo {
+  email: string;
+  phone: string;
+  address: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+}
+
+export interface InstagramReel {
+  id: string;
+  video_url: string;
+  likes?: number;
+  comments?: number;
+  views?: number;
+  title?: string;
+  is_active?: boolean;
+}
+
+export interface HomePageData {
+  banners: Banner[];
+  featured_products: Product[];
+  bestsellers: Product[];
+  new_arrivals: Product[];
+  testimonials: Testimonial[];
+  stats: HomeStats;
+  contact: ContactInfo;
+}
+
+// =============================================================================
+// CATEGORY TYPES
+// =============================================================================
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  is_active: boolean;
+}
+
+// =============================================================================
+// CHECKOUT / PAYMENT TYPES
+// =============================================================================
+
+/** Response from POST /checkout/initiate */
+export interface CheckoutInitiateResponse {
+  razorpay_order_id: string;
+  amount: number;         // in paise (INR * 100)
+  currency: string;       // 'INR'
+  order_id: string;       // Chovique internal order ID
+  key_id: string;         // Razorpay key to use on frontend
+}
+
+/** Payload for POST /payments/verify */
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  order_id: string;       // Chovique internal order ID
 }
 
 // =============================================================================
@@ -291,7 +379,7 @@ export interface OfflineSalePayload {
 // =============================================================================
 
 /** Auth response from /auth/login, /auth/verify-otp, /auth/google, /auth/set-password.
- *  The backend delivers the JWTs as httponly cookies (not readable from JS) —
+ *  The backend delivers the JWTs as httpOnly cookies (not readable from JS) —
  *  the JSON body only carries the message and user profile. */
 export interface AuthResponse {
   message: string;
@@ -338,6 +426,11 @@ export interface AvatarUploadResponse {
 export interface ImportSalesResponse {
   imported: number;
   skipped: number;
+  message: string;
+}
+
+/** Contact form submission response */
+export interface ContactMessageResponse {
   message: string;
 }
 

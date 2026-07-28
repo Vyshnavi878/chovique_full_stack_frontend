@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { pageTransition } from '../../lib/framer';
 
+import { getImageUrl } from '../../utils/imageUrl';
+
 type TabType = 'description' | 'ingredients' | 'nutrition' | 'reviews';
 
 export const ProductDetails: React.FC = () => {
@@ -28,13 +30,14 @@ export const ProductDetails: React.FC = () => {
     const prod = products.find((p) => p.id === id);
     if (prod) {
       setProduct(prod);
-      setActiveImage(prod.image);
+      setActiveImage(getImageUrl(prod.image));
       setQuantity(1);
       setActiveTab('description');
     } else {
       navigate('/404');
     }
   }, [id, products, navigate]);
+
 
   if (!product) return null;
 
@@ -132,11 +135,11 @@ export const ProductDetails: React.FC = () => {
             {/* Thumbnails row */}
             <div className="thumbnail-row">
               <button
-                onClick={() => setActiveImage(product.image)}
-                className={`thumbnail-btn ${activeImage === product.image ? 'active' : ''}`}
+                onClick={() => setActiveImage(getImageUrl(product.image))}
+                className={`thumbnail-btn ${activeImage === getImageUrl(product.image) ? 'active' : ''}`}
               >
                 <img
-                  src={product.image}
+                  src={getImageUrl(product.image)}
                   alt="Product view 1"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />

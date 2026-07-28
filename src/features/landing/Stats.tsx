@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
+import { homeService } from '../../services/homeService';
+import type { HomeStats } from '../../types';
 
 interface CounterProps {
   target: number;
@@ -43,13 +45,31 @@ const Counter: React.FC<CounterProps> = ({ target, suffix = '+' }) => {
   );
 };
 
+/** Default fallback stats while loading */
+const DEFAULT_STATS = [
+  { target: 50000, suffix: '+', label: 'Happy Customers' },
+  { target: 120, suffix: '+', label: 'Unique Flavors' },
+  { target: 15, suffix: '+', label: 'Countries Shipped' },
+  { target: 98, suffix: '%', label: '5-Star Reviews' },
+];
+
 export const Stats: React.FC = () => {
-  const stats = [
-    { target: 50000, suffix: '+', label: 'Happy Customers' },
-    { target: 120, suffix: '+', label: 'Unique Flavors' },
-    { target: 15, suffix: '+', label: 'Countries Shipped' },
-    { target: 98, suffix: '%', label: '5-Star Reviews' },
-  ];
+  const [stats, setStats] = useState(DEFAULT_STATS);
+
+  useEffect(() => {
+    homeService.getStats()
+      .then((data: HomeStats) => {
+        setStats([
+          { target: data.happy_customers, suffix: '+', label: 'Happy Customers' },
+          { target: data.unique_flavors, suffix: '+', label: 'Unique Flavors' },
+          { target: data.countries_shipped, suffix: '+', label: 'Countries Shipped' },
+          { target: data.five_star_reviews_percent, suffix: '%', label: '5-Star Reviews' },
+        ]);
+      })
+      .catch(() => {
+        // Keep default stats on error — non-critical display content
+      });
+  }, []);
 
   return (
     <section

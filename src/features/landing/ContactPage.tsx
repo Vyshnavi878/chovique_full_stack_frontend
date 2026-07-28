@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Phone, Mail, CheckCircle, Clock } from 'lucide-react';
+import { MapPin, Phone, Mail, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { slideInLeft, slideInRight } from '../../lib/framer';
+import { apiPost } from '../../lib/api';
 
 export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -16,13 +17,23 @@ export const ContactPage: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    // Simulate submission
-    setTimeout(() => {
-      setSubmitting(false);
+    setSubmitError('');
+
+    try {
+      await apiPost<{ message: string }>('/contact', {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        subject: formData.subject || undefined,
+        message: formData.message,
+      });
+
       setSubmitted(true);
       setFormData({
         firstName: '',
@@ -32,8 +43,13 @@ export const ContactPage: React.FC = () => {
         subject: '',
         message: '',
       });
-      setTimeout(() => setSubmitted(false), 4000);
-    }, 1800);
+      setTimeout(() => setSubmitted(false), 5000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send message. Please try again.';
+      setSubmitError(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const subjectOptions = [
@@ -197,6 +213,26 @@ export const ContactPage: React.FC = () => {
                     }}
                   />
                 </div>
+
+                {submitError && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      background: 'rgba(231, 76, 60, 0.15)',
+                      border: '1px solid rgba(231, 76, 60, 0.4)',
+                      borderRadius: '4px',
+                      color: '#e74c3c',
+                      padding: '12px 14px',
+                      marginBottom: '16px',
+                      fontSize: '0.88rem',
+                    }}
+                  >
+                    <AlertCircle size={16} />
+                    <span>{submitError}</span>
+                  </div>
+                )}
 
                 {submitted ? (
                   <div

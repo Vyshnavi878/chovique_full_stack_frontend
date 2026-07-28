@@ -11,9 +11,10 @@ import {
   CustomerAddress,
   SupportNotification,
 } from '../types';
-import { initialProducts, initialBanners, initialOrders, initialOfflineSales } from '../data/mockData';
-import { getToken, clearToken } from '../lib/api';
 import { authService } from '../services/authService';
+import { cartService, BackendCartItem } from '../services/cartService';
+import { wishlistService } from '../services/wishlistService';
+import { homeService } from '../services/homeService';
 import { orderService } from '../services/orderService';
 import { ticketService } from '../services/ticketService';
 import { userService } from '../services/userService';
@@ -29,6 +30,8 @@ interface AppContextType {
   role: UserRole;
   isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  googleLogin: (idToken: string) => Promise<{ success: boolean; error?: string; role?: UserRole; user?: User }>;
+  setPassword: (password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (email: string, otp: string, fullName: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -36,10 +39,13 @@ interface AppContextType {
   // Products
   products: Product[];
   banners: Banner[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 
   // Orders
   orders: Order[];
+  setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   offlineSales: OfflineSale[];
+  setOfflineSales: React.Dispatch<React.SetStateAction<OfflineSale[]>>;
 
   // Theme
   theme: {
@@ -52,23 +58,24 @@ interface AppContextType {
 
   // Cart
   cart: CartItem[];
-  addToCart: (product: Product, quantity: number) => void;
-  updateCartQuantity: (productId: string, quantity: number) => void;
-  removeFromCart: (productId: string) => void;
-  clearCart: () => void;
+  addToCart: (product: Product, quantity: number) => Promise<void>;
+  updateCartQuantity: (productId: string, quantity: number) => Promise<void>;
+  removeFromCart: (productId: string) => Promise<void>;
+  clearCart: () => Promise<void>;
 
   // Wishlist
   wishlist: Product[];
-  toggleWishlist: (product: Product) => void;
-  moveToCart: (product: Product) => void;
+  toggleWishlist: (product: Product) => Promise<void>;
+  moveToCart: (product: Product) => Promise<void>;
 
   // Orders
   placeOrderLocal: (order: Order) => void;
 
   // Admin product operations
-  addProduct: (product: Omit<Product, 'id' | 'rating' | 'ratingsCount' | 'reviews'>) => void;
-  updateProductInventory: (productId: string, weight: string, price: number) => void;
+  addProduct: (product: any) => void;
+  updateProductInventory: (productId: string, weight: string, price: number, stock?: number) => void;
   deleteProduct: (productId: string) => void;
+
 
   // Admin offline sales
   addOfflineSale: (sale: Omit<OfflineSale, 'id' | 'date'>) => void;
@@ -101,7 +108,7 @@ interface AppContextType {
     dob?: string;
     gender?: string;
     preferences?: string;
-  }) => void;
+  }) => Promise<void>;
 
   // Addresses
   addresses: CustomerAddress[];
@@ -143,50 +150,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [role, setRole] = useState<UserRole>('guest');
 
   /**
-   * On mount: attempt to rehydrate the session from a stored JWT token.
-   * 1. If a token exists, call GET /users/me to get a fresh user profile.
-   * 2. If the token is expired/invalid, fall back to cached user in localStorage.
-   * 3. Otherwise, start as guest.
+   * On mount: attempt to rehydrate the session from httpOnly cookies.
+   * GET /users/me succeeds if the access cookie is valid.
+   * On 401, user stays as guest — the handleUnauthorized in api.ts will NOT
+   * redirect on /login pages, so this is safe to call unconditionally.
    */
   useEffect(() => {
     const rehydrate = async () => {
-      // 'chovique_session' is a lightweight flag set after a successful login.
-      // We only attempt getMe() if this flag exists — avoids calling the backend
-      // on every page load (including the login page) and prevents 401 redirect loops.
-      const hasSession =
-        localStorage.getItem('chovique_session') === '1' || getToken() !== null;
-
-      if (hasSession) {
-        try {
-          const freshUser = await authService.getMe();
-          setUser(freshUser);
-          setRole(freshUser.role as UserRole);
-          localStorage.setItem('chovique_user', JSON.stringify(freshUser));
-          localStorage.setItem('chovique_session', '1');
-          setIsAuthLoading(false);
-          return;
-        } catch {
-          // Session expired — clear everything
-          clearToken();
-          localStorage.removeItem('chovique_session');
-          localStorage.removeItem('chovique_user');
-        }
+      try {
+        const freshUser = await authService.getMe();
+        setUser(freshUser);
+        setRole(freshUser.role as UserRole);
+      } catch {
+        // 401 = no valid session — guest mode
+        setUser(null);
+        setRole('guest');
+      } finally {
+        setIsAuthLoading(false);
       }
-
-      // Fallback: read cached user from localStorage (offline / demo mode)
-      const savedUser = localStorage.getItem('chovique_user');
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser) as User;
-          setUser(parsedUser);
-          setRole(parsedUser.role);
-        } catch {
-          localStorage.removeItem('chovique_user');
-          setUser(null);
-          setRole('guest');
-        }
-      }
-      setIsAuthLoading(false);
     };
 
     rehydrate();
@@ -203,9 +184,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const loggedInUser = response.user as User;
         setUser(loggedInUser);
         setRole(loggedInUser.role);
-        localStorage.setItem('chovique_user', JSON.stringify(loggedInUser));
-        // Mark that a session exists so rehydration will call getMe() on next mount
-        localStorage.setItem('chovique_session', '1');
         return { success: true, role: loggedInUser.role };
       } catch (err: unknown) {
         const message =
@@ -219,7 +197,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const register = useCallback(
     async (name: string, email: string, password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        // This only triggers the OTP email — the account is created in verifyOtp below.
         await authService.register({ name, email, password, confirmPassword });
         return { success: true };
       } catch (err: unknown) {
@@ -238,12 +215,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newUser = response.user as User;
         setUser(newUser);
         setRole(newUser.role);
-        localStorage.setItem('chovique_user', JSON.stringify(newUser));
-        localStorage.setItem('chovique_session', '1');
         return { success: true };
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'OTP verification failed. Please try again.';
+        return { success: false, error: message };
+      }
+    },
+    []
+  );
+
+  const googleLogin = useCallback(
+    async (idToken: string): Promise<{ success: boolean; error?: string; role?: UserRole; user?: User }> => {
+      try {
+        const response = await authService.googleSignIn(idToken);
+        if (response.user) {
+          const loggedInUser = response.user as User;
+          setUser(loggedInUser);
+          setRole(loggedInUser.role);
+          return { success: true, role: loggedInUser.role, user: loggedInUser };
+        }
+        return { success: false, error: response.message || 'Google Sign-In failed.' };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Google Sign-In failed.';
+        return { success: false, error: message };
+      }
+    },
+    []
+  );
+
+  const setPassword = useCallback(
+    async (password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const response = await authService.setPassword(password, confirmPassword);
+        if (response.user) {
+          setUser(response.user as User);
+        }
+        return { success: true };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to set password.';
         return { success: false, error: message };
       }
     },
@@ -256,136 +266,99 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // Best-effort server-side logout — always clear local state
     } finally {
-      localStorage.removeItem('chovique_user');
-      localStorage.removeItem('chovique_session');
       setUser(null);
       setRole('guest');
       setCart([]);
       setWishlist([]);
+      setOrders([]);
+      setTickets([]);
+      setAddresses([]);
+      setNotifications([]);
     }
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Theme State (kept in localStorage — intentional client-side preference)
+  // Theme State (kept in localStorage — intentional client-side UX preference)
   // ---------------------------------------------------------------------------
 
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('chovique_theme');
-    return saved ? JSON.parse(saved) : defaultTheme;
-  });
-
-  // ---------------------------------------------------------------------------
-  // Product State — seeded from mockData; ShopPage overrides with service calls
-  // ---------------------------------------------------------------------------
-
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('chovique_products');
-    if (!saved) return initialProducts;
     try {
-      const parsed = JSON.parse(saved) as Product[];
-      return parsed.map((p) => {
-        const initial = initialProducts.find((ip) => ip.id === p.id);
-        if (initial) {
-          return { ...p, hoverImage: initial.hoverImage, image: initial.image };
-        }
-        return p;
-      });
+      const saved = localStorage.getItem('chovique_theme');
+      return saved ? JSON.parse(saved) : defaultTheme;
     } catch {
-      return initialProducts;
+      return defaultTheme;
     }
   });
 
-  const [banners, setBanners] = useState<Banner[]>(() => {
-    const saved = localStorage.getItem('chovique_banners');
-    return saved ? JSON.parse(saved) : initialBanners;
-  });
-
   // ---------------------------------------------------------------------------
-  // Order State — seeded from mockData; fetched from service after login
+  // Product State — fetched by individual pages via productService.
+  // Kept in context so admin dashboard and landing page can share state.
   // ---------------------------------------------------------------------------
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('chovique_orders');
-    return saved ? JSON.parse(saved) : initialOrders;
-  });
-
-  const [offlineSales, setOfflineSales] = useState<OfflineSale[]>(() => {
-    const saved = localStorage.getItem('chovique_offline_sales');
-    return saved ? JSON.parse(saved) : initialOfflineSales;
-  });
+  const [products, setProducts] = useState<Product[]>([]);
 
   // ---------------------------------------------------------------------------
-  // Cart & Wishlist (intentionally client-side)
+  // Banner State — fetched from backend on mount
   // ---------------------------------------------------------------------------
 
-  const [wishlist, setWishlist] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('chovique_wishlist');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [banners, setBanners] = useState<Banner[]>([]);
 
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('chovique_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
+  useEffect(() => {
+    homeService.getBanners()
+      .then((result) => setBanners(result))
+      .catch(() => {
+        // Keep empty banners — Hero will render nothing until available
+      });
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // Support Tickets — seeded from demo data; fetched after login
+  // Order State — fetched from service after login
   // ---------------------------------------------------------------------------
 
-  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
-    const saved = localStorage.getItem('chovique_demo_tickets');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'TKT-1082',
-        customerId: 'u1',
-        customerName: 'Demo Customer',
-        category: 'Slow delivery' as SupportTicket['category'],
-        description: 'My order ORD-9872 was delayed by 2 days for a special anniversary dinner.',
-        status: 'Resolved' as const,
-        adminNotes: 'Sincere apologies for the delay. A discount code CHOV40 has been applied for future orders.',
-        customerResolutionFeedback: 'Resolved' as const,
-        date: '2026-06-15',
-        notified: true,
-      },
-    ];
-  });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [offlineSales, setOfflineSales] = useState<OfflineSale[]>([]);
+
+  // ---------------------------------------------------------------------------
+  // Cart State — backend-persistent
+  // ---------------------------------------------------------------------------
+
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  /**
+   * Sync cart from backend response into local CartItem[] format.
+   * BackendCartItem has { product_id, quantity, product: {...} }
+   */
+  const syncCartFromBackend = useCallback((items: BackendCartItem[]) => {
+    const cartItems: CartItem[] = items.map((item) => ({
+      product: item.product as unknown as Product,
+      quantity: item.quantity,
+    }));
+    setCart(cartItems);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Wishlist State — backend-persistent
+  // ---------------------------------------------------------------------------
+
+  const [wishlist, setWishlist] = useState<Product[]>([]);
+
+  // ---------------------------------------------------------------------------
+  // Support Tickets — fetched after login
+  // ---------------------------------------------------------------------------
+
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
 
   // ---------------------------------------------------------------------------
   // Addresses — fetched from service after login
   // ---------------------------------------------------------------------------
 
-  const [addresses, setAddresses] = useState<CustomerAddress[]>(() => {
-    const saved = localStorage.getItem('chovique_demo_addresses');
-    if (saved) return JSON.parse(saved);
-    return [];
-  });
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
 
   // ---------------------------------------------------------------------------
   // Notifications
   // ---------------------------------------------------------------------------
 
-  const [notifications, setNotifications] = useState<SupportNotification[]>(() => {
-    const saved = localStorage.getItem('chovique_notifications');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'notif-1',
-        text: 'Your order ORD-5431 has been marked as Processing and is being curated.',
-        date: new Date().toISOString().split('T')[0],
-        read: false,
-        type: 'order' as const,
-        referenceId: 'ORD-5431',
-      },
-      {
-        id: 'notif-2',
-        text: 'Exclusive Offer: Use code CHOV40 for 40% off during the festive season!',
-        date: new Date().toISOString().split('T')[0],
-        read: false,
-        type: 'general' as const,
-      },
-    ];
-  });
+  const [notifications, setNotifications] = useState<SupportNotification[]>([]);
 
   // ---------------------------------------------------------------------------
   // Fetch user-scoped data after auth resolves
@@ -394,7 +367,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (isAuthLoading || role === 'guest') return;
 
-    // Fetch orders from service (replaces localStorage-seeded orders for logged-in users)
+    // Fetch orders from backend
     orderService.getOrders().then((res) => setOrders(res)).catch(() => {});
 
     // Fetch tickets
@@ -405,7 +378,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Fetch notifications
     notificationService.getNotifications().then((res) => setNotifications(res)).catch(() => {});
-  }, [isAuthLoading, role]);
+
+    // Fetch cart
+    cartService.getCart().then((res) => syncCartFromBackend(res.items)).catch(() => {});
+
+    // Fetch wishlist
+    wishlistService.getWishlist()
+      .then((items) => setWishlist(items.map((i) => i.product)))
+      .catch(() => {});
+
+  }, [isAuthLoading, role, syncCartFromBackend]);
 
   // ---------------------------------------------------------------------------
   // Side Effects — persist intentional client-side state to localStorage
@@ -432,39 +414,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('chovique_theme', JSON.stringify(theme));
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem('chovique_products', JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_banners', JSON.stringify(banners));
-  }, [banners]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_offline_sales', JSON.stringify(offlineSales));
-  }, [offlineSales]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_wishlist', JSON.stringify(wishlist));
-  }, [wishlist]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_cart', JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('chovique_notifications', JSON.stringify(notifications));
-  }, [notifications]);
-
   // ---------------------------------------------------------------------------
-  // Cart Operations
+  // Cart Operations — backend-synced
   // ---------------------------------------------------------------------------
 
-  const addToCart = (product: Product, quantity: number) => {
+  const addToCart = useCallback(async (product: Product, quantity: number): Promise<void> => {
+    // Optimistic update
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -476,40 +431,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [...prev, { product, quantity }];
     });
-  };
 
-  const updateCartQuantity = (productId: string, quantity: number) => {
+    try {
+      const res = await cartService.addToCart(product.id, quantity);
+      syncCartFromBackend(res.items);
+    } catch (err) {
+      console.error('Failed to add to cart:', err);
+      // Revert optimistic update on error
+      setCart((prev) => {
+        const existing = prev.find((item) => item.product.id === product.id);
+        if (!existing) return prev.filter((item) => item.product.id !== product.id);
+        const newQty = existing.quantity - quantity;
+        if (newQty <= 0) return prev.filter((item) => item.product.id !== product.id);
+        return prev.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: newQty } : item
+        );
+      });
+    }
+  }, [syncCartFromBackend]);
+
+  const updateCartQuantity = useCallback(async (productId: string, quantity: number): Promise<void> => {
+    // Optimistic update
     setCart((prev) =>
       prev.map((item) =>
         item.product.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item
       )
     );
-  };
 
-  const removeFromCart = (productId: string) => {
+    try {
+      const res = await cartService.updateQuantity(productId, Math.max(1, quantity));
+      syncCartFromBackend(res.items);
+    } catch (err) {
+      console.error('Failed to update cart quantity:', err);
+    }
+  }, [syncCartFromBackend]);
+
+  const removeFromCart = useCallback(async (productId: string): Promise<void> => {
+    // Optimistic update
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
-  };
 
-  const clearCart = () => setCart([]);
+    try {
+      const res = await cartService.removeFromCart(productId);
+      syncCartFromBackend(res.items);
+    } catch (err) {
+      console.error('Failed to remove from cart:', err);
+    }
+  }, [syncCartFromBackend]);
+
+  const clearCart = useCallback(async (): Promise<void> => {
+    setCart([]);
+    try {
+      await cartService.clearCart();
+    } catch (err) {
+      console.error('Failed to clear cart:', err);
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // Wishlist Operations
+  // Wishlist Operations — backend-synced
   // ---------------------------------------------------------------------------
 
-  const toggleWishlist = (product: Product) => {
-    setWishlist((prev) => {
-      const exists = prev.find((p) => p.id === product.id);
+  const toggleWishlist = useCallback(async (product: Product): Promise<void> => {
+    const exists = wishlist.find((p) => p.id === product.id);
+
+    // Optimistic update
+    if (exists) {
+      setWishlist((prev) => prev.filter((p) => p.id !== product.id));
+    } else {
+      setWishlist((prev) => [...prev, product]);
+    }
+
+    try {
       if (exists) {
-        return prev.filter((p) => p.id !== product.id);
+        await wishlistService.removeFromWishlist(product.id);
+      } else {
+        await wishlistService.addToWishlist(product.id);
       }
-      return [...prev, product];
-    });
-  };
+    } catch (err) {
+      console.error('Failed to update wishlist:', err);
+      // Revert optimistic update
+      if (exists) {
+        setWishlist((prev) => [...prev, product]);
+      } else {
+        setWishlist((prev) => prev.filter((p) => p.id !== product.id));
+      }
+    }
+  }, [wishlist]);
 
-  const moveToCart = (product: Product) => {
-    toggleWishlist(product);
-    addToCart(product, 1);
-  };
+  const moveToCart = useCallback(async (product: Product): Promise<void> => {
+    await toggleWishlist(product);
+    await addToCart(product, 1);
+  }, [toggleWishlist, addToCart]);
 
   // ---------------------------------------------------------------------------
   // Order Operations
@@ -527,24 +539,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ---------------------------------------------------------------------------
   // Admin Product Operations
+  // These update local context state; the actual API calls are made in
+  // AdminDashboard.tsx via productService directly.
   // ---------------------------------------------------------------------------
 
-  const addProduct = (newProd: Omit<Product, 'id' | 'rating' | 'ratingsCount' | 'reviews'>) => {
+  const addProduct = (newProd: any) => {
     const product: Product = {
-      ...newProd,
-      id: `p${products.length + 1}`,
       rating: 5.0,
-      ratingsCount: 1,
+      ratingsCount: 0,
       reviews: [],
+      ...newProd,
+      id: (newProd && newProd.id) ? newProd.id : `p${Date.now()}`,
     };
     setProducts((prev) => [product, ...prev]);
   };
 
-  const updateProductInventory = (productId: string, weight: string, price: number) => {
+  const updateProductInventory = (productId: string, weight: string, price: number, stock?: number) => {
     setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, weight, price } : p))
+      prev.map((p) => (p.id === productId ? { ...p, weight, price, ...(stock !== undefined ? { stock } : {}) } : p))
     );
   };
+
 
   const deleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
@@ -552,6 +567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ---------------------------------------------------------------------------
   // Admin Offline Sales Operations
+  // These update local context state; actual API calls are in AdminDashboard.tsx
   // ---------------------------------------------------------------------------
 
   const addOfflineSale = (sale: Omit<OfflineSale, 'id' | 'date'>) => {
@@ -598,7 +614,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ---------------------------------------------------------------------------
-  // Support Tickets — wired to ticketService (with demo fallback)
+  // Support Tickets — wired to ticketService
   // ---------------------------------------------------------------------------
 
   const addSupportTicket = async (category: SupportTicket['category'], description: string): Promise<void> => {
@@ -645,7 +661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ---------------------------------------------------------------------------
-  // Profile & Address Operations — wired to userService (with demo fallback)
+  // Profile & Address Operations — wired to userService
   // ---------------------------------------------------------------------------
 
   const updateUserProfilePicture = (avatarUrl: string) => {
@@ -655,21 +671,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const updateUserProfile = (updatedProfile: {
+  const updateUserProfile = async (updatedProfile: {
     name?: string;
     phone?: string;
     dob?: string;
     gender?: string;
     preferences?: string;
-  }) => {
-    setUser((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        name: updatedProfile.name !== undefined ? updatedProfile.name : prev.name,
-        profile: { ...prev.profile, ...updatedProfile },
-      };
-    });
+  }): Promise<void> => {
+    try {
+      const freshUser = await userService.updateProfile({
+        full_name: updatedProfile.name,
+        phone: updatedProfile.phone,
+        dob: updatedProfile.dob,
+        gender: updatedProfile.gender,
+        preferences: updatedProfile.preferences,
+      });
+      setUser(freshUser);
+    } catch (err) {
+      console.error('Failed to update profile on server:', err);
+      // Local fallback
+      setUser((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          name: updatedProfile.name !== undefined ? updatedProfile.name : prev.name,
+          profile: { ...prev.profile, ...updatedProfile },
+        };
+      });
+      throw err;
+    }
   };
 
   const addAddress = async (newAddr: Omit<CustomerAddress, 'id'>): Promise<void> => {
@@ -744,13 +774,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role,
         isAuthLoading,
         login,
+        googleLogin,
+        setPassword,
         register,
         verifyOtp,
         logout,
         products,
         banners,
+        setProducts,
         orders,
+        setOrders,
         offlineSales,
+        setOfflineSales,
         wishlist,
         cart,
         theme,
