@@ -40,19 +40,29 @@ const FALLBACK_TESTIMONIALS: Testimonial[] = [
 
 export const Reviews: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [textTestimonials, setTextTestimonials] = useState<Testimonial[]>(FALLBACK_TESTIMONIALS);
+  const [textTestimonials, setTextTestimonials] = useState<Testimonial[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     homeService.getTestimonials()
       .then((data) => {
-        if (data && data.length > 0) {
+        if (Array.isArray(data)) {
           setTextTestimonials(data);
         }
       })
       .catch(() => {
-        // Keep fallback testimonials on error — non-critical display content
+        setTextTestimonials([]);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   }, []);
+
+  // Do not render section if loading or if no testimonials added yet
+  if (loading || textTestimonials.length === 0) {
+    return null;
+  }
+
 
   return (
     <section

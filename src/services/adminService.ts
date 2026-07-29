@@ -1,23 +1,14 @@
 /**
  * Admin Service — user management, offline sales, CSV import, banners,
- * and site-wide order/ticket views.
- * All calls go directly to the FastAPI backend. No demo fallbacks.
- *
- * FastAPI endpoints (all require admin or superadmin role):
- *   GET   /admin/stats                    → DashboardStatsResponse
- *   GET   /admin/users                    → SystemUser[]
- *   GET   /admin/orders                   → Order[]
- *   PATCH /admin/orders/{id}/status       → Order
- *   GET   /admin/tickets                  → SupportTicket[]
- *   POST  /admin/tickets/{id}/resolve     → SupportTicket
- *   GET   /admin/offline-sales            → OfflineSale[]
- *   POST  /admin/offline-sales            → OfflineSale
- *   POST  /admin/offline-sales/import     → { imported, skipped, message } (multipart CSV)
- *   POST  /admin/banners/{id}/image       → { image_url: string } (multipart)
+ * testimonials, reels, and site-wide order/ticket views.
+ * All calls go directly to the FastAPI backend.
  */
 
 import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormData } from '../lib/api';
 import type {
+  Banner,
+  Testimonial,
+  InstagramReel,
   OfflineSale,
   Order,
   SupportTicket,
@@ -103,6 +94,47 @@ export const adminService = {
     apiPostFormData<ImportSalesResponse>('/admin/offline-sales/import', formData),
 
   /**
+   * Create a new hero banner slide (multipart/form-data upload to Cloudinary).
+   */
+  createBanner: (formData: FormData): Promise<Banner> =>
+    apiPostFormData<Banner>('/admin/banners', formData),
+
+  /**
+   * Create a new testimonial with avatar upload to Cloudinary.
+   */
+  createTestimonial: (formData: FormData): Promise<Testimonial> =>
+    apiPostFormData<Testimonial>('/admin/testimonials', formData),
+
+  /**
+   * Create a new Instagram reel entry with video upload to Cloudinary.
+   */
+  createReel: (formData: FormData): Promise<InstagramReel> =>
+    apiPostFormData<InstagramReel>('/admin/reels', formData),
+
+  /**
+   * Delete an Instagram reel entry.
+   */
+  deleteReel: (reelId: string): Promise<void> =>
+    apiDelete<void>(`/admin/reels/${reelId}`),
+
+  /**
+   * Delete a customer testimonial.
+   */
+  deleteTestimonial: (testimonialId: string): Promise<void> =>
+    apiDelete<void>(`/admin/testimonials/${testimonialId}`),
+
+  /**
+   * Update homepage site stats (happy customers, flavors, etc.).
+   */
+  updateSiteStats: (payload: {
+    happy_customers: number;
+    unique_flavors: number;
+    countries_shipped: number;
+    five_star_reviews_percent: number;
+  }): Promise<any> =>
+    apiPatch<any>('/admin/config/stats', payload),
+
+  /**
    * Upload a banner image for a hero slide (superadmin action).
    */
   uploadBannerImage: (
@@ -110,5 +142,21 @@ export const adminService = {
     formData: FormData
   ): Promise<{ image_url: string }> =>
     apiPostFormData<{ image_url: string }>(`/admin/banners/${bannerId}/image`, formData),
+
+  /**
+   * Delete a hero banner slide (superadmin action).
+   */
+  deleteBanner: (bannerId: string): Promise<void> =>
+    apiDelete<void>(`/admin/banners/${bannerId}`),
+
+  /**
+   * Update an administrator user's password (superadmin action).
+   */
+  updateAdminPassword: (
+    userId: string,
+    password: string
+  ): Promise<{ message: string }> =>
+    apiPatch<{ message: string }>(`/admin/users/${userId}/password`, { password }),
 };
+
 

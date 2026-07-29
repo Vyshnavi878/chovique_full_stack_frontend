@@ -98,6 +98,19 @@ export const AdminDashboard: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      alert('Invalid file format. Please select a JPG, JPEG, PNG, or WebP image.');
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large. Maximum size for image upload is 10 MB.');
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+
     const previewUrl = URL.createObjectURL(file);
     setNewProd(prev => ({ ...prev, imageFile: file, imagePreviewUrl: previewUrl }));
   };
@@ -440,12 +453,28 @@ export const AdminDashboard: React.FC = () => {
                           { value: 'dark', label: 'Dark Collection' },
                           { value: 'milk', label: 'Milk Collection' },
                           { value: 'white', label: 'White Collection' },
-                          { value: 'gift', label: 'Gift boxes' },
+                          { value: 'gift', label: 'Gift Boxes & Hampers' },
                           { value: 'beverage', label: 'Beverages' },
                         ]}
                         value={newProd.category}
                         onChange={(e) => setNewProd({ ...newProd, category: e.target.value as any })}
                       />
+
+                      <Select
+                        label="Badge / Section Tag"
+                        options={[
+                          { value: '', label: 'None (Standard Product)' },
+                          { value: 'New', label: 'New (Shows in New Arrivals section)' },
+                          { value: 'Bestseller', label: 'Bestseller (Shows in Bestsellers section)' },
+                          { value: 'Premium', label: 'Premium (Shows in Popular / Premium section)' },
+                          { value: 'Gift Hamper', label: 'Gift Hamper (Shows in Gift Hampers section)' },
+                          { value: 'Signature', label: 'Signature (Shows in Signature Collection)' },
+                          { value: 'Limited', label: 'Limited Edition' },
+                        ]}
+                        value={newProd.badge || ''}
+                        onChange={(e) => setNewProd({ ...newProd, badge: e.target.value as any })}
+                      />
+
 
                       <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '15px' }}>
                         <Input

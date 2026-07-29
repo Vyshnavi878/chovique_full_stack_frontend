@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Volume2, VolumeX, Play, Pause } from 'lucide-react';
 import { scaleUp } from '../../lib/framer';
+import { homeService } from '../../services/homeService';
 
 interface Reel {
   id: string;
@@ -17,7 +18,7 @@ export const InstagramReels: React.FC = () => {
   const [muted, setMuted] = useState(true);
   const videoRefs = useRef<{ [key: string]: HTMLVideoElement | null }>({});
 
-  const reelsData: Reel[] = [
+  const DEFAULT_REELS: Reel[] = [
     {
       id: 'r1',
       videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-chocolate-pouring-on-a-cake-34293-large.mp4',
@@ -43,6 +44,28 @@ export const InstagramReels: React.FC = () => {
       title: 'Pure indulgence. Melted single-origin cacao cascade. 🍫🌊 #cacaolove #darkchocolate',
     },
   ];
+
+  const [reelsData, setReelsData] = useState<Reel[]>(DEFAULT_REELS);
+
+  useEffect(() => {
+    homeService.getReels()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setReelsData(data.map((r: any) => ({
+            id: r.id,
+            videoUrl: r.videoUrl || r.video_url,
+            likes: r.likes || '0',
+            comments: r.comments || '0',
+            views: r.views || '0 views',
+            title: r.title,
+          })));
+        }
+      })
+      .catch(() => {
+        // Keep default reels
+      });
+  }, []);
+
 
   const handlePlayPause = (id: string) => {
     const video = videoRefs.current[id];

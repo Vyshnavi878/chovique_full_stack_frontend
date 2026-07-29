@@ -183,7 +183,7 @@ export const CustomerDashboard: React.FC = () => {
     }
   };
 
-  const handlePreferencesSave = async (e: React.FormEvent) => {
+  const handlePreferencesSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const dob = (form.elements.namedItem('dob') as HTMLInputElement).value;

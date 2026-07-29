@@ -7,8 +7,11 @@ import { fadeInUp } from '../../lib/framer';
 export const PopularProducts: React.FC = () => {
   const { products, theme } = useApp();
 
-  // Pick top 3 bestseller/premium chocolates for popular row
-  const popularList = products.slice(0, 4);
+  // Pick popular items (Bestseller or Premium badge, or top items)
+  const popularList = products
+    .filter((p) => p.badge === 'Bestseller' || p.badge === 'Premium')
+    .concat(products.filter((p) => p.badge !== 'Bestseller' && p.badge !== 'Premium'))
+    .slice(0, 4);
 
   // Helper to determine if a hex color is dark
   const isDarkColor = (color: string) => {

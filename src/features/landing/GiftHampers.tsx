@@ -11,9 +11,9 @@ export const GiftHampers: React.FC = () => {
   const { products, role } = useApp();
   const navigate = useNavigate();
 
-  // Filter gift products
-  const giftList = products.filter((p) => p.category === 'gift').slice(0, 2);
-  const displayList = giftList.length > 0 ? giftList : products.slice(1, 3);
+  // Filter gift products strictly (by category 'gift' or badge 'Gift Hamper')
+  const displayList = products.filter((p) => p.category === 'gift' || p.badge === 'Gift Hamper' || p.badge === 'Gift Hampers').slice(0, 2);
+
 
   const benefits = [
     'Handwritten custom greeting cards',

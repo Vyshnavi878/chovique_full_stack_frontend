@@ -15,6 +15,7 @@ import { authService } from '../services/authService';
 import { cartService, BackendCartItem } from '../services/cartService';
 import { wishlistService } from '../services/wishlistService';
 import { homeService } from '../services/homeService';
+import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
 import { ticketService } from '../services/ticketService';
 import { userService } from '../services/userService';
@@ -40,6 +41,9 @@ interface AppContextType {
   products: Product[];
   banners: Banner[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  refreshBanners?: () => Promise<void>;
+  addBanner?: (banner: Banner) => void;
+  deleteBannerState?: (id: string) => void;
 
   // Orders
   orders: Order[];
@@ -297,6 +301,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [products, setProducts] = useState<Product[]>([]);
 
+  useEffect(() => {
+    productService.getProducts({ per_page: 50 })
+      .then((result) => setProducts(result.items))
+      .catch(() => {
+        // Keep empty products — home page sections will render nothing until available
+      });
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Banner State — fetched from backend on mount
   // ---------------------------------------------------------------------------
@@ -368,24 +380,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isAuthLoading || role === 'guest') return;
 
     // Fetch orders from backend
-    orderService.getOrders().then((res) => setOrders(res)).catch(() => {});
+    orderService.getOrders().then((res) => setOrders(res)).catch(() => { });
 
     // Fetch tickets
-    ticketService.getTickets().then((res) => setTickets(res)).catch(() => {});
+    ticketService.getTickets().then((res) => setTickets(res)).catch(() => { });
 
     // Fetch addresses
-    userService.getAddresses().then((res) => setAddresses(res)).catch(() => {});
+    userService.getAddresses().then((res) => setAddresses(res)).catch(() => { });
 
     // Fetch notifications
-    notificationService.getNotifications().then((res) => setNotifications(res)).catch(() => {});
+    notificationService.getNotifications().then((res) => setNotifications(res)).catch(() => { });
 
     // Fetch cart
-    cartService.getCart().then((res) => syncCartFromBackend(res.items)).catch(() => {});
+    cartService.getCart().then((res) => syncCartFromBackend(res.items)).catch(() => { });
 
     // Fetch wishlist
     wishlistService.getWishlist()
       .then((items) => setWishlist(items.map((i) => i.product)))
-      .catch(() => {});
+      .catch(() => { });
 
   }, [isAuthLoading, role, syncCartFromBackend]);
 
@@ -593,6 +605,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Banner Operations
   // ---------------------------------------------------------------------------
 
+  const refreshBanners = useCallback(async () => {
+    try {
+      const result = await homeService.getBanners();
+      setBanners(result);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const addBanner = (newBanner: Banner) => {
+    setBanners((prev) => [...prev, newBanner]);
+  };
+
+  const deleteBannerState = (id: string) => {
+    setBanners((prev) => prev.filter((b) => b.id !== id));
+  };
+
   const updateBanner = (id: string, bannerData: Partial<Banner>) => {
     setBanners((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...bannerData } : b))
@@ -680,6 +709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }): Promise<void> => {
     try {
       const freshUser = await userService.updateProfile({
+        name: updatedProfile.name,
         full_name: updatedProfile.name,
         phone: updatedProfile.phone,
         dob: updatedProfile.dob,
@@ -760,7 +790,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeNotification = (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     // Best-effort server delete (no await — fire and forget)
-    notificationService.deleteNotification(id).catch(() => {});
+    notificationService.deleteNotification(id).catch(() => { });
   };
 
   // ---------------------------------------------------------------------------
@@ -802,6 +832,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addOfflineSale,
         importOfflineSales,
         updateBanner,
+        refreshBanners,
+        addBanner,
+        deleteBannerState,
         updateThemeColors,
         tickets,
         addSupportTicket,

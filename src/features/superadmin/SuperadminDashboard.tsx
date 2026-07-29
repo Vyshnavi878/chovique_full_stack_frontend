@@ -26,7 +26,10 @@ import {
   ArrowRight,
   UserCheck,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   BarChart,
@@ -49,9 +52,10 @@ import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { pageTransition } from '../../lib/framer';
 import { adminService } from '../../services/adminService';
-import type { SystemUser, Order } from '../../types';
+import { homeService } from '../../services/homeService';
+import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
+
 
 // Theme Presets interface
 interface ThemePreset {
@@ -121,7 +125,7 @@ const builtInPresets: ThemePreset[] = [
 
 
 export const SuperadminDashboard: React.FC = () => {
-  const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products } = useApp();
+  const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, addBanner, deleteBannerState, refreshBanners } = useApp();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('enterprise');
@@ -158,11 +162,11 @@ export const SuperadminDashboard: React.FC = () => {
 
   // --- Theme Builder Colors State ---
   const [themeInput, setThemeInput] = useState({
-    primary: theme.primary,
-    darkChocolate: theme.darkChocolate,
-    gold: theme.gold,
-    roseGold: theme.roseGold,
-    black: theme.black || '#0A0A0A',
+    primary: theme?.primary || '#1C0D02',
+    darkChocolate: theme?.darkChocolate || '#0F0701',
+    gold: theme?.gold || '#C9A84C',
+    roseGold: theme?.roseGold || '#E0A96D',
+    black: theme?.black || '#0A0A0A',
   });
 
   // --- Theme Presets State ---
@@ -184,31 +188,210 @@ export const SuperadminDashboard: React.FC = () => {
 
   // --- Banner/Carousel State ---
   const [selectedSlideIdx, setSelectedSlideIdx] = useState(0);
+  const selectedBanner = banners && banners.length > 0 ? (banners[selectedSlideIdx] || banners[0]) : null;
   const bannerFileRef = useRef<HTMLInputElement>(null);
+
+  const [showAddBannerModal, setShowAddBannerModal] = useState(false);
+  const [newBannerData, setNewBannerData] = useState({
+    title: '',
+    subtitle: '',
+    tag: '',
+    buttonText: 'Explore Collection',
+    link: '/products',
+    image_url: '',
+  });
+  const [newBannerImageFile, setNewBannerImageFile] = useState<File | null>(null);
+  const [isCreatingBanner, setIsCreatingBanner] = useState(false);
+  const [bannerCreateError, setBannerCreateError] = useState('');
+  const newBannerFileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Admin Accounts Management State ---
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '', scope: 'All Boutiques' });
   const [adminCreateError, setAdminCreateError] = useState('');
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+
+  // --- Password Reset Modal State ---
+  const [resetAdminUser, setResetAdminUser] = useState<SystemUser | null>(null);
+  const [resetAdminPassword, setResetAdminPassword] = useState('');
+  const [showResetPasswordVal, setShowResetPasswordVal] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState('');
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState('');
 
   // --- Roles & Permissions User List State ---
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
 
   useEffect(() => {
     adminService.getUsers()
-      .then((users) => setSystemUsers(users))
+      .then((users) => {
+        if (Array.isArray(users)) setSystemUsers(users);
+      })
       .catch((err) => console.error('Failed to fetch system users:', err));
   }, []);
+
+
+  // --- CMS Site Stats State & Handlers ---
+  const [siteStats, setSiteStats] = useState({
+    happy_customers: 50000,
+    unique_flavors: 120,
+    countries_shipped: 15,
+    five_star_reviews_percent: 98,
+  });
+  const [isSavingStats, setIsSavingStats] = useState(false);
+  const [statsSavedSuccess, setStatsSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    homeService.getStats()
+      .then((data) => {
+        if (data) {
+          setSiteStats({
+            happy_customers: data.happy_customers || 50000,
+            unique_flavors: data.unique_flavors || 120,
+            countries_shipped: data.countries_shipped || 15,
+            five_star_reviews_percent: data.five_star_reviews_percent || 98,
+          });
+        }
+      })
+      .catch((err) => console.error('Failed to load site stats:', err));
+  }, []);
+
+  const handleSaveSiteStatsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingStats(true);
+    try {
+      await adminService.updateSiteStats(siteStats);
+      setStatsSavedSuccess(true);
+      setTimeout(() => setStatsSavedSuccess(false), 3000);
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to save site stats.');
+    } finally {
+      setIsSavingStats(false);
+    }
+  };
+
+  // --- CMS Instagram Reels State & Handlers ---
+  const [cmsReels, setCmsReels] = useState<InstagramReel[]>([]);
+  const [showAddReelModal, setShowAddReelModal] = useState(false);
+  const [newReelData, setNewReelData] = useState({ title: '', likes: '14.2K', comments: '348', views: '124K views', video_url: '' });
+  const [newReelVideoFile, setNewReelVideoFile] = useState<File | null>(null);
+  const [isCreatingReel, setIsCreatingReel] = useState(false);
+
+  const fetchCmsReels = () => {
+    homeService.getReels()
+      .then((data) => {
+        if (Array.isArray(data)) setCmsReels(data);
+      })
+      .catch((err) => console.error('Failed to load reels:', err));
+  };
+
+  useEffect(() => {
+    fetchCmsReels();
+  }, []);
+
+  const handleCreateReelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReelData.title) return;
+    setIsCreatingReel(true);
+    const formData = new FormData();
+    formData.append('title', newReelData.title);
+    formData.append('likes', newReelData.likes);
+    formData.append('comments', newReelData.comments);
+    formData.append('views', newReelData.views);
+    if (newReelData.video_url) formData.append('video_url', newReelData.video_url);
+    if (newReelVideoFile) formData.append('video', newReelVideoFile);
+
+    try {
+      await adminService.createReel(formData);
+      fetchCmsReels();
+      setNewReelData({ title: '', likes: '14.2K', comments: '348', views: '124K views', video_url: '' });
+      setNewReelVideoFile(null);
+      setShowAddReelModal(false);
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to create reel entry.');
+    } finally {
+      setIsCreatingReel(false);
+    }
+  };
+
+  const handleDeleteReelSubmit = async (reelId: string, reelTitle: string) => {
+    if (!window.confirm(`Delete Instagram reel "${reelTitle}"?`)) return;
+    try {
+      await adminService.deleteReel(reelId);
+      fetchCmsReels();
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to delete reel.');
+    }
+  };
+
+  // --- CMS Testimonials State & Handlers ---
+  const [cmsTestimonials, setCmsTestimonials] = useState<Testimonial[]>([]);
+  const [showAddTestimonialModal, setShowAddTestimonialModal] = useState(false);
+  const [newTestimonialData, setNewTestimonialData] = useState({ author: '', title: '', text: '', rating: 5, initials: '', avatar_url: '' });
+  const [newTestimonialAvatarFile, setNewTestimonialAvatarFile] = useState<File | null>(null);
+  const [isCreatingTestimonial, setIsCreatingTestimonial] = useState(false);
+
+  const fetchCmsTestimonials = () => {
+    homeService.getTestimonials()
+      .then((data) => {
+        if (Array.isArray(data)) setCmsTestimonials(data);
+      })
+      .catch((err) => console.error('Failed to load testimonials:', err));
+  };
+
+  useEffect(() => {
+    fetchCmsTestimonials();
+  }, []);
+
+  const handleCreateTestimonialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTestimonialData.author || !newTestimonialData.text) return;
+    setIsCreatingTestimonial(true);
+    const formData = new FormData();
+    formData.append('author', newTestimonialData.author);
+    formData.append('title', newTestimonialData.title || 'Chocolate Connoisseur');
+    formData.append('text', newTestimonialData.text);
+    formData.append('rating', String(newTestimonialData.rating));
+    formData.append('initials', newTestimonialData.initials || newTestimonialData.author.substring(0, 2).toUpperCase());
+    if (newTestimonialData.avatar_url) formData.append('avatar_url', newTestimonialData.avatar_url);
+    if (newTestimonialAvatarFile) formData.append('avatar', newTestimonialAvatarFile);
+
+    try {
+      await adminService.createTestimonial(formData);
+      fetchCmsTestimonials();
+      setNewTestimonialData({ author: '', title: '', text: '', rating: 5, initials: '', avatar_url: '' });
+      setNewTestimonialAvatarFile(null);
+      setShowAddTestimonialModal(false);
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to create testimonial.');
+    } finally {
+      setIsCreatingTestimonial(false);
+    }
+  };
+
+  const handleDeleteTestimonialSubmit = async (tId: string, authorName: string) => {
+    if (!window.confirm(`Delete testimonial by "${authorName}"?`)) return;
+    try {
+      await adminService.deleteTestimonial(tId);
+      fetchCmsTestimonials();
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to delete testimonial.');
+    }
+  };
+
 
   // --- Orders State with live modifications ---
   const [superOrders, setSuperOrders] = useState<Order[]>(orders);
 
   useEffect(() => {
     adminService.getAllOrders()
-      .then((fetchedOrders) => setSuperOrders(fetchedOrders))
+      .then((fetchedOrders) => {
+        if (Array.isArray(fetchedOrders)) setSuperOrders(fetchedOrders);
+      })
       .catch((err) => console.error('Failed to fetch superadmin orders:', err));
   }, []);
+
 
   // --- Platform Settings State & Handlers ---
   const [platformSettings, setPlatformSettings] = useState(() => {
@@ -329,19 +512,35 @@ export const SuperadminDashboard: React.FC = () => {
     }
   };
 
-  // Banner image upload
-  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Banner image upload to Cloudinary via adminService
+  const handleBannerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (banners[selectedSlideIdx]) {
-        updateBanner(banners[selectedSlideIdx].id, { image: dataUrl });
-        addLogEntry(`Uploaded new banner image file for Hero Slide ${selectedSlideIdx + 1}`, 'setting');
+
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      alert('Invalid file format. Please upload JPG, JPEG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large. Maximum size for image upload is 10 MB.');
+      return;
+    }
+
+    const currentBanner = banners[selectedSlideIdx];
+    if (currentBanner) {
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await adminService.uploadBannerImage(currentBanner.id, formData);
+        updateBanner(currentBanner.id, { image: res.image_url });
+        addLogEntry(`Uploaded new banner image to Cloudinary for Slide ${selectedSlideIdx + 1}`, 'setting');
+      } catch (err: any) {
+        console.error('Failed banner upload:', err);
+        const detail = err?.detail || err?.message || 'Failed to upload banner image.';
+        alert(detail);
       }
-    };
-    reader.readAsDataURL(file);
+    }
     if (bannerFileRef.current) bannerFileRef.current.value = '';
   };
 
@@ -390,6 +589,99 @@ export const SuperadminDashboard: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to revoke administrator account.';
       alert(msg);
+    }
+  };
+
+  // Create brand new banner hero slide
+  const handleCreateNewBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBannerData.title.trim()) {
+      setBannerCreateError('Please enter a heading/title for the banner slide.');
+      return;
+    }
+    setIsCreatingBanner(true);
+    setBannerCreateError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', newBannerData.title);
+      if (newBannerData.subtitle) formData.append('subtitle', newBannerData.subtitle);
+      if (newBannerData.tag) formData.append('tag', newBannerData.tag);
+      if (newBannerData.buttonText) formData.append('button_text', newBannerData.buttonText);
+      if (newBannerData.link) formData.append('link', newBannerData.link);
+      
+      if (newBannerImageFile) {
+        formData.append('image', newBannerImageFile);
+      } else if (newBannerData.image_url) {
+        formData.append('image_url', newBannerData.image_url);
+      }
+
+      const created = await adminService.createBanner(formData);
+      if (addBanner) addBanner(created);
+      if (refreshBanners) await refreshBanners();
+
+      addLogEntry(`Created new banner hero slide: "${created.title}"`, 'setting');
+      setNewBannerData({
+        title: '',
+        subtitle: '',
+        tag: '',
+        buttonText: 'Explore Collection',
+        link: '/products',
+        image_url: '',
+      });
+      setNewBannerImageFile(null);
+      setShowAddBannerModal(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create banner slide.';
+      setBannerCreateError(msg);
+    } finally {
+      setIsCreatingBanner(false);
+    }
+  };
+
+  // Delete hero banner slide
+  const handleDeleteBanner = async (bannerId: string, bannerTitle: string) => {
+    if (!window.confirm(`Are you sure you want to delete banner "${bannerTitle}"?`)) return;
+    try {
+      await adminService.deleteBanner(bannerId);
+      if (deleteBannerState) deleteBannerState(bannerId);
+      if (refreshBanners) await refreshBanners();
+      if (selectedSlideIdx >= Math.max(0, banners.length - 1)) {
+        setSelectedSlideIdx(Math.max(0, banners.length - 2));
+      }
+      addLogEntry(`Deleted banner slide: "${bannerTitle}"`, 'setting');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete banner.';
+      alert(msg);
+    }
+  };
+
+  // Reset/Update administrator password
+  const handleUpdateAdminPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetAdminUser) return;
+    if (!resetAdminPassword.trim() || resetAdminPassword.length < 6) {
+      setResetPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+    setIsResettingPassword(true);
+    setResetPasswordError('');
+    setResetPasswordSuccess('');
+
+    try {
+      await adminService.updateAdminPassword(resetAdminUser.id, resetAdminPassword);
+      setResetPasswordSuccess(`Successfully updated password for ${resetAdminUser.name}.`);
+      addLogEntry(`Reset password for administrator account: ${resetAdminUser.name} (${resetAdminUser.email})`, 'security');
+      setTimeout(() => {
+        setResetAdminUser(null);
+        setResetAdminPassword('');
+        setResetPasswordSuccess('');
+      }, 1500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update administrator password.';
+      setResetPasswordError(msg);
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -583,13 +875,17 @@ export const SuperadminDashboard: React.FC = () => {
   };
 
   // Computed summary metrics
-  const totalOfflineRevenue = offlineSales.reduce((sum, s) => sum + s.totalPrice, 0);
-  const totalOnlineRevenue = superOrders.filter((o: any) => o.status !== 'Cancelled').reduce((sum: number, o: any) => sum + o.total, 0);
+  const totalOfflineRevenue = Array.isArray(offlineSales)
+    ? offlineSales.reduce((sum, s: any) => sum + (s?.totalPrice || s?.total_price || 0), 0)
+    : 0;
+  const totalOnlineRevenue = Array.isArray(superOrders)
+    ? superOrders.filter((o: any) => o?.status !== 'Cancelled').reduce((sum: number, o: any) => sum + (o?.total || o?.total_amount || 0), 0)
+    : 0;
   const totalRevenue = totalOnlineRevenue + totalOfflineRevenue;
   
   // Count total sold items & available items
-  const totalUnitsSold = Object.values(productMetrics).reduce((sum, m) => sum + m.sold, 0);
-  const totalUnitsAvailable = Object.values(productMetrics).reduce((sum, m) => sum + m.stock, 0);
+  const totalUnitsSold = Object.values(productMetrics || {}).reduce((sum, m: any) => sum + (m?.sold || 0), 0);
+  const totalUnitsAvailable = Object.values(productMetrics || {}).reduce((sum, m: any) => sum + (m?.stock || 0), 0);
 
   // Analytics mockup data for charts (Website sales vs Boutique sales)
   const salesHistoryData = [
@@ -609,16 +905,18 @@ export const SuperadminDashboard: React.FC = () => {
 
   // Specific Customer Inspection Details
   const getCustomerOrders = (customerEmail: string) => {
-    const nameToMatch = inspectedCustomer ? inspectedCustomer.name.toLowerCase() : '';
-    return superOrders.filter((o: any) =>
-      o.shippingAddress.name.toLowerCase() === nameToMatch ||
-      o.shippingAddress.phone.includes('98765') // Fallback matching
-    );
+    const nameToMatch = inspectedCustomer ? (inspectedCustomer.name || inspectedCustomer.email || '').toLowerCase() : '';
+    return Array.isArray(superOrders)
+      ? superOrders.filter((o: any) =>
+          (o?.shippingAddress?.name?.toLowerCase() || '').includes(nameToMatch) ||
+          (o?.shippingAddress?.phone || '').includes('98765')
+        )
+      : [];
   };
 
-  const selectedBanner = banners[selectedSlideIdx] || null;
 
   return (
+
     <div style={{ minHeight: '100vh', background: 'var(--black)', color: 'var(--cream)', fontFamily: 'var(--font-body)' }}>
       {/* Sidebar Navigation */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -683,7 +981,8 @@ export const SuperadminDashboard: React.FC = () => {
                   Active Admins
                 </span>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {systemUsers.filter(u => u.role === 'admin' || u.role === 'superadmin').length} accounts
+                  {(Array.isArray(systemUsers) ? systemUsers.filter(u => u?.role === 'admin' || u?.role === 'superadmin') : []).length} accounts
+
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#2ecc71', display: 'block', marginTop: '6px' }}>
                   100% Security Audited
@@ -1264,17 +1563,34 @@ export const SuperadminDashboard: React.FC = () => {
                           if (adminCreateError) setAdminCreateError('');
                         }}
                       />
-                      <Input
-                        label="Initial Password"
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={newAdmin.password}
-                        onChange={(e) => {
-                          setNewAdmin({ ...newAdmin, password: e.target.value });
-                          if (adminCreateError) setAdminCreateError('');
-                        }}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <Input
+                          label="Initial Password"
+                          type={showRegisterPassword ? 'text' : 'password'}
+                          required
+                          placeholder="••••••••"
+                          value={newAdmin.password}
+                          onChange={(e) => {
+                            setNewAdmin({ ...newAdmin, password: e.target.value });
+                            if (adminCreateError) setAdminCreateError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '38px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--grey-light)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {showRegisterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                       <Select
                         label="Assigned Scope"
                         options={[
@@ -1294,6 +1610,83 @@ export const SuperadminDashboard: React.FC = () => {
               )}
             </AnimatePresence>
 
+            {/* Password Reset Modal */}
+            <AnimatePresence>
+              {resetAdminUser && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{
+                    marginBottom: '30px',
+                  }}
+                >
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '24px 30px',
+                      border: '1px solid var(--gold)',
+                      background: 'rgba(26,13,0,0.95)',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Key size={18} /> Update Password for {resetAdminUser.name} ({resetAdminUser.email})
+                      </h3>
+                      <button
+                        onClick={() => { setResetAdminUser(null); setResetAdminPassword(''); }}
+                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {resetPasswordError && (
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '4px', padding: '10px', fontSize: '0.85rem', marginBottom: '16px' }}>
+                        {resetPasswordError}
+                      </div>
+                    )}
+
+                    {resetPasswordSuccess && (
+                      <div style={{ background: 'rgba(46, 204, 113, 0.15)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '4px', padding: '10px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Check size={16} /> {resetPasswordSuccess}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleUpdateAdminPasswordSubmit} style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', maxWidth: '600px' }}>
+                      <div style={{ flexGrow: 1, position: 'relative' }}>
+                        <Input
+                          label="New Account Password"
+                          type={showResetPasswordVal ? 'text' : 'password'}
+                          required
+                          placeholder="At least 6 characters"
+                          value={resetAdminPassword}
+                          onChange={(e) => {
+                            setResetAdminPassword(e.target.value);
+                            if (resetPasswordError) setResetPasswordError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowResetPasswordVal(!showResetPasswordVal)}
+                          style={{ position: 'absolute', right: '12px', top: '38px', background: 'transparent', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}
+                        >
+                          {showResetPasswordVal ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                      <Button variant="gold" type="submit" glow disabled={isResettingPassword} style={{ height: '42px' }}>
+                        {isResettingPassword ? 'Saving...' : 'Update Password'}
+                      </Button>
+                      <Button variant="glass" type="button" onClick={() => setResetAdminUser(null)} style={{ height: '42px' }}>
+                        Cancel
+                      </Button>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
               <div className="admin-table-wrapper">
                 <table className="admin-table">
@@ -1303,7 +1696,7 @@ export const SuperadminDashboard: React.FC = () => {
                     <th>Email</th>
                     <th>Scope</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1326,22 +1719,46 @@ export const SuperadminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ color: '#2ecc71', fontWeight: 600 }}>Active</td>
-                        <td>
+                        <td style={{ textAlign: 'right' }}>
                           {u.role === 'admin' ? (
-                            <button
-                              onClick={() => handleRemoveAdmin(u.id, u.name, u.email)}
-                              style={{
-                                color: 'var(--rose-gold)',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'transparent',
-                                border: 'none',
-                              }}
-                            >
-                              <Trash2 size={16} /> Revoke
-                            </button>
+                            <div style={{ display: 'inline-flex', gap: '16px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  setResetAdminUser(u);
+                                  setResetAdminPassword('');
+                                  setResetPasswordError('');
+                                  setResetPasswordSuccess('');
+                                }}
+                                style={{
+                                  color: 'var(--gold)',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <Key size={15} /> Password
+                              </button>
+                              <button
+                                onClick={() => handleRemoveAdmin(u.id, u.name, u.email)}
+                                style={{
+                                  color: 'var(--rose-gold)',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
+                                <Trash2 size={15} /> Revoke
+                              </button>
+                            </div>
                           ) : (
                             <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>Superadmin</span>
                           )}
@@ -2009,178 +2426,375 @@ export const SuperadminDashboard: React.FC = () => {
         {/* BANNER & CAROUSEL MANAGEMENT TAB */}
         {activeTab === 'home-mgmt' && (
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '10px' }}>
-              Banner & Carousel Manager
-            </h1>
-            <p style={{ color: 'var(--beige)', marginBottom: '35px', fontSize: '0.9rem' }}>
-              Select a carousel slide below to edit its content. Upload images or change text — changes reflect live on the hero section.
-            </p>
-
-            {/* Carousel Slide Selector — Thumbnail Grid */}
-            <div style={{ marginBottom: '35px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '16px' }}>
-                Select Carousel Slide to Edit
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                {banners.map((banner, idx) => {
-                  const isSelected = selectedSlideIdx === idx;
-                  return (
-                    <div
-                      key={banner.id}
-                      onClick={() => setSelectedSlideIdx(idx)}
-                      style={{
-                        position: 'relative',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        border: isSelected ? '3px solid var(--gold)' : '2px solid var(--glass-border)',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        boxShadow: isSelected ? '0 4px 20px rgba(201, 168, 76, 0.3)' : 'none',
-                      }}
-                    >
-                      {/* Thumbnail image */}
-                      <img
-                        src={banner.image}
-                        alt={banner.title}
-                        style={{
-                          width: '100%',
-                          height: '120px',
-                          objectFit: 'cover',
-                          filter: isSelected ? 'brightness(0.7)' : 'brightness(0.4)',
-                          transition: 'filter 0.3s ease',
-                        }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80';
-                        }}
-                      />
-
-                      {/* Slide label overlay */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          padding: '10px 12px',
-                          background: 'linear-gradient(transparent, rgba(0,0,0,0.85))',
-                        }}
-                      >
-                        <span style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          color: isSelected ? 'var(--gold)' : 'var(--cream)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                        }}>
-                          Slide {idx + 1}
-                        </span>
-                        <p style={{
-                          margin: '2px 0 0 0',
-                          fontSize: '0.7rem',
-                          color: 'var(--grey-light)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {banner.title}
-                        </p>
-                      </div>
-
-                      {/* Selected check badge */}
-                      {isSelected && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '8px',
-                          right: '8px',
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '50%',
-                          background: 'var(--gradient-gold)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          boxShadow: '0 2px 8px rgba(201, 168, 76, 0.4)',
-                        }}>
-                          <Check size={16} color="#1A0D00" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div>
+                <span className="section-label">Homepage CMS</span>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
+                  Banner & Carousel Manager
+                </h1>
               </div>
+
+              <Button
+                variant="gold"
+                glow
+                onClick={() => setShowAddBannerModal(!showAddBannerModal)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                {showAddBannerModal ? <X size={16} /> : <Plus size={16} />}
+                {showAddBannerModal ? 'Close Form' : 'Add New Banner Slide'}
+              </Button>
             </div>
 
-            {/* Selected Slide Editor */}
-            {selectedBanner && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-                {/* Editor Fields */}
+            {/* Expandable Add New Banner Form */}
+            <AnimatePresence>
+              {showAddBannerModal && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginBottom: 35 }}
+                  exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                      Create New Hero Banner Slide
+                    </h3>
+                    
+                    {bannerCreateError && (
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '4px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '20px' }}>
+                        {bannerCreateError}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleCreateNewBanner} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                      <Input
+                        label="Heading / Main Title"
+                        required
+                        placeholder="e.g. Imperial Gold Selection"
+                        value={newBannerData.title}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, title: e.target.value })}
+                      />
+                      <Input
+                        label="Subheading / Description"
+                        placeholder="e.g. Handcrafted pralines infused with 24k gold"
+                        value={newBannerData.subtitle}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, subtitle: e.target.value })}
+                      />
+                      <Input
+                        label="Tag Line / Badge"
+                        placeholder="e.g. Winter Collection 2026"
+                        value={newBannerData.tag}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, tag: e.target.value })}
+                      />
+                      <Input
+                        label="CTA Button Label"
+                        placeholder="Explore Collection"
+                        value={newBannerData.buttonText}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, buttonText: e.target.value })}
+                      />
+                      <Input
+                        label="CTA Target Link"
+                        placeholder="/products"
+                        value={newBannerData.link}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, link: e.target.value })}
+                      />
+                      <Input
+                        label="Banner Image URL (Optional if uploading file below)"
+                        placeholder="https://images.unsplash.com/photo-..."
+                        value={newBannerData.image_url}
+                        onChange={(e) => setNewBannerData({ ...newBannerData, image_url: e.target.value })}
+                      />
+
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--cream)', fontWeight: 600 }}>Or Upload Image File:</span>
+                        <input
+                          type="file"
+                          ref={newBannerFileInputRef}
+                          accept="image/*"
+                          onChange={(e) => setNewBannerImageFile(e.target.files?.[0] || null)}
+                          style={{
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid var(--glass-border)',
+                            color: 'var(--cream)',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                          }}
+                        />
+                        {newBannerImageFile && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--gold)' }}>
+                            Selected file: {newBannerImageFile.name} ({(newBannerImageFile.size / (1024 * 1024)).toFixed(2)} MB)
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '15px', marginTop: '10px' }}>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingBanner}>
+                          {isCreatingBanner ? 'Creating Banner...' : 'Publish Banner Slide'}
+                        </Button>
+                        <Button variant="glass" type="button" onClick={() => setShowAddBannerModal(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Empty Banners State */}
+            {banners.length === 0 ? (
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '60px 30px',
+                  textAlign: 'center',
+                  border: '2px dashed var(--gold)',
+                  borderRadius: '12px',
+                  background: 'rgba(26,13,0,0.4)',
+                }}
+              >
                 <div
-                  className="glass-panel"
                   style={{
-                    padding: '30px',
-                    border: '1px solid var(--glass-border)',
-                    background: 'rgba(26,13,0,0.4)',
-                    borderRadius: '12px',
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(201, 168, 76, 0.15)',
+                    border: '1px solid var(--gold)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px auto',
+                    color: 'var(--gold)',
                   }}
                 >
-                  <h3 style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '1.3rem',
-                    color: 'var(--gold)',
-                    marginBottom: '20px',
-                  }}>
-                    Editing Slide {selectedSlideIdx + 1}
+                  <Image size={32} />
+                </div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '10px' }}>
+                  No Hero Banners Published
+                </h3>
+                <p style={{ color: 'var(--beige)', maxWidth: '480px', margin: '0 auto 24px auto', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                  The homepage hero carousel is currently empty. Click the button below to add your first banner slide with custom text and imagery.
+                </p>
+                <Button variant="gold" glow onClick={() => setShowAddBannerModal(true)}>
+                  <Plus size={16} style={{ marginRight: '6px' }} /> Add First Hero Banner
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Carousel Slide Selector — Thumbnail Grid */}
+                <div style={{ marginBottom: '35px' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '16px' }}>
+                    Select Carousel Slide to Edit ({banners.length} Active)
                   </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+                    {banners.map((banner, idx) => {
+                      const isSelected = selectedSlideIdx === idx;
+                      return (
+                        <div
+                          key={banner.id}
+                          onClick={() => setSelectedSlideIdx(idx)}
+                          style={{
+                            position: 'relative',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            border: isSelected ? '3px solid var(--gold)' : '2px solid var(--glass-border)',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            boxShadow: isSelected ? '0 4px 20px rgba(201, 168, 76, 0.3)' : 'none',
+                          }}
+                        >
+                          {/* Delete Banner Button overlay */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteBanner(banner.id, banner.title);
+                            }}
+                            title="Delete Slide"
+                            style={{
+                              position: 'absolute',
+                              top: '8px',
+                              left: '8px',
+                              zIndex: 10,
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              background: 'rgba(231, 76, 60, 0.85)',
+                              border: '1px solid #e74c3c',
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
 
-                  <Input
-                    label="Heading / Title Text"
-                    value={selectedBanner.title}
-                    onChange={(e) => updateBanner(selectedBanner.id, { title: e.target.value })}
-                  />
-                  <Input
-                    label="Subheading / Description"
-                    value={selectedBanner.subtitle}
-                    onChange={(e) => updateBanner(selectedBanner.id, { subtitle: e.target.value })}
-                  />
-                  <Input
-                    label="Tag Line"
-                    value={selectedBanner.tag}
-                    onChange={(e) => updateBanner(selectedBanner.id, { tag: e.target.value })}
-                  />
-                  <Input
-                    label="CTA Button Text"
-                    value={selectedBanner.buttonText}
-                    onChange={(e) => updateBanner(selectedBanner.id, { buttonText: e.target.value })}
-                  />
-                  <Input
-                    label="Image URL (or upload below)"
-                    value={selectedBanner.image.startsWith('data:') ? '(Uploaded file)' : selectedBanner.image}
-                    onChange={(e) => updateBanner(selectedBanner.id, { image: e.target.value })}
-                  />
+                          {/* Thumbnail image */}
+                          <img
+                            src={banner.image}
+                            alt={banner.title}
+                            style={{
+                              width: '100%',
+                              height: '120px',
+                              objectFit: 'cover',
+                              filter: isSelected ? 'brightness(0.7)' : 'brightness(0.4)',
+                              transition: 'filter 0.3s ease',
+                            }}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80';
+                            }}
+                          />
 
-                  {/* File Upload for banner image */}
-                  <div style={{ marginTop: '12px' }}>
-                    <input
-                      type="file"
-                      ref={bannerFileRef}
-                      accept="image/*"
-                      onChange={handleBannerFileUpload}
-                      style={{ display: 'none' }}
-                    />
-                    <Button
-                      variant="glass"
-                      fullWidth
-                      onClick={() => bannerFileRef.current?.click()}
-                    >
-                      <UploadCloud size={18} />
-                      Upload Banner Image
-                    </Button>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '8px', textAlign: 'center' }}>
-                      Supports JPG, PNG, WebP. Recommended: 1920×1080px
-                    </p>
+                          {/* Slide label overlay */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              padding: '10px 12px',
+                              background: 'linear-gradient(transparent, rgba(0,0,0,0.85))',
+                            }}
+                          >
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              color: isSelected ? 'var(--gold)' : 'var(--cream)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '1px',
+                            }}>
+                              Slide {idx + 1}
+                            </span>
+                            <p style={{
+                              margin: '2px 0 0 0',
+                              fontSize: '0.7rem',
+                              color: 'var(--grey-light)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {banner.title}
+                            </p>
+                          </div>
+
+                          {/* Selected check badge */}
+                          {isSelected && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              background: 'var(--gradient-gold)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 2px 8px rgba(201, 168, 76, 0.4)',
+                            }}>
+                              <Check size={16} color="#1A0D00" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+
+                {/* Selected Slide Editor */}
+                {selectedBanner && (
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
+                    {/* Editor Fields */}
+                    <div
+                      className="glass-panel"
+                      style={{
+                        padding: '30px',
+                        border: '1px solid var(--glass-border)',
+                        background: 'rgba(26,13,0,0.4)',
+                        borderRadius: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: '1.3rem',
+                          color: 'var(--gold)',
+                          margin: 0,
+                        }}>
+                          Editing Slide {selectedSlideIdx + 1}
+                        </h3>
+
+                        <button
+                          onClick={() => handleDeleteBanner(selectedBanner.id, selectedBanner.title)}
+                          style={{
+                            color: '#e74c3c',
+                            background: 'rgba(231, 76, 60, 0.1)',
+                            border: '1px solid #e74c3c',
+                            borderRadius: '4px',
+                            padding: '4px 10px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Trash2 size={14} /> Delete Slide
+                        </button>
+                      </div>
+
+                      <Input
+                        label="Heading / Title Text"
+                        value={selectedBanner.title}
+                        onChange={(e) => updateBanner(selectedBanner.id, { title: e.target.value })}
+                      />
+                      <Input
+                        label="Subheading / Description"
+                        value={selectedBanner.subtitle}
+                        onChange={(e) => updateBanner(selectedBanner.id, { subtitle: e.target.value })}
+                      />
+                      <Input
+                        label="Tag Line"
+                        value={selectedBanner.tag}
+                        onChange={(e) => updateBanner(selectedBanner.id, { tag: e.target.value })}
+                      />
+                      <Input
+                        label="CTA Button Text"
+                        value={selectedBanner.buttonText}
+                        onChange={(e) => updateBanner(selectedBanner.id, { buttonText: e.target.value })}
+                      />
+                      <Input
+                        label="Image URL (or upload below)"
+                        value={selectedBanner.image.startsWith('data:') ? '(Uploaded file)' : selectedBanner.image}
+                        onChange={(e) => updateBanner(selectedBanner.id, { image: e.target.value })}
+                      />
+
+                      {/* File Upload for banner image */}
+                      <div style={{ marginTop: '12px' }}>
+                        <input
+                          type="file"
+                          ref={bannerFileRef}
+                          accept="image/*"
+                          onChange={handleBannerFileUpload}
+                          style={{ display: 'none' }}
+                        />
+                        <Button
+                          variant="glass"
+                          fullWidth
+                          onClick={() => bannerFileRef.current?.click()}
+                        >
+                          <UploadCloud size={18} />
+                          Upload Banner Image
+                        </Button>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '8px', textAlign: 'center' }}>
+                          Supports JPG, PNG, WebP. Recommended: 1920×1080px
+                        </p>
+                      </div>
+                    </div>
+
+
 
                 {/* Live Preview Panel */}
                 <div
@@ -2264,8 +2878,180 @@ export const SuperadminDashboard: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
+
+
+          {/* PLATFORM SITE STATS MANAGER */}
+          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <span className="section-label">Site Analytics</span>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
+                Platform Counter Stats
+              </h3>
+              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                Configure animated stats counters displayed on the homepage counter bar.
+              </p>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
+                <Input
+                  label="Happy Customers"
+                  type="number"
+                  value={siteStats.happy_customers}
+                  onChange={(e) => setSiteStats({ ...siteStats, happy_customers: parseInt(e.target.value) || 0 })}
+                />
+                <Input
+                  label="Unique Flavors"
+                  type="number"
+                  value={siteStats.unique_flavors}
+                  onChange={(e) => setSiteStats({ ...siteStats, unique_flavors: parseInt(e.target.value) || 0 })}
+                />
+                <Input
+                  label="Countries Shipped"
+                  type="number"
+                  value={siteStats.countries_shipped}
+                  onChange={(e) => setSiteStats({ ...siteStats, countries_shipped: parseInt(e.target.value) || 0 })}
+                />
+                <Input
+                  label="5-Star Reviews %"
+                  type="number"
+                  value={siteStats.five_star_reviews_percent}
+                  onChange={(e) => setSiteStats({ ...siteStats, five_star_reviews_percent: parseInt(e.target.value) || 0 })}
+                />
+                <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px' }}>
+                    {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? '✓ Counter Stats Saved!' : 'Save Counter Stats'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* INSTAGRAM REELS MANAGER */}
+          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <span className="section-label">Social Media Video</span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
+                  Instagram Reels Showcase ({cmsReels.length})
+                </h3>
+                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                  Manage video reels displayed in the homepage Instagram section.
+                </p>
+              </div>
+              <Button variant="gold" glow onClick={() => setShowAddReelModal(!showAddReelModal)}>
+                {showAddReelModal ? <X size={16} /> : <Plus size={16} />}
+                {showAddReelModal ? 'Close Form' : 'Add New Reel'}
+              </Button>
+            </div>
+
+            {/* Expandable Add Reel Form */}
+            <AnimatePresence>
+              {showAddReelModal && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '25px' }}>
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
+                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.2rem' }}>
+                      Add Instagram Reel Video
+                    </h4>
+                    <form onSubmit={handleCreateReelSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
+                      <Input label="Caption / Title" required placeholder="Pouring our signature glaze... #chovique" value={newReelData.title} onChange={(e) => setNewReelData({ ...newReelData, title: e.target.value })} />
+                      <Input label="Likes Display" placeholder="14.2K" value={newReelData.likes} onChange={(e) => setNewReelData({ ...newReelData, likes: e.target.value })} />
+                      <Input label="Comments Count" placeholder="348" value={newReelData.comments} onChange={(e) => setNewReelData({ ...newReelData, comments: e.target.value })} />
+                      <Input label="Views Display" placeholder="124K views" value={newReelData.views} onChange={(e) => setNewReelData({ ...newReelData, views: e.target.value })} />
+                      <Input label="Video URL (e.g. mp4 link)" placeholder="https://..." value={newReelData.video_url} onChange={(e) => setNewReelData({ ...newReelData, video_url: e.target.value })} />
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Or Upload Video File:</span>
+                        <input type="file" accept="video/*" onChange={(e) => setNewReelVideoFile(e.target.files?.[0] || null)} style={{ marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: 'var(--cream)', padding: '6px', width: '100%', borderRadius: '4px' }} />
+                      </div>
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingReel}>{isCreatingReel ? 'Publishing...' : 'Publish Reel Video'}</Button>
+                        <Button variant="glass" type="button" onClick={() => setShowAddReelModal(false)}>Cancel</Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Reels Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+              {cmsReels.map((reel) => (
+                <div key={reel.id} className="glass-panel" style={{ padding: '16px', position: 'relative', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
+                  <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title)} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Trash2 size={14} />
+                  </button>
+                  <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '30px' }}>{reel.title}</p>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{reel.likes} Likes • {reel.views}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CUSTOMER TESTIMONIALS MANAGER */}
+          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <span className="section-label">Customer Reviews</span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
+                  Customer Testimonials ({cmsTestimonials.length})
+                </h3>
+                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                  Add and manage verified customer reviews displayed on the home page.
+                </p>
+              </div>
+              <Button variant="gold" glow onClick={() => setShowAddTestimonialModal(!showAddTestimonialModal)}>
+                {showAddTestimonialModal ? <X size={16} /> : <Plus size={16} />}
+                {showAddTestimonialModal ? 'Close Form' : 'Add Testimonial'}
+              </Button>
+            </div>
+
+            {/* Expandable Add Testimonial Form */}
+            <AnimatePresence>
+              {showAddTestimonialModal && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '25px' }}>
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
+                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.2rem' }}>
+                      Add Customer Review Testimonial
+                    </h4>
+                    <form onSubmit={handleCreateTestimonialSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
+                      <Input label="Customer / Author Name" required placeholder="e.g. Priya Sharma" value={newTestimonialData.author} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, author: e.target.value })} />
+                      <Input label="Title / City" placeholder="e.g. Food Critic, Mumbai" value={newTestimonialData.title} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, title: e.target.value })} />
+                      <Input label="Rating Stars (1-5)" type="number" min={1} max={5} value={newTestimonialData.rating} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, rating: parseFloat(e.target.value) || 5 })} />
+                      <Input label="Initials (e.g. PS)" placeholder="PS" value={newTestimonialData.initials} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, initials: e.target.value })} />
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Review Text</label>
+                        <textarea rows={3} required placeholder="Absolutely divine..." value={newTestimonialData.text} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, text: e.target.value })} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', color: 'var(--cream)', borderRadius: '4px', marginTop: '4px' }} />
+                      </div>
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingTestimonial}>{isCreatingTestimonial ? 'Publishing...' : 'Publish Testimonial'}</Button>
+                        <Button variant="glass" type="button" onClick={() => setShowAddTestimonialModal(false)}>Cancel</Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Testimonials List */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+              {cmsTestimonials.map((t) => (
+                <div key={t.author + t.title} className="glass-panel" style={{ padding: '16px', position: 'relative', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
+                  <button onClick={() => handleDeleteTestimonialSubmit(t.id || t.author, t.author)} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Trash2 size={14} />
+                  </button>
+                  <h4 style={{ color: 'var(--cream)', fontSize: '0.95rem', margin: '0 0 4px 0', paddingRight: '30px' }}>{t.author}</h4>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{t.title} • {t.stars} ★</span>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--beige)', fontStyle: 'italic', marginTop: '8px', marginBottom: 0 }}>"{t.text}"</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
         {/* PLATFORM SETTINGS TAB */}
         {activeTab === 'platform-settings' && (

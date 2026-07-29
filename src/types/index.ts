@@ -63,7 +63,8 @@ export interface Product {
   nutrition: NutritionInfo;
   rating: number;
   ratingsCount: number;
-  badge?: 'Bestseller' | 'New' | 'Premium' | 'Limited';
+  badge?: 'Bestseller' | 'New' | 'Premium' | 'Limited' | 'Gift Hamper' | 'Signature' | string;
+
   image: string;
   hoverImage?: string;
   reviews: Review[];
@@ -348,6 +349,7 @@ export interface ProductUpdatePayload {
 
 export interface ProfileUpdatePayload {
   name?: string;
+  full_name?: string;
   phone?: string;
   dob?: string;
   gender?: string;

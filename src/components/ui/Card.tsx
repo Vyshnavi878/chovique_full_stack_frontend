@@ -19,6 +19,30 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
 
   const isLiked = wishlist.some((p) => p.id === product.id);
 
+  const primaryImg = getImageUrl(product.image);
+  const hoverImg = product.hoverImage ? getImageUrl(product.hoverImage) : null;
+
+  const [imgSrc, setImgSrc] = useState(primaryImg);
+  const [hasHover, setHasHover] = useState(() => Boolean(hoverImg && hoverImg !== primaryImg));
+
+  React.useEffect(() => {
+    const pImg = getImageUrl(product.image);
+    const hImg = product.hoverImage ? getImageUrl(product.hoverImage) : null;
+    setImgSrc(pImg);
+    setHasHover(Boolean(hImg && hImg !== pImg));
+  }, [product.image, product.hoverImage]);
+
+  const handleMainImgError = () => {
+    const hImg = product.hoverImage ? getImageUrl(product.hoverImage) : null;
+    const fallbackUrl = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=600&q=80';
+    if (hImg && imgSrc !== hImg) {
+      setImgSrc(hImg);
+      setHasHover(false);
+    } else if (imgSrc !== fallbackUrl) {
+      setImgSrc(fallbackUrl);
+      setHasHover(false);
+    }
+  };
 
   const handleCardClick = () => {
     if (role === 'guest') {
@@ -77,23 +101,24 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
       {/* Product Image Container */}
       <div style={{ position: 'relative', overflow: 'hidden', aspectRatio: '1.25/1' }}>
         <img
-          src={getImageUrl(product.image)}
+          src={imgSrc}
           alt={product.name}
+          onError={handleMainImgError}
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
             transition: 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease',
-            opacity: isHovered && product.hoverImage ? 0 : 1,
+            opacity: isHovered && hasHover ? 0 : 1,
             transform: isHovered ? 'scale(1.06)' : 'scale(1)',
           }}
           className="product-card-img-element"
         />
-        {product.hoverImage && (
+        {hasHover && hoverImg && (
           <img
-            src={getImageUrl(product.hoverImage)}
+            src={hoverImg}
             alt={`${product.name} alternate view`}
-
+            onError={() => setHasHover(false)}
             style={{
               position: 'absolute',
               top: 0,

@@ -4,6 +4,8 @@ import { AppProvider, useApp } from './providers';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+
 
 // Pages
 import { LandingPage, OurStoryPage, ContactPage } from '../features/landing';
@@ -101,7 +103,9 @@ const AppContent: React.FC = () => {
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
-                <AdminDashboard />
+                <ErrorBoundary>
+                  <AdminDashboard />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           />
@@ -111,13 +115,16 @@ const AppContent: React.FC = () => {
             path="/superadmin"
             element={
               <ProtectedRoute allowedRoles={['superadmin']}>
-                <SuperadminDashboard />
+                <ErrorBoundary>
+                  <SuperadminDashboard />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           />
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+
       </main>
 
       {showNavAndFooter && location.pathname !== '/checkout' && <Footer />}

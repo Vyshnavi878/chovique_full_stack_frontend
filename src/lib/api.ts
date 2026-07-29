@@ -17,12 +17,15 @@ const buildHeaders = (isFormData = false): HeadersInit => {
   return { 'Content-Type': 'application/json' };
 };
 
-/** Handle 401 Unauthorized globally — skip redirect when already on auth pages */
-const handleUnauthorized = (): void => {
+/** Handle 401 Unauthorized globally — skip redirect for session rehydration (/users/me) or public pages */
+const handleUnauthorized = (path?: string): void => {
+  if (path && path.includes('/users/me')) {
+    return;
+  }
   const { pathname } = window.location;
-  const authPages = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-otp'];
-  const isOnAuthPage = authPages.some((p) => pathname.startsWith(p));
-  if (!isOnAuthPage) {
+  const publicPages = ['/', '/shop', '/our-story', '/contact', '/product', '/cart', '/wishlist', '/login', '/register', '/forgot-password', '/reset-password', '/verify-otp'];
+  const isPublicPage = publicPages.some((p) => pathname === p || (p !== '/' && pathname.startsWith(p)));
+  if (!isPublicPage) {
     window.location.href = '/login';
   }
 };
@@ -74,7 +77,7 @@ export const apiGet = async <T>(path: string): Promise<T> => {
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
@@ -95,7 +98,7 @@ export const apiPost = async <T>(path: string, body?: unknown): Promise<T> => {
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
@@ -121,7 +124,7 @@ export const apiPostFormData = async <T>(path: string, formData: FormData): Prom
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
@@ -142,7 +145,7 @@ export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
@@ -163,7 +166,7 @@ export const apiPut = async <T>(path: string, body?: unknown): Promise<T> => {
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
@@ -183,7 +186,7 @@ export const apiDelete = async <T>(path: string): Promise<T> => {
   });
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized(path);
     throw new ApiError(401, 'Session expired. Please log in again.');
   }
 
