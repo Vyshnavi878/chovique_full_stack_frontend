@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Mail, RefreshCw, KeyRound, CheckCircle2 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import { useApp } from '../../app/providers';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/authService';
 
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
+  const { googleLogin } = useApp();
 
   // Step: 'EMAIL' -> 'RESET' -> 'SUCCESS'
   const [step, setStep] = useState<'EMAIL' | 'RESET' | 'SUCCESS'>('EMAIL');
@@ -20,6 +23,7 @@ export const ForgotPasswordPage: React.FC = () => {
   // UI / Feedback states
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successInfo, setSuccessInfo] = useState('');
 
@@ -155,306 +159,315 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <div
-      className="auth-page-container"
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 20px',
-        background: 'radial-gradient(circle at center, rgba(59,30,8,0.5) 0%, rgba(10,10,10,0.95) 100%)',
-      }}
-    >
-      <div
-        className="glass-panel"
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          padding: '40px',
-          border: '1px solid var(--glass-border)',
-          background: 'rgba(26, 13, 0, 0.75)',
-          borderRadius: '16px',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
-        }}
-      >
-        <Link
-          to="/login"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: 'var(--gold)',
-            fontSize: '0.85rem',
-            marginBottom: '24px',
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-        >
+    <div className="auth-page">
+      <div className="auth-card">
+        {/* Back Link */}
+        <Link to="/login" className="back-to-store-link">
           <ArrowLeft size={16} /> Back to Login
         </Link>
 
+        {/* Header */}
+        <div className="auth-header">
+          <div
+            style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '50%',
+              background: 'rgba(201, 168, 76, 0.15)',
+              border: '1px solid var(--gold)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--gold)',
+              marginBottom: '14px',
+            }}
+          >
+            {step === 'SUCCESS' ? (
+              <CheckCircle2 size={26} style={{ color: '#2ecc71' }} />
+            ) : step === 'RESET' ? (
+              <Mail size={26} />
+            ) : (
+              <KeyRound size={26} />
+            )}
+          </div>
+          <h2 className="auth-title">
+            {step === 'EMAIL'
+              ? 'Reset Password'
+              : step === 'RESET'
+              ? 'Verify & New Password'
+              : 'Reset Complete!'}
+          </h2>
+          <p className="auth-subtitle">
+            {step === 'EMAIL'
+              ? 'Enter your email to receive a reset code'
+              : step === 'RESET'
+              ? `OTP sent to ${email}`
+              : 'Your password has been updated'}
+          </p>
+        </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div
+            role="alert"
+            style={{
+              background: 'rgba(231, 76, 60, 0.1)',
+              border: '1px solid #e74c3c',
+              color: '#e74c3c',
+              borderRadius: '4px',
+              padding: '10px 14px',
+              fontSize: '0.85rem',
+              marginBottom: '20px',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Success Info Banner */}
+        {successInfo && (
+          <div
+            style={{
+              background: 'rgba(46, 204, 113, 0.1)',
+              border: '1px solid #2ecc71',
+              color: '#2ecc71',
+              borderRadius: '4px',
+              padding: '10px 14px',
+              fontSize: '0.85rem',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <CheckCircle2 size={16} />
+            <span>{successInfo}</span>
+          </div>
+        )}
+
+        {/* STEP 1: Email Form */}
         {step === 'EMAIL' && (
-          <div>
-            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-              <div
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '50%',
-                  background: 'rgba(201, 168, 76, 0.15)',
-                  border: '1px solid var(--gold)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gold)',
-                  marginBottom: '16px',
-                }}
-              >
-                <KeyRound size={28} />
-              </div>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '1.8rem',
-                  color: 'var(--cream)',
-                  margin: '0 0 8px 0',
-                }}
-              >
-                Reset Password
-              </h1>
-              <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', margin: 0, lineHeight: 1.5 }}>
-                Enter your registered email address and we will send you an OTP code to reset your password.
-              </p>
-            </div>
+          <form onSubmit={handleSendOtp} noValidate>
+            <Input
+              label="Registered Email Address"
+              type="email"
+              placeholder="connoisseur@chovique.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError('');
+              }}
+              required
+              autoComplete="email"
+            />
 
-            {error && (
-              <div
-                style={{
-                  padding: '12px',
-                  background: 'rgba(231, 76, 60, 0.15)',
-                  border: '1px solid #e74c3c',
-                  color: '#e74c3c',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
-                }}
-              >
-                {error}
-              </div>
-            )}
+            <Button
+              variant="gold"
+              fullWidth
+              size="lg"
+              type="submit"
+              glow
+              disabled={isLoading}
+              style={{ gap: '10px' }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                  Sending Reset Code...
+                </>
+              ) : (
+                'Send Reset Code'
+              )}
+            </Button>
 
-            <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <Input
-                label="Registered Email Address"
-                type="email"
-                placeholder="connoisseur@chovique.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+            <div className="auth-divider" style={{ margin: '24px 0' }}>Or continue with</div>
 
-              <Button variant="gold" size="lg" type="submit" glow disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                    Sending Reset Code...
-                  </>
-                ) : (
-                  'Send Reset Code'
-                )}
-              </Button>
-            </form>
-          </div>
-        )}
-
-        {step === 'RESET' && (
-          <div>
-            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-              <div
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '50%',
-                  background: 'rgba(201, 168, 76, 0.15)',
-                  border: '1px solid var(--gold)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gold)',
-                  marginBottom: '16px',
-                }}
-              >
-                <Mail size={28} />
-              </div>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '1.8rem',
-                  color: 'var(--cream)',
-                  margin: '0 0 8px 0',
-                }}
-              >
-                Verification & New Password
-              </h1>
-              <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', margin: 0, lineHeight: 1.5 }}>
-                Enter the 6-digit OTP code sent to <strong>{email}</strong> and create your new password.
-              </p>
-            </div>
-
-            {successInfo && (
-              <div
-                style={{
-                  padding: '12px',
-                  background: 'rgba(46, 204, 113, 0.15)',
-                  border: '1px solid #2ecc71',
-                  color: '#2ecc71',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <CheckCircle2 size={16} /> {successInfo}
-              </div>
-            )}
-
-            {error && (
-              <div
-                style={{
-                  padding: '12px',
-                  background: 'rgba(231, 76, 60, 0.15)',
-                  border: '1px solid #e74c3c',
-                  color: '#e74c3c',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <Input
-                label="6-Digit Verification Code (OTP)"
-                type="text"
-                placeholder="123456"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.trim())}
-                required
-              />
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)' }}>
-                  {timeLeft > 0 ? `Resend OTP in ${timeLeft}s` : "Didn't get the code?"}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={timeLeft > 0 || isResending}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: timeLeft > 0 || isResending ? 'rgba(255,255,255,0.3)' : 'var(--gold)',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: timeLeft > 0 || isResending ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
+            <div className="social-login-group">
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <GoogleLogin
+                  onSuccess={async (credentialResponse) => {
+                    if (credentialResponse.credential) {
+                      setIsGoogleLoading(true);
+                      setError('');
+                      try {
+                        const result = await googleLogin(credentialResponse.credential);
+                        if (result.success) {
+                          if (result.user && result.user.has_password === false) {
+                            navigate('/set-password');
+                          } else if (result.role === 'admin') {
+                            navigate('/admin');
+                          } else if (result.role === 'superadmin') {
+                            navigate('/superadmin');
+                          } else {
+                            navigate('/');
+                          }
+                        } else {
+                          setError(result.error || 'Google Sign-In failed.');
+                        }
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : 'Google Sign-In failed.';
+                        setError(msg);
+                      } finally {
+                        setIsGoogleLoading(false);
+                      }
+                    }
                   }}
-                >
-                  {isResending ? (
-                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  ) : (
-                    <RefreshCw size={14} />
-                  )}
-                  Resend Code
-                </button>
-              </div>
-
-              <div>
-                <Input
-                  label="New Password"
-                  type="password"
-                  placeholder="At least 6 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
+                  onError={() => {
+                    setError(`Google Sign-In failed: Origin (${window.location.origin}) is not authorized.`);
+                  }}
+                  theme="filled_black"
+                  shape="rectangular"
+                  size="large"
+                  text="continue_with"
                 />
-
-                {newPassword.length > 0 && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div
-                      style={{
-                        height: '4px',
-                        width: '100%',
-                        background: 'rgba(255,255,255,0.1)',
-                        borderRadius: '2px',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${(strengthScore / 4) * 100}%`,
-                          background: getStrengthColor(),
-                          transition: 'all 0.3s ease',
-                        }}
-                      />
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: getStrengthColor(), marginTop: '4px', display: 'block' }}>
-                      Password Strength: {strengthText}
-                    </span>
-                  </div>
-                )}
               </div>
-
-              <Input
-                label="Confirm New Password"
-                type="password"
-                placeholder="Re-enter your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-
-              <Button variant="gold" size="lg" type="submit" glow disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                    Resetting Password...
-                  </>
-                ) : (
-                  'Reset Password & Sign In'
-                )}
-              </Button>
-            </form>
-          </div>
+            </div>
+            {isGoogleLoading && (
+              <p style={{ textAlign: 'center', color: 'var(--gold)', fontSize: '0.85rem', marginTop: '8px' }}>
+                Signing in with Google...
+              </p>
+            )}
+          </form>
         )}
 
-        {step === 'SUCCESS' && (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <CheckCircle2 size={56} style={{ color: '#2ecc71', margin: '0 auto 20px' }} />
-            <h1
+        {/* STEP 2: OTP + New Password Form */}
+        {step === 'RESET' && (
+          <form onSubmit={handleResetPassword} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <Input
+              label="6-Digit Verification Code (OTP)"
+              type="text"
+              placeholder="123456"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => {
+                setOtp(e.target.value.trim());
+                if (error) setError('');
+              }}
+              required
+            />
+
+            <div
               style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.8rem',
-                color: 'var(--cream)',
-                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                fontSize: '0.83rem',
               }}
             >
-              Password Reset Complete!
-            </h1>
-            <p style={{ color: 'var(--grey-light)', fontSize: '0.9rem', marginBottom: '28px', lineHeight: 1.5 }}>
+              <span style={{ color: timeLeft > 0 ? '#E5C158' : '#e74c3c', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <KeyRound size={14} />
+                {timeLeft > 0 ? `OTP expires in ${timeLeft}s` : '⚠️ OTP Expired'}
+              </span>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={timeLeft > 0 || isResending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: timeLeft > 0 || isResending ? 'rgba(255,255,255,0.3)' : 'var(--gold)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: timeLeft > 0 || isResending ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  textDecoration: timeLeft === 0 ? 'underline' : 'none',
+                }}
+              >
+                {isResending ? (
+                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                Resend Code
+              </button>
+            </div>
+
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="At least 6 characters"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                if (error) setError('');
+              }}
+              required
+              autoComplete="new-password"
+            />
+
+            {newPassword.length > 0 && (
+              <div style={{ marginBottom: '16px', marginTop: '-8px' }}>
+                <div
+                  style={{
+                    height: '4px',
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${(strengthScore / 4) * 100}%`,
+                      background: getStrengthColor(),
+                      transition: 'all 0.3s ease',
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: '0.73rem', color: getStrengthColor(), marginTop: '4px', display: 'block' }}>
+                  Password Strength: {strengthText}
+                </span>
+              </div>
+            )}
+
+            <Input
+              label="Confirm New Password"
+              type="password"
+              placeholder="Re-enter your new password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (error) setError('');
+              }}
+              required
+              autoComplete="new-password"
+            />
+
+            <Button
+              variant="gold"
+              fullWidth
+              size="lg"
+              type="submit"
+              glow
+              disabled={isLoading}
+              style={{ gap: '10px', marginTop: '4px' }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                  Resetting Password...
+                </>
+              ) : (
+                'Reset Password & Sign In'
+              )}
+            </Button>
+          </form>
+        )}
+
+        {/* STEP 3: Success */}
+        {step === 'SUCCESS' && (
+          <div style={{ textAlign: 'center', padding: '10px 0 20px' }}>
+            <CheckCircle2 size={56} style={{ color: '#2ecc71', margin: '0 auto 20px' }} />
+            <p style={{ color: 'var(--grey-light)', fontSize: '0.9rem', marginBottom: '28px', lineHeight: 1.6 }}>
               Your password has been successfully updated. You can now log in with your new credentials.
             </p>
             <Button
               variant="gold"
+              fullWidth
               size="lg"
               glow
               onClick={() => navigate('/login', { replace: true })}
@@ -463,7 +476,16 @@ export const ForgotPasswordPage: React.FC = () => {
             </Button>
           </div>
         )}
+
+        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '0.9rem', color: 'var(--grey-light)' }}>
+          Remember your password?{' '}
+          <Link to="/login" style={{ color: 'var(--gold)', fontWeight: 600 }}>
+            Sign In
+          </Link>
+        </p>
       </div>
     </div>
   );
 };
+
+export default ForgotPasswordPage;

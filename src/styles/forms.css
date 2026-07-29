@@ -166,6 +166,12 @@
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.25) !important;
 }
 
+/* Eye toggle button inside password inputs */
+.auth-card .password-input-wrapper {
+  position: relative;
+}
+
+
 @media (max-width: 768px) {
   .auth-page {
     padding: 92px 14px 32px;

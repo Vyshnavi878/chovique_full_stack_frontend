@@ -1,4 +1,3 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
@@ -16,9 +15,7 @@ if (!clientId) {
 const effectiveClientId = clientId || "000000000000-placeholder.apps.googleusercontent.com";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <GoogleOAuthProvider clientId={effectiveClientId}>
-      <App />
-    </GoogleOAuthProvider>
-  </React.StrictMode>
+  <GoogleOAuthProvider clientId={effectiveClientId}>
+    <App />
+  </GoogleOAuthProvider>
 );

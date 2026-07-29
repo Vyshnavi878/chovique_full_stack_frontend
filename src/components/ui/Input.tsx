@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -16,6 +17,9 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+  const isPassword = type === 'password';
+  const [showPassword, setShowPassword] = useState(false);
+  const resolvedType = isPassword ? (showPassword ? 'text' : 'password') : type;
 
   return (
     <div
@@ -42,23 +46,53 @@ export const Input: React.FC<InputProps> = ({
           {label}
         </label>
       )}
-      <input
-        id={inputId}
-        type={type}
-        style={{
-          padding: '12px 16px',
-          background: 'rgba(var(--dark-chocolate-rgb), 0.4)',
-          border: error ? '1px solid var(--rose-gold)' : '1px solid var(--glass-border)',
-          borderRadius: '4px',
-          color: 'var(--cream)',
-          fontFamily: 'inherit',
-          fontSize: '0.95rem',
-          outline: 'none',
-          transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
-        }}
-        className={`luxury-input ${className}`}
-        {...props}
-      />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input
+          id={inputId}
+          type={resolvedType}
+          style={{
+            width: '100%',
+            padding: isPassword ? '12px 44px 12px 16px' : '12px 16px',
+            background: 'rgba(var(--dark-chocolate-rgb), 0.4)',
+            border: error ? '1px solid var(--rose-gold)' : '1px solid var(--glass-border)',
+            borderRadius: '4px',
+            color: 'var(--cream)',
+            fontFamily: 'inherit',
+            fontSize: '0.95rem',
+            outline: 'none',
+            transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+            boxSizing: 'border-box',
+          }}
+          className={`luxury-input ${className}`}
+          {...props}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--gold)',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '4px',
+              opacity: 0.8,
+              transition: 'opacity 0.2s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
       {error && (
         <span
           style={{
