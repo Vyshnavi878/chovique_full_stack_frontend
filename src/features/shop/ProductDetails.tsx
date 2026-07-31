@@ -64,7 +64,7 @@ export const ProductDetails: React.FC = () => {
       navigate('/login');
     } else {
       addToCart(product, quantity);
-      navigate('/cart');
+      navigate('/checkout');
     }
   };
 

@@ -363,7 +363,7 @@ export const AdminDashboard: React.FC = () => {
               }}
             >
               {/* Product list Table */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', overflowX: 'auto' }}>
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'transparent' }}>
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -433,7 +433,7 @@ export const AdminDashboard: React.FC = () => {
                     style={{
                       padding: '30px',
                       border: '1px solid var(--gold)',
-                      background: 'rgba(26,13,0,0.8)',
+                      background: 'transparent',
                     }}
                   >
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
