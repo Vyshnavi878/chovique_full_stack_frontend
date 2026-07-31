@@ -27,9 +27,7 @@ import {
   UserCheck,
   Activity,
   AlertTriangle,
-  Key,
-  Eye,
-  EyeOff
+  Key
 } from 'lucide-react';
 import {
   BarChart,
@@ -52,7 +50,7 @@ import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { adminService } from '../../services/adminService';
+import { adminService, type DashboardStats, type AuditLogEntry } from '../../services/adminService';
 import { homeService } from '../../services/homeService';
 import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
 
@@ -125,7 +123,7 @@ const builtInPresets: ThemePreset[] = [
 
 
 export const SuperadminDashboard: React.FC = () => {
-  const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, addBanner, deleteBannerState, refreshBanners } = useApp();
+  const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners } = useApp();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('enterprise');
@@ -140,25 +138,13 @@ export const SuperadminDashboard: React.FC = () => {
   }, []);
   const [analyticsSubTab, setAnalyticsSubTab] = useState<'total' | 'online' | 'offline'>('total');
 
-  // --- Dynamic local state for stock/units sold to keep them interactive for superadmin ---
-  const [productMetrics, setProductMetrics] = useState<{ [productId: string]: { stock: number; sold: number } }>(() => {
-    const saved = localStorage.getItem('chovique_product_metrics');
-    if (saved) return JSON.parse(saved);
-    return {
-      'p1': { stock: 45, sold: 148 },
-      'p2': { stock: 12, sold: 92 },
-      'p3': { stock: 8, sold: 74 },
-      'p4': { stock: 60, sold: 110 },
-      'p5': { stock: 3, sold: 88 },
-      'p6': { stock: 25, sold: 56 },
-      'p7': { stock: 18, sold: 63 },
-      'p8': { stock: 35, sold: 120 },
-    };
-  });
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('chovique_product_metrics', JSON.stringify(productMetrics));
-  }, [productMetrics]);
+    adminService.getStats()
+      .then(stats => setDashboardStats(stats))
+      .catch(err => console.error('Failed to load dashboard stats:', err));
+  }, []);
 
   // --- Theme Builder Colors State ---
   const [themeInput, setThemeInput] = useState({
@@ -207,18 +193,22 @@ export const SuperadminDashboard: React.FC = () => {
 
   // --- Admin Accounts Management State ---
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '', scope: 'All Boutiques' });
+  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '' });
   const [adminCreateError, setAdminCreateError] = useState('');
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
   // --- Password Reset Modal State ---
   const [resetAdminUser, setResetAdminUser] = useState<SystemUser | null>(null);
   const [resetAdminPassword, setResetAdminPassword] = useState('');
-  const [showResetPasswordVal, setShowResetPasswordVal] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetPasswordError, setResetPasswordError] = useState('');
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState('');
+
+  // --- Edit Admin Modal State ---
+  const [editAdminUser, setEditAdminUser] = useState<SystemUser | null>(null);
+  const [editAdminForm, setEditAdminForm] = useState({ name: '', email: '' });
+  const [isEditingAdmin, setIsEditingAdmin] = useState(false);
+  const [editAdminError, setEditAdminError] = useState('');
 
   // --- Roles & Permissions User List State ---
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
@@ -417,22 +407,13 @@ export const SuperadminDashboard: React.FC = () => {
     addLogEntry('Saved system platform settings configuration', 'setting');
     setTimeout(() => setSettingsSaved(false), 3000);
   };
-
-  // --- Audit logs with live addition triggers ---
-  const [liveLogs, setLiveLogs] = useState(() => {
-    const saved = localStorage.getItem('chovique_audit_logs');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'log1', time: '07:12:45', action: 'Boutique register CSV upload parsed', user: 'Karen Dsouza', type: 'order' },
-      { id: 'log2', time: '06:44:12', action: 'Modified price of Royal Truffle Box to ₹2499', user: 'Alok Mishra', type: 'product' },
-      { id: 'log3', time: 'Yesterday', action: 'Dynamic banner Slide 1 text adjusted', user: 'Atelier Admin', type: 'setting' },
-      { id: 'log4', time: '2 days ago', action: 'Superadmin credentials session initialized', user: 'Enterprise Chief', type: 'security' },
-    ];
-  });
+  const [backendAuditLogs, setBackendAuditLogs] = useState<AuditLogEntry[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('chovique_audit_logs', JSON.stringify(liveLogs));
-  }, [liveLogs]);
+    adminService.getAuditLogs()
+      .then((logs) => setBackendAuditLogs(logs))
+      .catch((err) => console.error('Failed to fetch audit logs:', err));
+  }, []);
 
   // --- Stock adjustment fields ---
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
@@ -441,17 +422,13 @@ export const SuperadminDashboard: React.FC = () => {
   // --- Customer detail modal inspection ---
   const [inspectedCustomer, setInspectedCustomer] = useState<SystemUser | null>(null);
 
-  const addLogEntry = (action: string, type: 'order' | 'product' | 'security' | 'setting') => {
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    const newLog = {
-      id: `log-${Date.now()}`,
-      time: timeStr,
-      action,
-      user: 'Enterprise Chief (Superadmin)',
-      type,
-    };
-    setLiveLogs((prev: any) => [newLog, ...prev]);
+  const addLogEntry = (action: string, type: 'order' | 'product' | 'security' | 'setting' = 'setting') => {
+    // Audit logs are now fetched from the backend.
+    // If we want to instantly reflect a change locally, we can optionally pre-pend it,
+    // but the best approach is to re-fetch the logs from the backend.
+    adminService.getAuditLogs()
+      .then((logs) => setBackendAuditLogs(logs))
+      .catch((err) => console.error('Failed to fetch audit logs after action:', err));
   };
 
   // Preset operations
@@ -564,13 +541,12 @@ export const SuperadminDashboard: React.FC = () => {
         full_name: newAdmin.name,
         email: newAdmin.email,
         password: newAdmin.password,
-        scope: newAdmin.scope,
       });
 
       setSystemUsers((prev) => [created, ...prev]);
       addLogEntry(`Registered new administrator account: ${created.name} (${created.email})`, 'security');
 
-      setNewAdmin({ name: '', email: '', password: '', scope: 'All Boutiques' });
+      setNewAdmin({ name: '', email: '', password: '' });
       setShowAddAdminForm(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register admin account.';
@@ -687,20 +663,41 @@ export const SuperadminDashboard: React.FC = () => {
 
 
 
+  // Edit admin user profile (name, email, scope)
+  const handleEditAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAdminUser) return;
+    if (!editAdminForm.name.trim() || !editAdminForm.email.trim()) {
+      setEditAdminError('Name and Email are required.');
+      return;
+    }
+    setIsEditingAdmin(true);
+    setEditAdminError('');
+    try {
+      const updated = await adminService.updateAdmin(editAdminUser.id, {
+        full_name: editAdminForm.name,
+        email: editAdminForm.email,
+      });
+      // Scope removed — no longer a field
+      const mergedUser = { ...updated };
+      setSystemUsers((prev) =>
+        prev.map((u) => (u.id === mergedUser.id ? mergedUser : u))
+      );
+      addLogEntry(`Updated administrator account: ${mergedUser.name} (${mergedUser.email})`, 'security');
+      setEditAdminUser(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update administrator.';
+      setEditAdminError(msg);
+    } finally {
+      setIsEditingAdmin(false);
+    }
+  };
+
   // Restock items
   const handleSaveStockLevel = (prodId: string) => {
-    setProductMetrics(prev => {
-      const updated = {
-        ...prev,
-        [prodId]: {
-          ...prev[prodId],
-          stock: adjustStockVal
-        }
-      };
-      const prodName = products.find(p => p.id === prodId)?.name || prodId;
-      addLogEntry(`Adjusted inventory stock for "${prodName}" to ${adjustStockVal} units`, 'product');
-      return updated;
-    });
+    setProducts(prev => prev.map(p => p.id === prodId ? { ...p, stock: adjustStockVal } : p));
+    const prodName = products.find(p => p.id === prodId)?.name || prodId;
+    addLogEntry(`Adjusted inventory stock for "${prodName}" to ${adjustStockVal} units`, 'product');
     setAdjustingStockId(null);
   };
 
@@ -874,28 +871,21 @@ export const SuperadminDashboard: React.FC = () => {
     );
   };
 
-  // Computed summary metrics
-  const totalOfflineRevenue = Array.isArray(offlineSales)
-    ? offlineSales.reduce((sum, s: any) => sum + (s?.totalPrice || s?.total_price || 0), 0)
-    : 0;
-  const totalOnlineRevenue = Array.isArray(superOrders)
-    ? superOrders.filter((o: any) => o?.status !== 'Cancelled').reduce((sum: number, o: any) => sum + (o?.total || o?.total_amount || 0), 0)
-    : 0;
+  // Computed summary metrics from backend
+  const totalOfflineRevenue = dashboardStats?.total_offline_revenue || 0;
+  const totalOnlineRevenue = dashboardStats?.total_online_revenue || 0;
   const totalRevenue = totalOnlineRevenue + totalOfflineRevenue;
   
-  // Count total sold items & available items
-  const totalUnitsSold = Object.values(productMetrics || {}).reduce((sum, m: any) => sum + (m?.sold || 0), 0);
-  const totalUnitsAvailable = Object.values(productMetrics || {}).reduce((sum, m: any) => sum + (m?.stock || 0), 0);
+  // Count total sold items & available items from backend
+  const totalUnitsSold = dashboardStats?.total_units_sold || 0;
+  const totalUnitsAvailable = dashboardStats?.total_inventory_stock || 0;
 
-  // Analytics mockup data for charts (Website sales vs Boutique sales)
-  const salesHistoryData = [
-    { name: 'Jan', OnlineSales: 45000, BoutiqueSales: 30000 },
-    { name: 'Feb', OnlineSales: 52000, BoutiqueSales: 35000 },
-    { name: 'Mar', OnlineSales: 61000, BoutiqueSales: 48000 },
-    { name: 'Apr', OnlineSales: 58000, BoutiqueSales: 40000 },
-    { name: 'May', OnlineSales: 75000, BoutiqueSales: 65000 },
-    { name: 'Jun', OnlineSales: 89000, BoutiqueSales: 72000 },
-  ];
+  // Analytics real data for charts (last 6 months)
+  const salesHistoryData = dashboardStats?.monthly_revenue?.map(m => ({
+    name: m.month,
+    OnlineSales: m.online_revenue,
+    BoutiqueSales: m.offline_revenue
+  })) || [];
 
   // Pie chart values for revenue sources
   const revenueChannelsData = [
@@ -943,10 +933,18 @@ export const SuperadminDashboard: React.FC = () => {
 
             {/* Core Stats row */}
             <div className="stats-grid-dashboard">
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                  Combined ARR
-                </span>
+              <div 
+                className="dashboard-stat-card glass-panel interactive-card" 
+                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
+                onClick={() => setActiveTab('revenue')}
+                title="View Revenue Analytics"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
+                    Combined ARR
+                  </span>
+                  <ArrowRight size={14} color="var(--gold)" />
+                </div>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
                   ₹{(totalRevenue * 12).toLocaleString('en-IN')}
                 </span>
@@ -954,10 +952,18 @@ export const SuperadminDashboard: React.FC = () => {
                   Based on monthly run rate
                 </span>
               </div>
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                  Total Chocolates Sold
-                </span>
+              <div 
+                className="dashboard-stat-card glass-panel interactive-card" 
+                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
+                onClick={() => { setActiveTab('sales-comparison'); setAnalyticsSubTab('total'); }}
+                title="View Sales Analytics"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
+                    Total Chocolates Sold
+                  </span>
+                  <ArrowRight size={14} color="var(--gold)" />
+                </div>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
                   {totalUnitsSold.toLocaleString()} units
                 </span>
@@ -965,10 +971,18 @@ export const SuperadminDashboard: React.FC = () => {
                   Online + Offline sales
                 </span>
               </div>
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                  Inventory Stock
-                </span>
+              <div 
+                className="dashboard-stat-card glass-panel interactive-card" 
+                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
+                onClick={() => { setActiveTab('sales-comparison'); setAnalyticsSubTab('total'); }}
+                title="View Inventory Stock"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
+                    Inventory Stock
+                  </span>
+                  <ArrowRight size={14} color="var(--gold)" />
+                </div>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
                   {totalUnitsAvailable.toLocaleString()} units
                 </span>
@@ -976,13 +990,20 @@ export const SuperadminDashboard: React.FC = () => {
                   Available in all warehouses
                 </span>
               </div>
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                  Active Admins
-                </span>
+              <div 
+                className="dashboard-stat-card glass-panel interactive-card" 
+                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
+                onClick={() => setActiveTab('admin-mgmt')}
+                title="Manage Admin Accounts"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
+                    Active Admins
+                  </span>
+                  <ArrowRight size={14} color="var(--gold)" />
+                </div>
                 <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {(Array.isArray(systemUsers) ? systemUsers.filter(u => u?.role === 'admin' || u?.role === 'superadmin') : []).length} accounts
-
+                  {dashboardStats?.admin_count || 0} accounts
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#2ecc71', display: 'block', marginTop: '6px' }}>
                   100% Security Audited
@@ -1041,7 +1062,7 @@ export const SuperadminDashboard: React.FC = () => {
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {liveLogs.slice(0, 3).map((log: any) => (
+                  {backendAuditLogs.slice(0, 3).map((log: any) => (
                     <div
                       key={log.id}
                       style={{
@@ -1053,8 +1074,8 @@ export const SuperadminDashboard: React.FC = () => {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--gold)', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: 600 }}>{log.user}</span>
-                        <span>{log.time}</span>
+                        <span style={{ fontWeight: 600 }}>{log.user_name || log.user_email || 'System'}</span>
+                        <span>{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
                       <p style={{ margin: 0, color: 'var(--cream)' }}>{log.action}</p>
                     </div>
@@ -1095,8 +1116,10 @@ export const SuperadminDashboard: React.FC = () => {
                 <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalOfflineRevenue.toLocaleString('en-IN')}</h3>
               </div>
               <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Gross Margin</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>68.4%</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Gross Margin (Online Share)</span>
+                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>
+                  {totalRevenue > 0 ? ((totalOnlineRevenue / totalRevenue) * 100).toFixed(1) : '0'}%
+                </h3>
               </div>
             </div>
 
@@ -1191,37 +1214,23 @@ export const SuperadminDashboard: React.FC = () => {
                   <div className="glass-panel" style={{ padding: '20px' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Top Selling Chocolate</span>
                     {(() => {
-                      // Dynamically calculate top selling product by volume
-                      const salesByProd: { [name: string]: number } = {};
+                      if (!dashboardStats?.top_products || dashboardStats.top_products.length === 0) {
+                        return (
+                          <>
+                            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--gold)' }}>N/A</h3>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
+                              Volume: 0 units sold
+                            </span>
+                          </>
+                        );
+                      }
                       
-                      // 1. Online orders
-                      superOrders.forEach((o: any) => {
-                        if (o.status !== 'Cancelled') {
-                          o.items.forEach((it: any) => {
-                            salesByProd[it.product.name] = (salesByProd[it.product.name] || 0) + it.quantity;
-                          });
-                        }
-                      });
-
-                      // 2. Offline sales
-                      offlineSales.forEach((s: any) => {
-                        salesByProd[s.productName] = (salesByProd[s.productName] || 0) + s.quantity;
-                      });
-
-                      let topProd = 'Belgian Dark Truffle';
-                      let maxQty = 0;
-                      Object.entries(salesByProd).forEach(([name, qty]) => {
-                        if (qty > maxQty) {
-                          maxQty = qty;
-                          topProd = name;
-                        }
-                      });
-
+                      const topProd = dashboardStats.top_products[0];
                       return (
                         <>
-                          <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--gold)' }}>{topProd}</h3>
+                          <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--gold)' }}>{topProd.name}</h3>
                           <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
-                            Volume: {maxQty} units sold
+                            Volume: {topProd.units_sold} units sold
                           </span>
                         </>
                       );
@@ -1255,16 +1264,32 @@ export const SuperadminDashboard: React.FC = () => {
                     </thead>
                     <tbody>
                       {products.map((prod) => {
-                        const metrics = productMetrics[prod.id] || { stock: 0, sold: 0 };
-                        const isLowStock = metrics.stock < 10;
+                        // Dynamically calculate units sold for this specific product
+                        let unitsSold = 0;
+                        superOrders.forEach((o: any) => {
+                          if (o.status !== 'Cancelled') {
+                            o.items.forEach((it: any) => {
+                              if (it.product.id === prod.id || it.product.name === prod.name) {
+                                unitsSold += it.quantity;
+                              }
+                            });
+                          }
+                        });
+                        offlineSales.forEach((s: any) => {
+                          if (s.productName === prod.name) {
+                            unitsSold += s.quantity;
+                          }
+                        });
+                        
+                        const isLowStock = prod.stock < 10;
                         
                         return (
                           <tr key={prod.id}>
                             <td style={{ fontWeight: 600 }}>{prod.name}</td>
                             <td style={{ textTransform: 'capitalize', color: 'var(--beige)' }}>{prod.category}</td>
                             <td>₹{prod.price}</td>
-                            <td style={{ fontWeight: 700, color: 'var(--rose-gold)' }}>{metrics.sold} units</td>
-                            <td>₹{(metrics.sold * prod.price).toLocaleString('en-IN')}</td>
+                            <td style={{ fontWeight: 700, color: 'var(--rose-gold)' }}>{unitsSold} units</td>
+                            <td>₹{(unitsSold * prod.price).toLocaleString('en-IN')}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {adjustingStockId === prod.id ? (
@@ -1284,7 +1309,7 @@ export const SuperadminDashboard: React.FC = () => {
                                   />
                                 ) : (
                                   <span style={{ fontWeight: 700, color: isLowStock ? 'var(--rose-gold)' : 'var(--cream)' }}>
-                                    {metrics.stock} units
+                                    {prod.stock} units
                                   </span>
                                 )}
                                 {isLowStock && (
@@ -1328,7 +1353,7 @@ export const SuperadminDashboard: React.FC = () => {
                                   size="sm"
                                   onClick={() => {
                                     setAdjustingStockId(prod.id);
-                                    setAdjustStockVal(metrics.stock);
+                                    setAdjustStockVal(prod.stock);
                                   }}
                                 >
                                   Adjust Stock
@@ -1524,29 +1549,39 @@ export const SuperadminDashboard: React.FC = () => {
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   style={{ overflow: 'hidden' }}
                 >
-                  <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.8)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  <div className="admin-form-panel">
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ display: 'inline-flex', padding: '6px', background: 'rgba(201,168,76,0.12)', borderRadius: '6px', border: '1px solid rgba(201,168,76,0.3)' }}>
+                        <UserCheck size={18} color="var(--gold)" />
+                      </span>
                       Add New Administrator Account
                     </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '24px', letterSpacing: '0.3px' }}>
+                      Register a new admin account with access to the management dashboard.
+                    </p>
                     {adminCreateError && (
                       <div
                         style={{
                           background: 'rgba(231, 76, 60, 0.15)',
                           border: '1px solid #e74c3c',
                           color: '#e74c3c',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           padding: '10px 14px',
                           fontSize: '0.85rem',
                           marginBottom: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
                         }}
                       >
-                        {adminCreateError}
+                        <AlertTriangle size={15} /> {adminCreateError}
                       </div>
                     )}
-                    <form onSubmit={handleAddAdmin} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(4, 1fr) auto', gap: '16px', alignItems: 'end' }}>
+                    <form onSubmit={handleAddAdmin} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr) auto', gap: '16px', alignItems: 'end' }}>
                       <Input
                         label="Full Name"
                         required
+                        placeholder="e.g. Priya Sharma"
                         value={newAdmin.name}
                         onChange={(e) => {
                           setNewAdmin({ ...newAdmin, name: e.target.value });
@@ -1557,53 +1592,85 @@ export const SuperadminDashboard: React.FC = () => {
                         label="Email Address"
                         type="email"
                         required
+                        placeholder="admin@chovique.com"
                         value={newAdmin.email}
                         onChange={(e) => {
                           setNewAdmin({ ...newAdmin, email: e.target.value });
                           if (adminCreateError) setAdminCreateError('');
                         }}
                       />
-                      <div style={{ position: 'relative' }}>
-                        <Input
-                          label="Initial Password"
-                          type={showRegisterPassword ? 'text' : 'password'}
-                          required
-                          placeholder="••••••••"
-                          value={newAdmin.password}
-                          onChange={(e) => {
-                            setNewAdmin({ ...newAdmin, password: e.target.value });
-                            if (adminCreateError) setAdminCreateError('');
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '12px',
-                            top: '38px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--grey-light)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {showRegisterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-                      <Select
-                        label="Assigned Scope"
-                        options={[
-                          { value: 'All Boutiques', label: 'All Locations Global' },
-                          { value: 'West Region', label: 'Boutiques West' },
-                          { value: 'South Region', label: 'Boutiques South' },
-                        ]}
-                        value={newAdmin.scope}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, scope: e.target.value })}
+                      <Input
+                        label="Initial Password"
+                        type="password"
+                        required
+                        placeholder="Min. 6 characters"
+                        value={newAdmin.password}
+                        onChange={(e) => {
+                          setNewAdmin({ ...newAdmin, password: e.target.value });
+                          if (adminCreateError) setAdminCreateError('');
+                        }}
                       />
-                      <Button variant="gold" type="submit" glow disabled={isCreatingAdmin} style={{ height: '42px' }}>
-                        {isCreatingAdmin ? 'Creating...' : 'Register Account'}
-                      </Button>
+                      <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'flex-end' }}>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingAdmin} style={{ height: '42px', minWidth: '150px', whiteSpace: 'nowrap', width: '100%' }}>
+                          {isCreatingAdmin ? 'Creating...' : 'Register Account'}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Edit Admin Modal */}
+            <AnimatePresence>
+              {editAdminUser && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ marginBottom: '30px' }}
+                >
+                  <div className="admin-form-panel">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <UserCheck size={18} /> Edit Admin — {editAdminUser.name}
+                      </h3>
+                      <button
+                        onClick={() => { setEditAdminUser(null); setEditAdminError(''); }}
+                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    {editAdminError && (
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={15} /> {editAdminError}
+                      </div>
+                    )}
+                    <form onSubmit={handleEditAdminSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(2, 1fr) auto', gap: '16px', alignItems: 'end' }}>
+                      <Input
+                        label="Full Name"
+                        required
+                        value={editAdminForm.name}
+                        placeholder="Admin full name"
+                        onChange={(e) => { setEditAdminForm({ ...editAdminForm, name: e.target.value }); setEditAdminError(''); }}
+                      />
+                      <Input
+                        label="Email Address"
+                        type="email"
+                        required
+                        value={editAdminForm.email}
+                        placeholder="admin@chovique.com"
+                        onChange={(e) => { setEditAdminForm({ ...editAdminForm, email: e.target.value }); setEditAdminError(''); }}
+                      />
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <Button variant="gold" type="submit" glow disabled={isEditingAdmin} style={{ height: '42px' }}>
+                          {isEditingAdmin ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                        <Button variant="glass" type="button" onClick={() => setEditAdminUser(null)} style={{ height: '42px' }}>
+                          Cancel
+                        </Button>
+                      </div>
                     </form>
                   </div>
                 </motion.div>
@@ -1617,48 +1684,35 @@ export const SuperadminDashboard: React.FC = () => {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  style={{
-                    marginBottom: '30px',
-                  }}
+                  style={{ marginBottom: '30px' }}
                 >
-                  <div
-                    className="glass-panel"
-                    style={{
-                      padding: '24px 30px',
-                      border: '1px solid var(--gold)',
-                      background: 'rgba(26,13,0,0.95)',
-                      borderRadius: '10px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div className="admin-form-panel">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Key size={18} /> Update Password for {resetAdminUser.name} ({resetAdminUser.email})
+                        <Key size={18} /> Reset Password — {resetAdminUser.name}
                       </h3>
                       <button
                         onClick={() => { setResetAdminUser(null); setResetAdminPassword(''); }}
-                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer' }}
+                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                       >
                         <X size={20} />
                       </button>
                     </div>
-
                     {resetPasswordError && (
-                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '4px', padding: '10px', fontSize: '0.85rem', marginBottom: '16px' }}>
-                        {resetPasswordError}
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={15} /> {resetPasswordError}
                       </div>
                     )}
-
                     {resetPasswordSuccess && (
-                      <div style={{ background: 'rgba(46, 204, 113, 0.15)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '4px', padding: '10px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ background: 'rgba(46, 204, 113, 0.15)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Check size={16} /> {resetPasswordSuccess}
                       </div>
                     )}
-
                     <form onSubmit={handleUpdateAdminPasswordSubmit} style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', maxWidth: '600px' }}>
-                      <div style={{ flexGrow: 1, position: 'relative' }}>
+                      <div style={{ flexGrow: 1 }}>
                         <Input
                           label="New Account Password"
-                          type={showResetPasswordVal ? 'text' : 'password'}
+                          type="password"
                           required
                           placeholder="At least 6 characters"
                           value={resetAdminPassword}
@@ -1667,15 +1721,8 @@ export const SuperadminDashboard: React.FC = () => {
                             if (resetPasswordError) setResetPasswordError('');
                           }}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowResetPasswordVal(!showResetPasswordVal)}
-                          style={{ position: 'absolute', right: '12px', top: '38px', background: 'transparent', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}
-                        >
-                          {showResetPasswordVal ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
                       </div>
-                      <Button variant="gold" type="submit" glow disabled={isResettingPassword} style={{ height: '42px' }}>
+                      <Button variant="gold" type="submit" glow disabled={isResettingPassword} style={{ height: '42px', whiteSpace: 'nowrap' }}>
                         {isResettingPassword ? 'Saving...' : 'Update Password'}
                       </Button>
                       <Button variant="glass" type="button" onClick={() => setResetAdminUser(null)} style={{ height: '42px' }}>
@@ -1694,7 +1741,7 @@ export const SuperadminDashboard: React.FC = () => {
                   <tr>
                     <th>Name</th>
                     <th>Email</th>
-                    <th>Scope</th>
+                    <th>Role</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -1708,26 +1755,28 @@ export const SuperadminDashboard: React.FC = () => {
                         <td>{u.email}</td>
                         <td>
                           <span style={{
-                            background: 'rgba(201, 168, 76, 0.15)',
-                            color: 'var(--gold-light)',
+                            background: u.role === 'superadmin' ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255,255,255,0.07)',
+                            color: u.role === 'superadmin' ? 'var(--gold-light)' : 'var(--beige)',
                             padding: '4px 10px',
                             borderRadius: '4px',
                             fontSize: '0.8rem',
-                            border: '1px solid rgba(201, 168, 76, 0.2)',
+                            border: u.role === 'superadmin' ? '1px solid rgba(201, 168, 76, 0.2)' : '1px solid rgba(255,255,255,0.1)',
+                            textTransform: 'capitalize',
                           }}>
-                            {u.role === 'superadmin' ? 'Global Superadmin' : 'All Boutiques'}
+                            {u.role === 'superadmin' ? 'Superadmin' : 'Admin'}
                           </span>
                         </td>
                         <td style={{ color: '#2ecc71', fontWeight: 600 }}>Active</td>
                         <td style={{ textAlign: 'right' }}>
                           {u.role === 'admin' ? (
-                            <div style={{ display: 'inline-flex', gap: '16px', alignItems: 'center' }}>
+                            <div style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              {/* Edit button */}
                               <button
                                 onClick={() => {
-                                  setResetAdminUser(u);
-                                  setResetAdminPassword('');
-                                  setResetPasswordError('');
-                                  setResetPasswordSuccess('');
+                                  setEditAdminUser(u);
+                                  setEditAdminForm({ name: u.name, email: u.email });
+                                  setEditAdminError('');
+                                  setResetAdminUser(null);
                                 }}
                                 style={{
                                   color: 'var(--gold)',
@@ -1735,32 +1784,76 @@ export const SuperadminDashboard: React.FC = () => {
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  fontSize: '0.85rem',
+                                  background: 'rgba(201,168,76,0.08)',
+                                  border: '1px solid rgba(201,168,76,0.3)',
+                                  borderRadius: '4px',
+                                  padding: '5px 10px',
+                                  fontSize: '0.82rem',
                                   fontWeight: 600,
+                                  transition: 'all 0.2s ease',
                                 }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
                               >
-                                <Key size={15} /> Password
+                                <UserCheck size={14} /> Edit
                               </button>
+                              {/* Reset Password button */}
                               <button
-                                onClick={() => handleRemoveAdmin(u.id, u.name, u.email)}
+                                onClick={() => {
+                                  setResetAdminUser(u);
+                                  setResetAdminPassword('');
+                                  setResetPasswordError('');
+                                  setResetPasswordSuccess('');
+                                  setEditAdminUser(null);
+                                }}
                                 style={{
-                                  color: 'var(--rose-gold)',
+                                  color: 'var(--beige)',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  fontSize: '0.85rem',
+                                  background: 'rgba(255,255,255,0.05)',
+                                  border: '1px solid rgba(255,255,255,0.15)',
+                                  borderRadius: '4px',
+                                  padding: '5px 10px',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s ease',
                                 }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
                               >
-                                <Trash2 size={15} /> Revoke
+                                <Key size={14} /> Password
+                              </button>
+                              {/* Delete button */}
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Revoke admin account for "${u.name}" (${u.email})? This cannot be undone.`)) {
+                                    handleRemoveAdmin(u.id, u.name, u.email);
+                                  }
+                                }}
+                                style={{
+                                  color: '#e74c3c',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'rgba(231,76,60,0.08)',
+                                  border: '1px solid rgba(231,76,60,0.3)',
+                                  borderRadius: '4px',
+                                  padding: '5px 10px',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(231,76,60,0.18)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(231,76,60,0.08)'; }}
+                              >
+                                <Trash2 size={14} /> Delete
                               </button>
                             </div>
                           ) : (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>Superadmin</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic', padding: '5px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)' }}>Superadmin</span>
                           )}
                         </td>
                       </tr>
@@ -2030,7 +2123,7 @@ export const SuperadminDashboard: React.FC = () => {
                                 const itemsBought: { [name: string]: { qty: number; available: number; low: boolean } } = {};
                                 getCustomerOrders(inspectedCustomer.email).forEach((o: any) => {
                                   o.items.forEach((it: any) => {
-                                    const m = productMetrics[it.product.id] || { stock: 0 };
+                                    const m = products.find(p => p.id === it.product.id) || { stock: 0 };
                                     if (itemsBought[it.product.name]) {
                                       itemsBought[it.product.name].qty += it.quantity;
                                     } else {
@@ -2080,7 +2173,7 @@ export const SuperadminDashboard: React.FC = () => {
                 Chronological System Operations Ledger
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {liveLogs.map((log: any) => (
+                {backendAuditLogs.map((log: any) => (
                   <div
                     key={log.id}
                     style={{

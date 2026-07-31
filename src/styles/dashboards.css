@@ -123,7 +123,9 @@
   padding: 24px;
   border-radius: 8px;
   border: 1px solid var(--glass-border);
-  background: rgba(var(--dark-chocolate-rgb, 26, 13, 0), 0.4);
+  background: transparent;
+  color: #ffffff;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
 }
 
 .dashboard-grid-stats {
@@ -135,10 +137,12 @@
 
 .dashboard-stat-card {
   padding: 20px;
-  background: rgba(0, 0, 0, 0.2);
+  background: transparent;
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   text-align: center;
+  color: #ffffff;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
 }
 
 /* Admin Dashboard Specifics */

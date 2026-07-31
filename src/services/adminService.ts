@@ -38,12 +38,33 @@ export interface DashboardStats {
   total_products: number;
   low_stock_products_count: number;
   pending_tickets_count: number;
+  total_units_sold: number;
+  total_inventory_stock: number;
+  total_online_revenue: number;
+  total_offline_revenue: number;
+  admin_count: number;
+  monthly_revenue: { month: string; online_revenue: number; offline_revenue: number; total: number }[];
+  top_products: { name: string; units_sold: number; stock: number; revenue: number }[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  user_name?: string;
+  user_email?: string;
+  resource?: string;
+  details?: string;
+  created_at: string;
 }
 
 export const adminService = {
   /** Fetch admin dashboard analytics stats. */
   getStats: (): Promise<DashboardStats> =>
     apiGet<DashboardStats>('/admin/stats'),
+
+  /** Fetch recent audit logs. */
+  getAuditLogs: (limit: number = 50): Promise<AuditLogEntry[]> =>
+    apiGet<AuditLogEntry[]>(`/admin/audit-logs?limit=${limit}`),
 
   /** Fetch all registered users. */
   getUsers: (): Promise<SystemUser[]> =>
@@ -54,7 +75,6 @@ export const adminService = {
     full_name: string;
     email: string;
     password: string;
-    scope?: string;
   }): Promise<SystemUser> =>
     apiPost<SystemUser>('/admin/users', payload),
 
@@ -157,6 +177,15 @@ export const adminService = {
     password: string
   ): Promise<{ message: string }> =>
     apiPatch<{ message: string }>(`/admin/users/${userId}/password`, { password }),
+
+  /**
+   * Update an administrator's profile details (name, email) — superadmin action.
+   */
+  updateAdmin: (
+    userId: string,
+    payload: { full_name?: string; email?: string }
+  ): Promise<SystemUser> =>
+    apiPatch<SystemUser>(`/admin/users/${userId}`, payload),
 };
 
 
