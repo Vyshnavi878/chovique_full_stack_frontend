@@ -186,6 +186,55 @@ export const adminService = {
     payload: { full_name?: string; email?: string }
   ): Promise<SystemUser> =>
     apiPatch<SystemUser>(`/admin/users/${userId}`, payload),
+
+  /**
+   * Fetch all contact form submissions (admin view).
+   */
+  getContactMessages: (): Promise<{ id: string; name: string; email: string; phone?: string; subject?: string; message: string; created_at: string }[]> =>
+    apiGet<any[]>('/admin/contact-messages'),
+
+  /**
+   * Delete a contact form submission.
+   */
+  deleteContactMessage: (messageId: string): Promise<void> =>
+    apiDelete<void>(`/admin/contact-messages/${messageId}`),
+
+  /**
+   * Upload video for Our Story crafting process.
+   */
+  uploadStoryVideo: (formData: FormData): Promise<{ video_url: string }> =>
+    apiPostFormData<{ video_url: string }>('/admin/story-video', formData),
+
+  /**
+   * Get Our Story video URL.
+   */
+  getStoryVideo: (): Promise<{ video_url: string }> =>
+    apiGet<{ video_url: string }>('/home/story-video'),
+
+  /**
+   * Delete / Reset Our Story video URL.
+   */
+  deleteStoryVideo: (): Promise<{ video_url: string }> =>
+    apiDelete<{ video_url: string }>('/admin/story-video'),
+
+  /**
+   * Fetch site contact info (phone, whatsapp, email, support_hours, address).
+   */
+  getContactInfo: (): Promise<{ email: string; phone: string; whatsapp: string; support_hours: string; address: string }> =>
+    apiGet<any>('/home/contact'),
+
+  /**
+   * Update site contact info (admin action).
+   */
+  updateContactInfo: (payload: {
+    email?: string;
+    phone?: string;
+    whatsapp?: string;
+    support_hours?: string;
+    address?: string;
+  }): Promise<any> =>
+    apiPatch<any>('/admin/config/contact', payload),
 };
+
 
 

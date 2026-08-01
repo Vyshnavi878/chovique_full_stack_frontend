@@ -1,12 +1,25 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, Heart, Target, Star, Leaf, Award, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { slideInLeft, slideInRight, fadeIn } from '../../lib/framer';
+import { adminService } from '../../services/adminService';
+import { Footer } from '../../components/Footer';
 
 export const OurStoryPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoUrl, setVideoUrl] = useState('https://assets.mixkit.co/videos/preview/mixkit-pouring-melted-chocolate-on-a-muffin-34289-large.mp4');
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    adminService.getStoryVideo()
+      .then((res) => {
+        if (res && res.video_url) {
+          setVideoUrl(res.video_url);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const steps = [
     {
@@ -120,7 +133,7 @@ export const OurStoryPage: React.FC = () => {
             >
               <video
                 ref={videoRef}
-                src="https://assets.mixkit.co/videos/preview/mixkit-pouring-melted-chocolate-on-a-muffin-34289-large.mp4"
+                src={videoUrl}
                 loop
                 muted={isMuted}
                 playsInline
@@ -503,5 +516,6 @@ export const OurStoryPage: React.FC = () => {
     </div>
   );
 };
+
 
 export default OurStoryPage;

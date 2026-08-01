@@ -24,7 +24,7 @@ export const ShopPage: React.FC = () => {
   // --- Filter states ---
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 4000 });
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 5000 });
   const [minRating, setMinRating] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<string>('featured');
   const [isGridView, setIsGridView] = useState(true);
@@ -42,8 +42,8 @@ export const ShopPage: React.FC = () => {
     }
 
     if (filterParam) {
-      if (filterParam === 'bestseller') setSortBy('bestseller');
-      if (filterParam === 'new') setSortBy('newest');
+      if (filterParam === 'bestseller' || filterParam === 'best-sellers') setSortBy('bestseller');
+      if (filterParam === 'new' || filterParam === 'new-arrivals') setSortBy('newest');
       if (filterParam === 'premium') setSortBy('featured');
     } else {
       setSortBy('featured');
@@ -58,6 +58,7 @@ export const ShopPage: React.FC = () => {
       case 'price-high': return 'price_desc';
       case 'rating': return 'rating';
       case 'newest': return 'newest';
+      case 'bestseller': return 'bestseller';
       case 'name_asc': return 'name_asc';
       default: return undefined; // 'featured' → default backend ordering
     }
@@ -71,7 +72,7 @@ export const ShopPage: React.FC = () => {
         search: searchQuery || undefined,
         category: selectedCategory === 'all' ? undefined : selectedCategory,
         price_min: priceRange.min > 0 ? priceRange.min : undefined,
-        price_max: priceRange.max < 4000 ? priceRange.max : undefined,
+        price_max: priceRange.max < 5000 ? priceRange.max : undefined,
         min_rating: minRating ?? undefined,
         sort: getSortParam(sortBy),
         page: currentPage,
@@ -86,6 +87,7 @@ export const ShopPage: React.FC = () => {
       setIsLoading(false);
     }
   }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, sortBy, currentPage]);
+
 
   useEffect(() => {
     fetchProducts();

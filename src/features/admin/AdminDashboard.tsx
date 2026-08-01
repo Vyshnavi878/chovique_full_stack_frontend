@@ -13,7 +13,12 @@ import {
   Coins,
   Users,
   CheckCircle,
-  Loader2
+  Loader2,
+  Star,
+  Phone,
+  Mail,
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
@@ -216,11 +221,158 @@ export const AdminDashboard: React.FC = () => {
   const [inspectedCustomer, setInspectedCustomer] = useState<SystemUser | null>(null);
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
 
+  // --- Testimonials & Contact Messages & Story Video States ---
+  const [testimonialsList, setTestimonialsList] = useState<any[]>([]);
+  const [contactMessages, setContactMessages] = useState<any[]>([]);
+  const [newTestimonial, setNewTestimonial] = useState({
+    author: '',
+    title: '',
+    text: '',
+    rating: 5,
+    initials: '',
+  });
+  const [testimonialAvatarFile, setTestimonialAvatarFile] = useState<File | null>(null);
+  const [uploadingTestimonial, setUploadingTestimonial] = useState(false);
+  const [storyVideoFile, setStoryVideoFile] = useState<File | null>(null);
+  const [uploadingStoryVideo, setUploadingStoryVideo] = useState(false);
+  const [storyVideoUrl, setStoryVideoUrl] = useState('');
+
+  const fetchExtraAdminData = () => {
+    adminService.getUsers().then((users) => setSystemUsers(users)).catch((err) => console.error(err));
+    adminService.getContactMessages().then((msgs) => setContactMessages(msgs)).catch(() => {});
+    adminService.getStoryVideo().then((res) => { if (res?.video_url) setStoryVideoUrl(res.video_url); }).catch(() => {});
+  };
+
   useEffect(() => {
-    adminService.getUsers()
-      .then((users) => setSystemUsers(users))
-      .catch((err) => console.error('Failed to fetch users:', err));
+    fetchExtraAdminData();
+    // Fetch testimonials via homeService or backend API
+    fetch('http://localhost:8000/api/v1/home/testimonials')
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
+      .catch(() => {});
   }, []);
+
+  const handleAddTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTestimonial.author || !newTestimonial.text) return;
+    setUploadingTestimonial(true);
+
+    const formData = new FormData();
+    formData.append('author', newTestimonial.author);
+    formData.append('title', newTestimonial.title || 'Chocolate Enthusiast');
+    formData.append('text', newTestimonial.text);
+    formData.append('rating', String(newTestimonial.rating));
+    formData.append('initials', newTestimonial.initials || newTestimonial.author.slice(0, 2).toUpperCase());
+    if (testimonialAvatarFile) {
+      formData.append('avatar', testimonialAvatarFile);
+    }
+
+    try {
+      await adminService.createTestimonial(formData);
+      alert('Testimonial created successfully!');
+      setNewTestimonial({ author: '', title: '', text: '', rating: 5, initials: '' });
+      setTestimonialAvatarFile(null);
+      fetch('http://localhost:8000/api/v1/home/testimonials')
+        .then(res => res.json())
+        .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
+        .catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Failed to create testimonial');
+    } finally {
+      setUploadingTestimonial(false);
+    }
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (!window.confirm('Delete this testimonial?')) return;
+    try {
+      await adminService.deleteTestimonial(id);
+      setTestimonialsList(prev => prev.filter(t => t.id !== id));
+    } catch (err: any) {
+      alert('Failed to delete testimonial');
+    }
+  };
+
+  const handleDeleteContactMessage = async (id: string) => {
+    if (!window.confirm('Delete this message?')) return;
+    try {
+      await adminService.deleteContactMessage(id);
+      setContactMessages(prev => prev.filter(m => m.id !== id));
+    } catch (err: any) {
+      alert('Failed to delete contact message');
+    }
+  };
+
+  const handleUploadStoryVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!storyVideoFile) {
+      alert('Please select a video file first.');
+      return;
+    }
+    setUploadingStoryVideo(true);
+    const formData = new FormData();
+    formData.append('video', storyVideoFile);
+
+    try {
+      const result = await adminService.uploadStoryVideo(formData);
+      setStoryVideoUrl(result.video_url);
+      alert('Our Story process video updated successfully!');
+      setStoryVideoFile(null);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to upload video.');
+    } finally {
+      setUploadingStoryVideo(false);
+    }
+  };
+
+  const handleDeleteStoryVideo = async () => {
+    if (!window.confirm('Reset Our Story crafting video to default?')) return;
+    try {
+      const res = await adminService.deleteStoryVideo();
+      setStoryVideoUrl(res.video_url);
+      alert('Crafting video reset to default.');
+    } catch (err: any) {
+      alert('Failed to reset video.');
+    }
+  };
+
+  // Customer Support contact details state
+  const [supportContactData, setSupportContactData] = useState({
+    phone: '+91 98765 43210',
+    whatsapp: '+91 98765 43210',
+    email: 'support@chovique.com',
+    support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
+    address: '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
+  });
+  const [updatingContact, setUpdatingContact] = useState(false);
+
+  useEffect(() => {
+    adminService.getContactInfo().then((res) => {
+      if (res) {
+        setSupportContactData({
+          phone: res.phone || '+91 98765 43210',
+          whatsapp: res.whatsapp || res.phone || '+91 98765 43210',
+          email: res.email || 'support@chovique.com',
+          support_hours: res.support_hours || 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
+          address: res.address || '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleUpdateSupportContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatingContact(true);
+    try {
+      await adminService.updateContactInfo(supportContactData);
+      alert('Customer Support details updated successfully!');
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update Customer Support details.');
+    } finally {
+      setUpdatingContact(false);
+    }
+  };
+
 
   // Trigger file select dialog
   const triggerFileSelect = () => {
@@ -1352,8 +1504,281 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+
+        {/* ATELIER TESTIMONIALS TAB */}
+        {activeTab === 'testimonials' && (
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Atelier Testimonials Management
+            </h1>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
+              {/* Testimonials List */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  Active Customer Testimonials
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '500px', overflowY: 'auto' }}>
+                  {testimonialsList.length === 0 ? (
+                    <p style={{ color: 'var(--beige)', fontStyle: 'italic' }}>No testimonials found.</p>
+                  ) : (
+                    testimonialsList.map((t, idx) => (
+                      <div
+                        key={t.id || idx}
+                        style={{
+                          padding: '16px',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid var(--glass-border)',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)', marginBottom: '6px' }}>
+                            {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
+                              <Star key={i} size={14} fill="currentColor" />
+                            ))}
+                          </div>
+                          <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: '0 0 8px 0' }}>
+                            "{t.text}"
+                          </p>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>
+                            {t.author} — {t.title}
+                          </span>
+                        </div>
+                        {t.id && (
+                          <button
+                            onClick={() => handleDeleteTestimonial(t.id)}
+                            style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Add New Testimonial Form & Story Video Upload */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.4)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                    Add Atelier Testimonial
+                  </h3>
+                  <form onSubmit={handleAddTestimonial}>
+                    <Input
+                      label="Author Name"
+                      required
+                      value={newTestimonial.author}
+                      onChange={(e) => setNewTestimonial({ ...newTestimonial, author: e.target.value })}
+                    />
+                    <Input
+                      label="Author Title / Role"
+                      placeholder="e.g. Food Critic, Mumbai"
+                      value={newTestimonial.title}
+                      onChange={(e) => setNewTestimonial({ ...newTestimonial, title: e.target.value })}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '15px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Testimonial Quote Text
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={newTestimonial.text}
+                        onChange={(e) => setNewTestimonial({ ...newTestimonial, text: e.target.value })}
+                        style={{
+                          padding: '12px',
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid var(--glass-border)',
+                          color: 'var(--cream)',
+                          borderRadius: '4px',
+                          outline: 'none',
+                          resize: 'none',
+                        }}
+                      />
+                    </div>
+                    <Button variant="gold" fullWidth type="submit" disabled={uploadingTestimonial} glow>
+                      {uploadingTestimonial ? 'Creating...' : 'Create Testimonial'}
+                    </Button>
+                  </form>
+                </div>
+
+                {/* Our Story Crafting Video Upload & Manage */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
+                    Our Story Process Video
+                  </h3>
+                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                    Upload, update, or reset the crafting process video displayed on Our Story page.
+                  </p>
+                  <form onSubmit={handleUploadStoryVideo}>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => setStoryVideoFile(e.target.files?.[0] || null)}
+                      style={{ marginBottom: '15px', color: 'var(--cream)', fontSize: '0.85rem' }}
+                    />
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <Button variant="gold" fullWidth type="submit" disabled={uploadingStoryVideo} glow>
+                        {uploadingStoryVideo ? 'Uploading...' : 'Upload Video'}
+                      </Button>
+                      <Button variant="secondary" type="button" onClick={handleDeleteStoryVideo}>
+                        Reset
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CONTACT MESSAGES & CUSTOMER SUPPORT MGMT TAB */}
+        {activeTab === 'contact-messages' && (
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Contact Form Messages &amp; Customer Support Settings
+            </h1>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.3fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
+              {/* Messages Table */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  Received Customer Inquiries
+                </h3>
+                <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Subject</th>
+                        <th>Message</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contactMessages.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px' }}>
+                            No customer contact messages received yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        contactMessages.map((msg) => (
+                          <tr key={msg.id}>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
+                            <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
+                            <td>
+                              <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>
+                                {msg.email}
+                              </a>
+                            </td>
+                            <td>{msg.phone || '—'}</td>
+                            <td>
+                              <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                {msg.subject || 'General'}
+                              </span>
+                            </td>
+                            <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
+                              {msg.message}
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => handleDeleteContactMessage(msg.id)}
+                                style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer' }}
+                                title="Delete message"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Customer Support Info Editor Panel */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.4)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
+                  Update Customer Support Info
+                </h3>
+                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                  Post and update the contact phone, WhatsApp, email, and support hours displayed on the Contact Page.
+                </p>
+
+                <form onSubmit={handleUpdateSupportContact}>
+                  <Input
+                    label="Customer Support Phone"
+                    required
+                    value={supportContactData.phone}
+                    onChange={(e) => setSupportContactData({ ...supportContactData, phone: e.target.value })}
+                  />
+
+                  <Input
+                    label="WhatsApp Support Number"
+                    required
+                    value={supportContactData.whatsapp}
+                    onChange={(e) => setSupportContactData({ ...supportContactData, whatsapp: e.target.value })}
+                  />
+
+                  <Input
+                    label="Customer Support Email"
+                    type="email"
+                    required
+                    value={supportContactData.email}
+                    onChange={(e) => setSupportContactData({ ...supportContactData, email: e.target.value })}
+                  />
+
+                  <Input
+                    label="Support Hours"
+                    placeholder="Mon - Sat: 10:00 AM - 8:00 PM"
+                    required
+                    value={supportContactData.support_hours}
+                    onChange={(e) => setSupportContactData({ ...supportContactData, support_hours: e.target.value })}
+                  />
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      Atelier Address
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={supportContactData.address}
+                      onChange={(e) => setSupportContactData({ ...supportContactData, address: e.target.value })}
+                      style={{
+                        padding: '10px',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid var(--glass-border)',
+                        color: 'var(--cream)',
+                        borderRadius: '4px',
+                        outline: 'none',
+                        resize: 'none',
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+
+                  <Button variant="gold" fullWidth type="submit" disabled={updatingContact} glow>
+                    {updatingContact ? 'Saving Details...' : 'Update Customer Support Details'}
+                  </Button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
 export default AdminDashboard;
