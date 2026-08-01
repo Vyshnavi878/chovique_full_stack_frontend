@@ -63,7 +63,7 @@ export const ProductDetails: React.FC = () => {
     if (role === 'guest') {
       navigate('/login');
     } else {
-      addToCart(product, quantity);
+      sessionStorage.setItem('chovique_buy_now_item', JSON.stringify({ product, quantity }));
       navigate('/checkout');
     }
   };

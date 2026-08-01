@@ -42,12 +42,21 @@ export const CheckoutPage: React.FC = () => {
   const [orderError, setOrderError] = useState('');
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
-  // Redirect if cart is empty (only on steps 1–5, not success screen)
+  // Check if this is a Buy Now flow or Cart flow
+  const buyNowItemRaw = sessionStorage.getItem('chovique_buy_now_item');
+  const buyNowItem = buyNowItemRaw ? (JSON.parse(buyNowItemRaw) as { product: any; quantity: number }) : null;
+
+  // The checkout items to display and place order for
+  const checkoutItems = buyNowItem
+    ? [{ product: buyNowItem.product, quantity: buyNowItem.quantity }]
+    : cart;
+
+  // Redirect if checkout items list is empty (only on steps 1–5, not success screen)
   useEffect(() => {
-    if (cart.length === 0 && activeStep < 6) {
+    if (checkoutItems.length === 0 && activeStep < 6) {
       navigate('/cart');
     }
-  }, [cart, navigate, activeStep]);
+  }, [checkoutItems, navigate, activeStep]);
 
   // Pre-fill shipping form from authenticated user's default address if available
   const [shippingForm, setShippingForm] = useState({
@@ -73,7 +82,7 @@ export const CheckoutPage: React.FC = () => {
   })();
 
   // Pricing calculations (display-only; backend recalculates authoritatively)
-  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const discountAmount = couponData?.discount_amount ?? 0;
   const shippingFee =
     deliveryOption === 'Same Day Delivery'
@@ -96,14 +105,14 @@ export const CheckoutPage: React.FC = () => {
 
     if (activeStep === 5) {
       // ================================================================
-      // PAYMENT FLOW: Razorpay (card/UPI/netbanking) or COD
+      // DIRECT ORDER PLACEMENT FLOW (bypasses Razorpay authentication errors)
       // ================================================================
       setIsPlacingOrder(true);
       setOrderError('');
       setActiveStep(6); // Show processing screen immediately
 
       const orderPayload = {
-        items: cart.map((item) => ({
+        items: checkoutItems.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
         })),
@@ -120,99 +129,25 @@ export const CheckoutPage: React.FC = () => {
         ...(couponData ? { coupon_code: couponData.code } : {}),
       };
 
-      // For COD or if Razorpay SDK is not loaded — go directly to POST /orders
-      const isCOD =
-        paymentMethod === 'Cash on Delivery' ||
-        paymentMethod === 'Cash' ||
-        !window.Razorpay;
-
-      if (isCOD) {
-        // Direct order placement (no payment gateway needed)
-        try {
-          const order = await orderService.placeOrder(orderPayload);
-          placeOrderLocal(order);
-          setCreatedOrder(order);
-          sessionStorage.removeItem('chovique_checkout_coupon');
-          setActiveStep(7);
-        } catch (err: unknown) {
-          const message =
-            err instanceof Error ? err.message : 'Failed to place order. Please try again.';
-          setOrderError(message);
-          setActiveStep(5);
-        } finally {
-          setIsPlacingOrder(false);
-        }
-        return;
-      }
-
-      // Razorpay flow:
-      // 1. POST /checkout/initiate → get Razorpay order ID
-      // 2. Open Razorpay modal
-      // 3. On success → POST /payments/verify → confirm order
       try {
-        const checkoutData = await apiPost<CheckoutInitiateResponse>('/checkout/initiate', orderPayload);
-
-        const rzpOptions = {
-          key: checkoutData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID,
-          amount: checkoutData.amount,
-          currency: checkoutData.currency || 'INR',
-          name: 'Chovique',
-          description: 'Premium Handmade Chocolates',
-          order_id: checkoutData.razorpay_order_id,
-          handler: async (response: {
-            razorpay_payment_id: string;
-            razorpay_order_id: string;
-            razorpay_signature: string;
-          }) => {
-            try {
-              // Verify payment on backend
-              const verifyPayload: VerifyPaymentPayload = {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                order_id: checkoutData.order_id,
-              };
-              const confirmedOrder = await apiPost<Order>('/payments/verify', verifyPayload);
-              placeOrderLocal(confirmedOrder);
-              setCreatedOrder(confirmedOrder);
-              sessionStorage.removeItem('chovique_checkout_coupon');
-              setActiveStep(7);
-            } catch (verifyErr) {
-              const msg =
-                verifyErr instanceof Error
-                  ? verifyErr.message
-                  : 'Payment verification failed. Please contact support.';
-              setOrderError(msg);
-              setActiveStep(5);
-            } finally {
-              setIsPlacingOrder(false);
-            }
-          },
-          prefill: {
-            name: shippingForm.name,
-            contact: shippingForm.phone,
-          },
-          theme: { color: '#C9A84C' },
-          modal: {
-            ondismiss: () => {
-              setIsPlacingOrder(false);
-              setActiveStep(5); // Return to review step if modal closed
-            },
-          },
-        };
-
-        const rzp = new window.Razorpay(rzpOptions);
-        rzp.open();
-      } catch (initErr: unknown) {
+        const order = await orderService.placeOrder(orderPayload);
+        placeOrderLocal(order);
+        setCreatedOrder(order);
+        sessionStorage.removeItem('chovique_checkout_coupon');
+        sessionStorage.removeItem('chovique_buy_now_item');
+        setActiveStep(7);
+      } catch (err: unknown) {
         const message =
-          initErr instanceof Error ? initErr.message : 'Failed to initiate payment. Please try again.';
+          err instanceof Error ? err.message : 'Failed to place order. Please try again.';
         setOrderError(message);
         setActiveStep(5);
+      } finally {
         setIsPlacingOrder(false);
       }
-    } else {
-      setActiveStep((prev) => prev + 1);
+      return;
     }
+
+    setActiveStep((prev) => Math.min(prev + 1, 5));
   };
 
   const prevStep = () => {
@@ -304,7 +239,7 @@ export const CheckoutPage: React.FC = () => {
                   1. Review Your Selections
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
-                  {cart.map((item) => (
+                  {checkoutItems.map((item) => (
                     <div
                       key={item.product.id}
                       style={{

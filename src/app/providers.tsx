@@ -541,7 +541,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const placeOrderLocal = (order: Order) => {
     setOrders((prev) => [order, ...prev]);
-    clearCart();
+
+    // Remove ordered products from local cart and wishlist state
+    const orderedProductIds = new Set(order.items.map((item) => item.product.id));
+
+    setCart((prevCart) => prevCart.filter((item) => !orderedProductIds.has(item.product.id)));
+    setWishlist((prevWishlist) => prevWishlist.filter((prod) => !orderedProductIds.has(prod.id)));
+
+    // Re-sync with backend to ensure DB parity
+    cartService.getCart().then((res) => syncCartFromBackend(res.items)).catch(() => {});
+    wishlistService.getWishlist().then((items) => setWishlist(items.map((i) => i.product))).catch(() => {});
+
     addNotification(
       `Your order ${order.id} has been placed successfully for ₹${order.total}.`,
       'order',
