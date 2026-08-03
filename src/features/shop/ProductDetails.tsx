@@ -42,6 +42,7 @@ export const ProductDetails: React.FC = () => {
   if (!product) return null;
 
   const isLiked = wishlist.some((p) => p.id === product.id);
+  const inCart = cart.some((item) => item.product.id === product.id);
 
   // Handlers for quantity
   const handleIncrement = () => setQuantity((q) => q + 1);
@@ -84,13 +85,35 @@ export const ProductDetails: React.FC = () => {
     setZoomOrigin(`${x}% ${y}%`);
   };
 
-  // Related products
-  const relatedProducts = products
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 3);
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
 
-  // Recently viewed products mock list
-  const recentlyViewed = products.filter((p) => p.id !== product.id).slice(0, 2);
+  useEffect(() => {
+    if (product) {
+      import('../../services/productService').then(({ productService }) => {
+        productService.getRelatedProducts(product.id, 3).then(setRelatedProducts);
+        
+        // Track recently viewed
+        const rvStr = localStorage.getItem('chovique_recently_viewed') || '[]';
+        let rv: string[] = [];
+        try { rv = JSON.parse(rvStr); } catch (e) {}
+        
+        // Remove current if exists, then unshift, limit to 5
+        rv = rv.filter(id => id !== product.id);
+        rv.unshift(product.id);
+        rv = rv.slice(0, 5);
+        localStorage.setItem('chovique_recently_viewed', JSON.stringify(rv));
+        
+        // Fetch recently viewed products (excluding current)
+        const fetchIds = rv.filter(id => id !== product.id).slice(0, 2);
+        if (fetchIds.length > 0) {
+          productService.getBulkProducts(fetchIds.join(',')).then(setRecentlyViewed);
+        } else {
+          setRecentlyViewed([]);
+        }
+      });
+    }
+  }, [product]);
 
   return (
     <motion.div
@@ -309,9 +332,15 @@ export const ProductDetails: React.FC = () => {
             {/* Action buttons */}
             <div className="details-action-buttons">
               <div style={{ display: 'flex', gap: '15px' }}>
-                <Button variant="gold" size="lg" fullWidth onClick={handleAddToCart} glow>
+                <Button 
+                  variant={inCart ? "secondary" : "gold"} 
+                  size="lg" 
+                  fullWidth 
+                  onClick={() => inCart ? navigate('/cart') : handleAddToCart()} 
+                  glow={!inCart}
+                >
                   <ShoppingBag size={18} />
-                  Add to Cart
+                  {inCart ? 'Go to Cart' : 'Add to Cart'}
                 </Button>
                 <Button variant="glass" size="lg" fullWidth onClick={handleBuyNow}>
                   Buy Now

@@ -9,7 +9,7 @@
  *  - 401 → redirect to /login (session expired or not authenticated).
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1';
+export const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1';
 
 /** Build default headers — JSON only, no auth header (cookies handle auth) */
 const buildHeaders = (isFormData = false): HeadersInit => {
@@ -68,13 +68,37 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   }
 };
 
-/** Core GET request */
-export const apiGet = async <T>(path: string): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
-    method: 'GET',
-    headers: buildHeaders(),
-    credentials: 'include',
-  });
+let refreshPromise: Promise<boolean> | null = null;
+
+const fetchWithAuth = async (path: string, init: RequestInit): Promise<Response> => {
+  let response = await safeFetch(`${BASE_URL}${path}`, init);
+
+  if (
+    response.status === 401 && 
+    !path.includes('/auth/refresh') && 
+    !path.includes('/auth/login') && 
+    !path.includes('/auth/register')
+  ) {
+    if (!refreshPromise) {
+      refreshPromise = safeFetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: buildHeaders(),
+        credentials: 'include',
+      }).then(res => {
+        refreshPromise = null;
+        return res.ok;
+      }).catch(() => {
+        refreshPromise = null;
+        return false;
+      });
+    }
+
+    const refreshSuccess = await refreshPromise;
+    if (refreshSuccess) {
+      // Retry original request
+      response = await safeFetch(`${BASE_URL}${path}`, init);
+    }
+  }
 
   if (response.status === 401) {
     handleUnauthorized(path);
@@ -85,120 +109,88 @@ export const apiGet = async <T>(path: string): Promise<T> => {
     throw await parseError(response);
   }
 
+  return response;
+};
+
+/** Core GET request */
+export const apiGet = async <T>(path: string): Promise<T> => {
+  const response = await fetchWithAuth(path, {
+    method: 'GET',
+    headers: buildHeaders(),
+    credentials: 'include',
+  });
   return response.json() as Promise<T>;
+};
+
+/** GET request that returns text/html */
+export const apiGetHtml = async (path: string): Promise<string> => {
+  const response = await fetchWithAuth(path, {
+    method: 'GET',
+    headers: { 'Accept': 'text/html' },
+    credentials: 'include',
+  });
+  return response.text();
 };
 
 /** Core POST request (JSON body) */
 export const apiPost = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: 'POST',
     headers: buildHeaders(),
     credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (response.status === 401) {
-    handleUnauthorized(path);
-    throw new ApiError(401, 'Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
-  // Handle 204 No Content
   if (response.status === 204) {
     return undefined as T;
   }
-
   return response.json() as Promise<T>;
 };
 
 /** Core POST request with FormData (multipart/form-data) */
 export const apiPostFormData = async <T>(path: string, formData: FormData): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: 'POST',
-    headers: buildHeaders(true), // no Content-Type; browser sets it with boundary
+    headers: buildHeaders(true),
     credentials: 'include',
     body: formData,
   });
-
-  if (response.status === 401) {
-    handleUnauthorized(path);
-    throw new ApiError(401, 'Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
   return response.json() as Promise<T>;
 };
 
 /** Core PATCH request (JSON body) */
 export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: 'PATCH',
     headers: buildHeaders(),
     credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-
-  if (response.status === 401) {
-    handleUnauthorized(path);
-    throw new ApiError(401, 'Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
   return response.json() as Promise<T>;
 };
 
 /** Core PUT request (JSON body) */
 export const apiPut = async <T>(path: string, body?: unknown): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: 'PUT',
     headers: buildHeaders(),
     credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-
-  if (response.status === 401) {
-    handleUnauthorized(path);
-    throw new ApiError(401, 'Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
   return response.json() as Promise<T>;
 };
 
 /** Core DELETE request */
 export const apiDelete = async <T>(path: string): Promise<T> => {
-  const response = await safeFetch(`${BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: 'DELETE',
     headers: buildHeaders(),
     credentials: 'include',
   });
 
-  if (response.status === 401) {
-    handleUnauthorized(path);
-    throw new ApiError(401, 'Session expired. Please log in again.');
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
-
-  // Some DELETE endpoints return 204 No Content
   if (response.status === 204) {
     return undefined as T;
   }
-
   return response.json() as Promise<T>;
 };
 

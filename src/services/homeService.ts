@@ -34,6 +34,10 @@ export const homeService = {
   getContact: (): Promise<ContactInfo> =>
     apiGet<ContactInfo>('/home/contact'),
 
+  /** Theme configuration */
+  getTheme: (): Promise<any> =>
+    apiGet<any>('/home/theme'),
+
   /** Instagram-style reels/videos */
   getReels: (): Promise<InstagramReel[]> =>
     apiGet<InstagramReel[]>('/home/reels'),

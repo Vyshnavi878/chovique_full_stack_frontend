@@ -185,7 +185,13 @@ export const CartPage: React.FC = () => {
                   }}
                 >
                   <button
-                    onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                    onClick={() => {
+                      if (item.quantity <= 1) {
+                        removeFromCart(item.product.id);
+                      } else {
+                        updateCartQuantity(item.product.id, item.quantity - 1);
+                      }
+                    }}
                     style={{ padding: '8px 12px', color: 'var(--beige)' }}
                     aria-label="Decrease quantity"
                   >

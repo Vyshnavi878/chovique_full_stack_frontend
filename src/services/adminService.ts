@@ -234,6 +234,44 @@ export const adminService = {
     address?: string;
   }): Promise<any> =>
     apiPatch<any>('/admin/config/contact', payload),
+
+  // ======================================================
+  // Coupons
+  // ======================================================
+
+  getCoupons: (): Promise<any[]> => apiGet<any[]>('/admin/coupons'),
+  
+  createCoupon: (payload: {
+    code: string;
+    description: string;
+    discount_percent?: number;
+    discount_amount?: number;
+    expires_at?: string;
+    is_active?: boolean;
+  }): Promise<any> => apiPost<any>('/admin/coupons', payload),
+  
+  updateCoupon: (code: string, payload: any): Promise<any> =>
+    apiPatch<any>(`/admin/coupons/${code}`, payload),
+
+  deleteCoupon: (code: string): Promise<void> =>
+    apiDelete<void>(`/admin/coupons/${code}`),
+
+  // ======================================================
+  // Theme & Platform Configs
+  // ======================================================
+
+  getTheme: (): Promise<any> => apiGet<any>('/admin/config/theme'),
+  updateTheme: (payload: any): Promise<any> => apiPatch<any>('/admin/config/theme', payload),
+
+  getPlatformConfig: (): Promise<any> => apiGet<any>('/admin/config/platform'),
+  updatePlatformConfig: (payload: any): Promise<any> => apiPatch<any>('/admin/config/platform', payload),
+
+  // ======================================================
+  // Products
+  // ======================================================
+
+  updateProductStock: (productId: string, stock: number): Promise<any> =>
+    apiPatch<any>(`/admin/products/${productId}/stock`, { stock }),
 };
 
 

@@ -69,6 +69,12 @@ export const cartService = {
     apiDelete<BackendCartResponse>('/cart'),
 
   /**
+   * Sync a guest cart to the backend cart.
+   */
+  syncCart: (items: { product_id: string; quantity: number }[]): Promise<BackendCartResponse> =>
+    apiPost<BackendCartResponse>('/cart/sync', { items }),
+
+  /**
    * Validate a promo/coupon code server-side.
    * Removes ALL hardcoded coupon logic from the frontend.
    *

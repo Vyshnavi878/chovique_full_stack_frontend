@@ -8,7 +8,7 @@
  *   GET  /orders/{id}  → Order
  */
 
-import { apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPost, apiGetHtml } from '../lib/api';
 import type { Order, OrderPayload } from '../types';
 
 export const orderService = {
@@ -27,4 +27,12 @@ export const orderService = {
   /** Fetch a single order by ID */
   getOrder: (id: string): Promise<Order> =>
     apiGet<Order>(`/orders/${id}`),
+
+  /** Get Invoice HTML */
+  getInvoiceHtml: (id: string): Promise<string> =>
+    apiGetHtml(`/orders/${id}/invoice`),
+
+  /** Cancel an order */
+  cancelOrder: (id: string): Promise<Order> =>
+    apiPost<Order>(`/orders/${id}/cancel`),
 };

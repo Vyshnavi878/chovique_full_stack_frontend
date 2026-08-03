@@ -237,10 +237,48 @@ export const AdminDashboard: React.FC = () => {
   const [uploadingStoryVideo, setUploadingStoryVideo] = useState(false);
   const [storyVideoUrl, setStoryVideoUrl] = useState('');
 
+  // --- Coupons State ---
+  const [couponsList, setCouponsList] = useState<any[]>([]);
+  const [newCoupon, setNewCoupon] = useState({
+    code: '',
+    description: '',
+    discount_percent: 0,
+    discount_amount: 0,
+    is_active: true,
+  });
+
+  // --- Analytics State ---
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+
   const fetchExtraAdminData = () => {
     adminService.getUsers().then((users) => setSystemUsers(users)).catch((err) => console.error(err));
-    adminService.getContactMessages().then((msgs) => setContactMessages(msgs)).catch(() => {});
-    adminService.getStoryVideo().then((res) => { if (res?.video_url) setStoryVideoUrl(res.video_url); }).catch(() => {});
+    adminService.getContactMessages().then((msgs) => setContactMessages(msgs)).catch(() => { });
+    adminService.getStoryVideo().then((res) => { if (res?.video_url) setStoryVideoUrl(res.video_url); }).catch(() => { });
+    adminService.getCoupons().then((coupons) => setCouponsList(coupons)).catch(() => { });
+    adminService.getStats().then(stats => setDashboardStats(stats)).catch(() => {});
+  };
+  const handleAddCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCoupon.code || !newCoupon.description) return;
+    try {
+      const created = await adminService.createCoupon(newCoupon);
+      setCouponsList([created, ...couponsList]);
+      setNewCoupon({ code: '', description: '', discount_percent: 0, discount_amount: 0, is_active: true });
+    } catch (err: any) {
+      console.error(err);
+      alert(err.detail || 'Failed to create coupon');
+    }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    if (!window.confirm('Are you sure you want to delete this coupon?')) return;
+    try {
+      await adminService.deleteCoupon(code);
+      setCouponsList(prev => prev.filter(c => c.code !== code));
+    } catch (err: any) {
+      console.error(err);
+      alert(err.detail || 'Failed to delete coupon');
+    }
   };
 
   useEffect(() => {
@@ -249,7 +287,7 @@ export const AdminDashboard: React.FC = () => {
     fetch('http://localhost:8000/api/v1/home/testimonials')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleAddTestimonial = async (e: React.FormEvent) => {
@@ -275,7 +313,7 @@ export const AdminDashboard: React.FC = () => {
       fetch('http://localhost:8000/api/v1/home/testimonials')
         .then(res => res.json())
         .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
-        .catch(() => {});
+        .catch(() => { });
     } catch (err: any) {
       alert(err?.message || 'Failed to create testimonial');
     } finally {
@@ -357,7 +395,7 @@ export const AdminDashboard: React.FC = () => {
           address: res.address || '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
         });
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleUpdateSupportContact = async (e: React.FormEvent) => {
@@ -401,7 +439,7 @@ export const AdminDashboard: React.FC = () => {
       // Refresh offline sales list from backend
       adminService.getOfflineSales()
         .then((sales) => setOfflineSales(sales))
-        .catch(() => {});
+        .catch(() => { });
       setTimeout(() => setImportSuccess(false), 4000);
     } catch (err) {
       console.error('CSV upload error:', err);
@@ -756,120 +794,120 @@ export const AdminDashboard: React.FC = () => {
             <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
               <div className="admin-table-wrapper">
                 <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Weight Config</th>
-                    <th>Price Config</th>
-                    <th>Available Stock</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((prod) => {
-                    const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                    return (
-                      <tr key={prod.id}>
-                        <td>{prod.name}</td>
-                        <td>
-                          {editingId === prod.id ? (
-                            <input
-                              type="text"
-                              value={editWeight}
-                              onChange={(e) => setEditWeight(e.target.value)}
-                              style={{
-                                padding: '6px',
-                                background: 'rgba(0,0,0,0.3)',
-                                border: '1px solid var(--gold)',
-                                color: 'white',
-                                borderRadius: '4px',
-                                width: '90px',
-                              }}
-                            />
-                          ) : (
-                            prod.weight
-                          )}
-                        </td>
-                        <td>
-                          {editingId === prod.id ? (
-                            <input
-                              type="number"
-                              value={editPrice}
-                              onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
-                              style={{
-                                padding: '6px',
-                                background: 'rgba(0,0,0,0.3)',
-                                border: '1px solid var(--gold)',
-                                color: 'white',
-                                borderRadius: '4px',
-                                width: '90px',
-                              }}
-                            />
-                          ) : (
-                            `₹${prod.price}`
-                          )}
-                        </td>
-                        <td>
-                          {editingId === prod.id ? (
-                            <input
-                              type="number"
-                              value={editStock}
-                              onChange={(e) => setEditStock(parseInt(e.target.value) || 0)}
-                              style={{
-                                padding: '6px',
-                                background: 'rgba(0,0,0,0.3)',
-                                border: '1px solid var(--gold)',
-                                color: 'white',
-                                borderRadius: '4px',
-                                width: '90px',
-                              }}
-                            />
-                          ) : (
-                            <span style={{ fontWeight: 700, color: displayStock < 10 ? 'var(--rose-gold)' : 'var(--cream)' }}>
-                              {displayStock} units
-                            </span>
-                          )}
-                        </td>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Weight Config</th>
+                      <th>Price Config</th>
+                      <th>Available Stock</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((prod) => {
+                      const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
+                      return (
+                        <tr key={prod.id}>
+                          <td>{prod.name}</td>
+                          <td>
+                            {editingId === prod.id ? (
+                              <input
+                                type="text"
+                                value={editWeight}
+                                onChange={(e) => setEditWeight(e.target.value)}
+                                style={{
+                                  padding: '6px',
+                                  background: 'rgba(0,0,0,0.3)',
+                                  border: '1px solid var(--gold)',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  width: '90px',
+                                }}
+                              />
+                            ) : (
+                              prod.weight
+                            )}
+                          </td>
+                          <td>
+                            {editingId === prod.id ? (
+                              <input
+                                type="number"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
+                                style={{
+                                  padding: '6px',
+                                  background: 'rgba(0,0,0,0.3)',
+                                  border: '1px solid var(--gold)',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  width: '90px',
+                                }}
+                              />
+                            ) : (
+                              `₹${prod.price}`
+                            )}
+                          </td>
+                          <td>
+                            {editingId === prod.id ? (
+                              <input
+                                type="number"
+                                value={editStock}
+                                onChange={(e) => setEditStock(parseInt(e.target.value) || 0)}
+                                style={{
+                                  padding: '6px',
+                                  background: 'rgba(0,0,0,0.3)',
+                                  border: '1px solid var(--gold)',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  width: '90px',
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontWeight: 700, color: displayStock < 10 ? 'var(--rose-gold)' : 'var(--cream)' }}>
+                                {displayStock} units
+                              </span>
+                            )}
+                          </td>
 
-                        <td>
-                          {editingId === prod.id ? (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <Button
-                                variant="gold"
-                                size="sm"
-                                onClick={() => handleSaveInventory(prod.id)}
+                          <td>
+                            {editingId === prod.id ? (
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <Button
+                                  variant="gold"
+                                  size="sm"
+                                  onClick={() => handleSaveInventory(prod.id)}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setEditingId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setEditingId(prod.id);
+                                  setEditPrice(prod.price);
+                                  setEditWeight(prod.weight);
+                                  setEditStock(displayStock);
+
+
+                                }}
+                                style={{ color: 'var(--gold)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                               >
-                                Save
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setEditingId(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setEditingId(prod.id);
-                                setEditPrice(prod.price);
-                                setEditWeight(prod.weight);
-                                setEditStock(displayStock);
-
-
-                              }}
-                              style={{ color: 'var(--gold)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <Edit2 size={14} />
-                              Adjust
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                                <Edit2 size={14} />
+                                Adjust
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -941,7 +979,7 @@ export const AdminDashboard: React.FC = () => {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
                   Record Offline Sale
                 </h3>
-                
+
                 {/* Form to add item to basket */}
                 <form onSubmit={handleAddToBasket} style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '1px dashed var(--glass-border)' }}>
                   <Select
@@ -974,7 +1012,7 @@ export const AdminDashboard: React.FC = () => {
                       Add to Basket
                     </Button>
                   </div>
-                  
+
                   <div style={{ fontSize: '0.85rem', color: 'var(--beige)', textAlign: 'right' }}>
                     Item Total: <strong style={{ color: 'var(--gold)' }}>₹{manualSale.totalPrice}</strong>
                   </div>
@@ -1043,6 +1081,134 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* COUPONS TAB */}
+        {activeTab === 'coupons' && (
+          <div>
+            <span className="section-label">Promotions</span>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Coupons & Discounts
+            </h1>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 2fr', gap: '30px', alignItems: 'flex-start' }}>
+              {/* Create Coupon Form */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Create New Coupon</h3>
+                <form onSubmit={handleAddCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <Input 
+                    label="Coupon Code (e.g. SUMMER10)" 
+                    value={newCoupon.code} 
+                    onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})}
+                    required
+                  />
+                  <Input 
+                    label="Description" 
+                    value={newCoupon.description} 
+                    onChange={e => setNewCoupon({...newCoupon, description: e.target.value})}
+                    required
+                  />
+                  <Input 
+                    label="Discount Percent (%)" 
+                    type="number"
+                    value={newCoupon.discount_percent} 
+                    onChange={e => setNewCoupon({...newCoupon, discount_percent: parseFloat(e.target.value) || 0})}
+                  />
+                  <Input 
+                    label="Discount Amount (₹)" 
+                    type="number"
+                    value={newCoupon.discount_amount} 
+                    onChange={e => setNewCoupon({...newCoupon, discount_amount: parseFloat(e.target.value) || 0})}
+                  />
+                  <Button variant="gold" fullWidth type="submit" glow>Create Coupon</Button>
+                </form>
+              </div>
+
+              {/* Coupons List */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active & Past Coupons</h3>
+                {couponsList.length === 0 ? (
+                  <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {couponsList.map((c: any) => (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
+                            {!c.is_active && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,0,0,0.2)', color: '#ff6b6b', borderRadius: '4px' }}>INACTIVE</span>}
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--grey-mid)', marginTop: '4px' }}>
+                            {c.discount_percent > 0 ? `${c.discount_percent}% OFF` : `₹${c.discount_amount} OFF`}
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteCoupon(c.code)}
+                          style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '8px' }}
+                          title="Delete Coupon"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* REVENUE TAB */}
+        {activeTab === 'revenue' && (
+          <div>
+            <span className="section-label">Enterprise</span>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Revenue Analytics
+            </h1>
+            
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Sales Over Time</h3>
+              {dashboardStats?.monthly_revenue ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                  {dashboardStats.monthly_revenue.map((m: any, i: number) => (
+                    <div key={i} style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                      <div style={{ color: 'var(--beige)', fontSize: '0.9rem', marginBottom: '8px' }}>{m.month}</div>
+                      <div style={{ color: 'var(--gold)', fontSize: '1.2rem', fontWeight: 'bold' }}>₹{m.revenue.toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--beige)' }}>Loading revenue data...</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SALES COMPARISON TAB */}
+        {activeTab === 'sales-comparison' && (
+          <div>
+            <span className="section-label">Enterprise</span>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Top Products & Sales
+            </h1>
+            
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Top Selling Products</h3>
+              {dashboardStats?.top_products ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {dashboardStats.top_products.map((p: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ color: 'var(--cream)' }}>{p.product_name}</span>
+                      <span style={{ color: 'var(--gold)', fontWeight: 'bold' }}>{p.units_sold} units</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--beige)' }}>Loading product sales data...</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* CUSTOMERS TAB */}
         {activeTab === 'customers' && (
           <div>
@@ -1053,7 +1219,7 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Split layout: Customers Directory List & Inspector Panel */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              
+
               {/* Customer Inspection List */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '15px' }}>
@@ -1078,7 +1244,7 @@ export const AdminDashboard: React.FC = () => {
                       if (!query) return true;
                       const nameMatch = cust.name.toLowerCase().includes(query);
                       const emailMatch = cust.email.toLowerCase().includes(query);
-                      
+
                       // Match order ID
                       const custOrders = orders.filter((o: any) =>
                         o.shippingAddress.name.toLowerCase() === cust.name.toLowerCase()
@@ -1350,160 +1516,160 @@ export const AdminDashboard: React.FC = () => {
         {/* HELP & COMPLAINTS PANEL */}
         {activeTab === 'complaints' && (
           <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                  <div>
-                    <span className="section-label">Support Helpdesk</span>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
-                      Customer Support Ledger
-                    </h1>
-                  </div>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <div>
+                <span className="section-label">Support Helpdesk</span>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
+                  Customer Support Ledger
+                </h1>
+              </div>
+            </div>
 
-                {/* Support Ticket Summary Counters */}
-                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Complaints</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{tickets.length}</h3>
-                  </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Pending Resolution</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--rose-gold)' }}>
-                      {tickets.filter(t => t.status === 'Pending').length}
-                    </h3>
-                  </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Resolved Issues</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>
-                      {tickets.filter(t => t.status === 'Resolved').length}
-                    </h3>
-                  </div>
-                </div>
+            {/* Support Ticket Summary Counters */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+              <div className="glass-panel" style={{ padding: '20px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Complaints</span>
+                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{tickets.length}</h3>
+              </div>
+              <div className="glass-panel" style={{ padding: '20px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Pending Resolution</span>
+                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--rose-gold)' }}>
+                  {tickets.filter(t => t.status === 'Pending').length}
+                </h3>
+              </div>
+              <div className="glass-panel" style={{ padding: '20px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Resolved Issues</span>
+                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>
+                  {tickets.filter(t => t.status === 'Resolved').length}
+                </h3>
+              </div>
+            </div>
 
-                {/* Support Ticket Directory List */}
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                    Support Complaints Log
-                  </h3>
+            {/* Support Ticket Directory List */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                Support Complaints Log
+              </h3>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {tickets.length === 0 ? (
-                      <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
-                        No customer complaints registered.
-                      </p>
-                    ) : (
-                      tickets.map((t) => {
-                        const isPending = t.status === 'Pending';
-                        return (
-                          <div
-                            key={t.id}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {tickets.length === 0 ? (
+                  <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
+                    No customer complaints registered.
+                  </p>
+                ) : (
+                  tickets.map((t) => {
+                    const isPending = t.status === 'Pending';
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          padding: '20px',
+                          background: 'rgba(0,0,0,0.15)',
+                          borderRadius: '8px',
+                          borderLeft: isPending ? '4px solid var(--gold)' : '4px solid #2ecc71',
+                          borderTop: '1px solid var(--glass-border)',
+                          borderRight: '1px solid var(--glass-border)',
+                          borderBottom: '1px solid var(--glass-border)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700 }}>
+                              {t.id} · {t.category}
+                            </span>
+                            <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: '1.1rem' }}>
+                              Customer: {t.customerName} ({t.customerId})
+                            </h4>
+                          </div>
+                          <span
                             style={{
-                              padding: '20px',
-                              background: 'rgba(0,0,0,0.15)',
-                              borderRadius: '8px',
-                              borderLeft: isPending ? '4px solid var(--gold)' : '4px solid #2ecc71',
-                              borderTop: '1px solid var(--glass-border)',
-                              borderRight: '1px solid var(--glass-border)',
-                              borderBottom: '1px solid var(--glass-border)',
+                              fontSize: '0.75rem',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              background: isPending ? 'rgba(201, 168, 76, 0.15)' : 'rgba(46, 204, 113, 0.15)',
+                              color: isPending ? 'var(--gold)' : '#2ecc71',
                             }}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
-                              <div>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700 }}>
-                                  {t.id} · {t.category}
-                                </span>
-                                <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: '1.1rem' }}>
-                                  Customer: {t.customerName} ({t.customerId})
-                                </h4>
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '4px 10px',
-                                  borderRadius: '4px',
-                                  fontWeight: 600,
-                                  background: isPending ? 'rgba(201, 168, 76, 0.15)' : 'rgba(46, 204, 113, 0.15)',
-                                  color: isPending ? 'var(--gold)' : '#2ecc71',
-                                }}
-                              >
-                                {t.status}
-                              </span>
-                            </div>
+                            {t.status}
+                          </span>
+                        </div>
 
-                            <p style={{ fontSize: '0.9rem', color: 'var(--beige)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
-                              {t.description}
-                            </p>
+                        <p style={{ fontSize: '0.9rem', color: 'var(--beige)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
+                          {t.description}
+                        </p>
 
-                            {!isPending && t.adminNotes && (
-                              <div
+                        {!isPending && t.adminNotes && (
+                          <div
+                            style={{
+                              padding: '12px',
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid var(--glass-border)',
+                              borderRadius: '4px',
+                              fontSize: '0.85rem',
+                              color: 'var(--cream)',
+                              marginBottom: '10px',
+                            }}
+                          >
+                            <span style={{ color: 'var(--gold)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                              Admin Resolution Notes:
+                            </span>
+                            {t.adminNotes}
+                          </div>
+                        )}
+
+                        {!isPending && t.customerResolutionFeedback && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '8px' }}>
+                            <span style={{ fontWeight: 600 }}>Customer Feedback:</span>
+                            <span>{t.customerResolutionFeedback === 'Resolved' ? 'Confirmed Resolved ✓' : 'Reported Unresolved ✗'}</span>
+                          </div>
+                        )}
+
+                        {isPending && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const input = e.currentTarget.elements.namedItem('notes') as HTMLTextAreaElement;
+                              const notes = input.value;
+                              resolveSupportTicket(t.id, notes);
+                              alert(`Ticket ${t.id} resolved and customer notified.`);
+                            }}
+                            style={{ marginTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}
+                          >
+                            <div style={{ marginBottom: '10px' }}>
+                              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
+                                Resolution Notes (Optional)
+                              </label>
+                              <textarea
+                                name="notes"
+                                placeholder="Enter details of how the issue was resolved (e.g. coupon code sent, refund processed)..."
+                                rows={2}
                                 style={{
-                                  padding: '12px',
-                                  background: 'rgba(255,255,255,0.03)',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'rgba(0,0,0,0.3)',
                                   border: '1px solid var(--glass-border)',
                                   borderRadius: '4px',
-                                  fontSize: '0.85rem',
                                   color: 'var(--cream)',
-                                  marginBottom: '10px',
+                                  fontSize: '0.85rem',
+                                  outline: 'none',
+                                  resize: 'none',
                                 }}
-                              >
-                                <span style={{ color: 'var(--gold)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                                  Admin Resolution Notes:
-                                </span>
-                                {t.adminNotes}
-                              </div>
-                            )}
-
-                            {!isPending && t.customerResolutionFeedback && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '8px' }}>
-                                <span style={{ fontWeight: 600 }}>Customer Feedback:</span>
-                                <span>{t.customerResolutionFeedback === 'Resolved' ? 'Confirmed Resolved ✓' : 'Reported Unresolved ✗'}</span>
-                              </div>
-                            )}
-
-                            {isPending && (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const input = e.currentTarget.elements.namedItem('notes') as HTMLTextAreaElement;
-                                  const notes = input.value;
-                                  resolveSupportTicket(t.id, notes);
-                                  alert(`Ticket ${t.id} resolved and customer notified.`);
-                                }}
-                                style={{ marginTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}
-                              >
-                                <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
-                                    Resolution Notes (Optional)
-                                  </label>
-                                  <textarea
-                                    name="notes"
-                                    placeholder="Enter details of how the issue was resolved (e.g. coupon code sent, refund processed)..."
-                                    rows={2}
-                                    style={{
-                                      width: '100%',
-                                      padding: '8px 12px',
-                                      background: 'rgba(0,0,0,0.3)',
-                                      border: '1px solid var(--glass-border)',
-                                      borderRadius: '4px',
-                                      color: 'var(--cream)',
-                                      fontSize: '0.85rem',
-                                      outline: 'none',
-                                      resize: 'none',
-                                    }}
-                                  />
-                                </div>
-                                <Button variant="gold" size="sm" type="submit" glow>
-                                  Resolve & Notify Customer
-                                </Button>
-                              </form>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+                              />
+                            </div>
+                            <Button variant="gold" size="sm" type="submit" glow>
+                              Resolve & Notify Customer
+                            </Button>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
         {/* ATELIER TESTIMONIALS TAB */}
         {activeTab === 'testimonials' && (

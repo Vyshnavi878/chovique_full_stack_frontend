@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, ShoppingBag, Eye } from 'lucide-react';
+import { Heart, ShoppingBag, Eye, Minus, Plus } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../app/providers';
 import { hoverLift } from '../../lib/framer';
@@ -13,11 +13,12 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
-  const { role, addToCart, toggleWishlist, wishlist } = useApp();
+  const { role, addToCart, updateCartQuantity, removeFromCart, toggleWishlist, wishlist, cart } = useApp();
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
 
   const isLiked = wishlist.some((p) => p.id === product.id);
+  const cartItem = cart.find((item) => item.product.id === product.id);
 
   const primaryImg = getImageUrl(product.image);
   const hoverImg = product.hoverImage ? getImageUrl(product.hoverImage) : null;
@@ -63,8 +64,8 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (role === 'guest') {
-      navigate('/login');
+    if (cartItem) {
+      navigate('/cart');
     } else {
       addToCart(product, 1);
     }
@@ -293,32 +294,98 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
             </div>
           </div>
 
-          <button
-            onClick={handleCartClick}
-            style={{
-              width: '100%',
-              padding: '8px 0',
-              background: 'transparent',
-              color: 'var(--gold)',
-              border: '1px solid var(--gold)',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              transition: 'background 0.3s, color 0.3s',
-            }}
-            className="product-card-cart-btn"
-          >
-            <ShoppingBag size={14} />
-            Add to Cart
-          </button>
+        <div style={{ marginTop: '16px' }}>
+          {cartItem ? (
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                border: '1px solid var(--gold)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                background: 'rgba(212, 175, 55, 0.1)',
+                transition: 'background 0.3s',
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (cartItem.quantity <= 1) {
+                    removeFromCart(product.id);
+                  } else {
+                    updateCartQuantity(product.id, cartItem.quantity - 1);
+                  }
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--gold)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Minus size={16} />
+              </button>
+              <span style={{ color: 'var(--cream)', fontWeight: 600, fontSize: '0.9rem' }}>
+                {cartItem.quantity}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateCartQuantity(product.id, cartItem.quantity + 1);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--gold)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (role === 'guest') navigate('/login');
+                else addToCart(product, 1);
+              }}
+              style={{
+                width: '100%',
+                padding: '8px 0',
+                background: 'transparent',
+                color: 'var(--gold)',
+                border: '1px solid var(--gold)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                transition: 'background 0.3s, color 0.3s',
+              }}
+              className="product-card-cart-btn"
+            >
+              <ShoppingBag size={14} />
+              Add to Cart
+            </button>
+          )}
         </div>
       </div>
-    </motion.div>
+    </div>
+  </motion.div>
   );
 };

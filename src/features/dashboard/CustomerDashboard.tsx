@@ -27,6 +27,8 @@ import { Input } from '../../components/ui/Input';
 import { pageTransition } from '../../lib/framer';
 import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
+import { BASE_URL } from '../../lib/api';
+import { orderService } from '../../services/orderService';
 import type { UserCoupon } from '../../types';
 
 type CustomerTab =
@@ -99,6 +101,32 @@ export const CustomerDashboard: React.FC = () => {
   });
   const [profileSaved, setProfileSaved] = useState(false);
   const [showAddAddressForm, setShowAddAddressForm] = useState(false);
+
+  const handleViewInvoice = async (orderId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const html = await orderService.getInvoiceHtml(orderId);
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+      }
+    } catch (err) {
+      console.error('Failed to load invoice', err);
+      alert('Could not load invoice. Please try again later.');
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    try {
+      await orderService.cancelOrder(orderId);
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to cancel order', err);
+      alert('Could not cancel order. It may be too late to cancel.');
+    }
+  };
 
   // Keep profile form in sync if the user object changes (e.g. after rehydration from /users/me)
   useEffect(() => {
@@ -734,9 +762,51 @@ export const CustomerDashboard: React.FC = () => {
                           ))}
                         </div>
 
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '15px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                          <span style={{ color: 'var(--gold)' }}>Total Paid</span>
-                          <span>₹{ord.total.toLocaleString()}</span>
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '15px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
+                          <div>
+                            <span style={{ color: 'var(--gold)', marginRight: '10px' }}>Total Paid:</span>
+                            <span>₹{ord.total.toLocaleString()}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            {ord.status === 'Processing' && (
+                              <button
+                                onClick={() => handleCancelOrder(ord.id)}
+                                style={{
+                                  background: 'transparent',
+                                  color: 'var(--cream)',
+                                  fontSize: '0.85rem',
+                                  padding: '5px 12px',
+                                  border: '1px solid #ff4d4f',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.3s ease'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 77, 79, 0.2)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <X size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'text-bottom' }} />
+                                Cancel
+                              </button>
+                            )}
+                            <a 
+                              href="#" 
+                              onClick={(e) => handleViewInvoice(ord.id, e)}
+                              style={{ 
+                                color: 'var(--cream)', 
+                                fontSize: '0.85rem', 
+                                textDecoration: 'none',
+                                padding: '5px 12px',
+                                border: '1px solid var(--gold)',
+                                borderRadius: '4px',
+                                transition: 'all 0.3s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(212, 175, 55, 0.2)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <FileText size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'text-bottom' }} />
+                              View Invoice
+                            </a>
+                          </div>
                         </div>
                       </div>
                     ))}

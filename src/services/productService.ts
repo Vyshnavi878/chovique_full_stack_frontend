@@ -62,4 +62,16 @@ export const productService = {
     payload: { author: string; rating: number; text: string }
   ): Promise<Review> =>
     apiPost<Review>(`/products/${productId}/reviews`, payload),
+
+  /** Fetch multiple products by ID (comma separated) */
+  getBulkProducts: (ids: string): Promise<Product[]> =>
+    apiGet<Product[]>(`/products/bulk?ids=${ids}`),
+
+  /** Fetch personalized or general recommendations */
+  getRecommendations: (limit = 4): Promise<Product[]> =>
+    apiGet<Product[]>(`/products/recommendations?limit=${limit}`),
+
+  /** Fetch related products for a specific product */
+  getRelatedProducts: (productId: string, limit = 4): Promise<Product[]> =>
+    apiGet<Product[]>(`/products/${productId}/related?limit=${limit}`),
 };

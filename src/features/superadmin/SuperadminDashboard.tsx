@@ -384,28 +384,40 @@ export const SuperadminDashboard: React.FC = () => {
 
 
   // --- Platform Settings State & Handlers ---
-  const [platformSettings, setPlatformSettings] = useState(() => {
-    const saved = localStorage.getItem('chovique_platform_settings');
-    if (saved) return JSON.parse(saved);
-    return {
-      storeName: 'Chovique Luxury Chocolates',
-      supportEmail: 'support@chovique.com',
-      supportPhone: '+91 98765 43210',
-      maintenanceMode: false,
-      enableCOD: true,
-      minOrderFreeShipping: 1500,
-      allowRegistrations: true,
-      idleTimeout: 30,
-    };
+  const [platformSettings, setPlatformSettings] = useState({
+    storeName: 'Chovique Luxury Chocolates',
+    supportEmail: 'support@chovique.com',
+    supportPhone: '+91 98765 43210',
+    maintenanceMode: false,
+    enableCOD: true,
+    minOrderFreeShipping: 1500,
+    allowRegistrations: true,
+    idleTimeout: 30,
   });
+  
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  useEffect(() => {
+    adminService.getPlatformConfig()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) {
+          setPlatformSettings((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch((err) => console.error('Failed to load platform settings', err));
+  }, []);
 
   const handleSavePlatformSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('chovique_platform_settings', JSON.stringify(platformSettings));
-    setSettingsSaved(true);
-    addLogEntry('Saved system platform settings configuration', 'setting');
-    setTimeout(() => setSettingsSaved(false), 3000);
+    adminService.updatePlatformConfig(platformSettings)
+      .then(() => {
+        setSettingsSaved(true);
+        addLogEntry('Saved system platform settings configuration', 'setting');
+        setTimeout(() => setSettingsSaved(false), 3000);
+      })
+      .catch((err) => {
+        console.error('Failed to save platform settings:', err);
+      });
   };
   const [backendAuditLogs, setBackendAuditLogs] = useState<AuditLogEntry[]>([]);
 
@@ -694,11 +706,16 @@ export const SuperadminDashboard: React.FC = () => {
   };
 
   // Restock items
-  const handleSaveStockLevel = (prodId: string) => {
-    setProducts(prev => prev.map(p => p.id === prodId ? { ...p, stock: adjustStockVal } : p));
-    const prodName = products.find(p => p.id === prodId)?.name || prodId;
-    addLogEntry(`Adjusted inventory stock for "${prodName}" to ${adjustStockVal} units`, 'product');
-    setAdjustingStockId(null);
+  const handleSaveStockLevel = async (prodId: string) => {
+    try {
+      await adminService.updateProductStock(prodId, adjustStockVal);
+      setProducts(prev => prev.map(p => p.id === prodId ? { ...p, stock: adjustStockVal } : p));
+      const prodName = products.find(p => p.id === prodId)?.name || prodId;
+      addLogEntry(`Adjusted inventory stock for "${prodName}" to ${adjustStockVal} units`, 'product');
+      setAdjustingStockId(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update stock');
+    }
   };
 
   // Export consolidated website and offline store sales as CSV (Excel)
@@ -1281,7 +1298,7 @@ export const SuperadminDashboard: React.FC = () => {
                           }
                         });
                         
-                        const isLowStock = prod.stock < 10;
+                        const isLowStock = (prod.stock || 0) < 10;
                         
                         return (
                           <tr key={prod.id}>
@@ -1353,7 +1370,7 @@ export const SuperadminDashboard: React.FC = () => {
                                   size="sm"
                                   onClick={() => {
                                     setAdjustingStockId(prod.id);
-                                    setAdjustStockVal(prod.stock);
+                                    setAdjustStockVal(prod.stock || 0);
                                   }}
                                 >
                                   Adjust Stock
@@ -2129,8 +2146,8 @@ export const SuperadminDashboard: React.FC = () => {
                                     } else {
                                       itemsBought[it.product.name] = {
                                         qty: it.quantity,
-                                        available: m.stock,
-                                        low: m.stock < 10
+                                        available: m.stock || 0,
+                                        low: (m.stock || 0) < 10
                                       };
                                     }
                                   });
@@ -3072,7 +3089,7 @@ export const SuperadminDashboard: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
               {cmsReels.map((reel) => (
                 <div key={reel.id} className="glass-panel" style={{ padding: '16px', position: 'relative', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
-                  <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title)} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title || '')} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Trash2 size={14} />
                   </button>
                   <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '30px' }}>{reel.title}</p>

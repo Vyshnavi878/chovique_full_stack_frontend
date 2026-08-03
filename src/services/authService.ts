@@ -84,15 +84,6 @@ export const authService = {
     return apiPost<{ message: string; dev_otp?: string }>('/auth/forgot-password', { email });
   },
 
-  /**
-   * Verify forgot-password OTP before resetting.
-   */
-  verifyForgotPasswordOtp: async (
-    email: string,
-    otp: string
-  ): Promise<{ message: string }> => {
-    return apiPost<{ message: string }>('/auth/forgot-password/verify', { email, otp });
-  },
 
   /**
    * Resend forgot-password OTP.

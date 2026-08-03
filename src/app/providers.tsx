@@ -188,6 +188,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const loggedInUser = response.user as User;
         setUser(loggedInUser);
         setRole(loggedInUser.role);
+        
+        // Merge guest cart
+        try {
+          const saved = localStorage.getItem('chovique_guest_cart');
+          if (saved) {
+            const guestCart = JSON.parse(saved);
+            if (guestCart.length > 0) {
+              const itemsToSync = guestCart.map((item: any) => ({
+                product_id: item.product.id,
+                quantity: item.quantity
+              }));
+              await cartService.syncCart(itemsToSync);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to merge guest cart', e);
+        } finally {
+          localStorage.removeItem('chovique_guest_cart');
+        }
+
         return { success: true, role: loggedInUser.role };
       } catch (err: unknown) {
         const message =
@@ -219,6 +239,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newUser = response.user as User;
         setUser(newUser);
         setRole(newUser.role);
+        
+        // Merge guest cart
+        try {
+          const saved = localStorage.getItem('chovique_guest_cart');
+          if (saved) {
+            const guestCart = JSON.parse(saved);
+            if (guestCart.length > 0) {
+              const itemsToSync = guestCart.map((item: any) => ({
+                product_id: item.product.id,
+                quantity: item.quantity
+              }));
+              await cartService.syncCart(itemsToSync);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to merge guest cart', e);
+        } finally {
+          localStorage.removeItem('chovique_guest_cart');
+        }
+
         return { success: true };
       } catch (err: unknown) {
         const message =
@@ -237,6 +277,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const loggedInUser = response.user as User;
           setUser(loggedInUser);
           setRole(loggedInUser.role);
+          
+          // Merge guest cart
+          try {
+            const saved = localStorage.getItem('chovique_guest_cart');
+            if (saved) {
+              const guestCart = JSON.parse(saved);
+              if (guestCart.length > 0) {
+                const itemsToSync = guestCart.map((item: any) => ({
+                  product_id: item.product.id,
+                  quantity: item.quantity
+                }));
+                await cartService.syncCart(itemsToSync);
+              }
+            }
+          } catch (e) {
+            console.error('Failed to merge guest cart', e);
+          } finally {
+            localStorage.removeItem('chovique_guest_cart');
+          }
+
           return { success: true, role: loggedInUser.role, user: loggedInUser };
         }
         return { success: false, error: response.message || 'Google Sign-In failed.' };
@@ -282,7 +342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Theme State (kept in localStorage — intentional client-side UX preference)
+  // Theme State
   // ---------------------------------------------------------------------------
 
   const [theme, setTheme] = useState(() => {
@@ -293,6 +353,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return defaultTheme;
     }
   });
+
+  useEffect(() => {
+    homeService.getTheme()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) {
+          setTheme(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load theme from backend', err));
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Product State — fetched by individual pages via productService.
@@ -334,7 +404,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Cart State — backend-persistent
   // ---------------------------------------------------------------------------
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('chovique_guest_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Keep localStorage in sync for guests
+  useEffect(() => {
+    if (role === 'guest') {
+      localStorage.setItem('chovique_guest_cart', JSON.stringify(cart));
+    }
+  }, [cart, role]);
 
   /**
    * Sync cart from backend response into local CartItem[] format.
@@ -444,6 +528,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [...prev, { product, quantity }];
     });
 
+    if (role === 'guest') return;
+
     try {
       const res = await cartService.addToCart(product.id, quantity);
       syncCartFromBackend(res.items);
@@ -470,6 +556,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    if (role === 'guest') return;
+
     try {
       const res = await cartService.updateQuantity(productId, Math.max(1, quantity));
       syncCartFromBackend(res.items);
@@ -482,6 +570,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Optimistic update
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
 
+    if (role === 'guest') return;
+
     try {
       const res = await cartService.removeFromCart(productId);
       syncCartFromBackend(res.items);
@@ -492,6 +582,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCart = useCallback(async (): Promise<void> => {
     setCart([]);
+    
+    if (role === 'guest') return;
+
     try {
       await cartService.clearCart();
     } catch (err) {
@@ -642,15 +735,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Theme Operations
   // ---------------------------------------------------------------------------
 
-  const updateThemeColors = (colors: {
+  const updateThemeColors = useCallback(async (colors: {
     primary?: string;
     darkChocolate?: string;
     gold?: string;
     roseGold?: string;
     black?: string;
   }) => {
-    setTheme((prev: typeof defaultTheme) => ({ ...prev, ...colors }));
-  };
+    setTheme((prev: typeof defaultTheme) => {
+      const newTheme = { ...prev, ...colors };
+      // Sync with backend if admin
+      if (role === 'admin' || role === 'superadmin') {
+        import('../services/adminService').then((m) => {
+          m.adminService.updateTheme(newTheme).catch(err => {
+            console.error('Failed to sync theme to backend', err);
+          });
+        });
+      }
+      return newTheme;
+    });
+  }, [role]);
 
   // ---------------------------------------------------------------------------
   // Support Tickets — wired to ticketService
