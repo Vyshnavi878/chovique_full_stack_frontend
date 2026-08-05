@@ -4,7 +4,7 @@
  * All calls go directly to the FastAPI backend.
  */
 
-import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormData } from '../lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut } from '../lib/api';
 import type {
   Banner,
   Testimonial,
@@ -75,12 +75,17 @@ export const adminService = {
     full_name: string;
     email: string;
     password: string;
+    role?: string;
   }): Promise<SystemUser> =>
     apiPost<SystemUser>('/admin/users', payload),
 
   /** Delete or revoke a user account (superadmin action). */
   deleteUser: (userId: string): Promise<void> =>
     apiDelete<void>(`/admin/users/${userId}`),
+
+  /** Promote an admin to superadmin. */
+  promoteAdmin: (userId: string): Promise<SystemUser> =>
+    apiPost<SystemUser>(`/admin/users/${userId}/promote`, {}),
 
   /** Fetch all orders site-wide. */
   getAllOrders: (): Promise<Order[]> =>
@@ -93,6 +98,19 @@ export const adminService = {
   /** Fetch all support tickets site-wide. */
   getAllTickets: (): Promise<SupportTicket[]> =>
     apiGet<SupportTicket[]>('/admin/tickets'),
+
+  /** Theme Management */
+  getThemes: (): Promise<any[]> =>
+    apiGet<any[]>('/theme/'),
+  
+  saveTheme: (payload: { name: string; properties_json: string }): Promise<any> =>
+    apiPost<any>('/theme/', payload),
+    
+  deleteTheme: (themeId: string): Promise<void> =>
+    apiDelete<void>(`/theme/${themeId}`),
+    
+  setActiveTheme: (themeId: string): Promise<void> =>
+    apiPut<void>(`/theme/${themeId}/active`, {}),
 
   /** Resolve a support ticket (admin action). */
   resolveTicket: (ticketId: string, payload: ResolveTicketPayload): Promise<SupportTicket> =>

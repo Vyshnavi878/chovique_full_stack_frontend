@@ -68,12 +68,69 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   }
 };
 
+let csrfToken: string | null = null;
+let csrfPromise: Promise<string | null> | null = null;
+
+const fetchCsrfToken = async (): Promise<string | null> => {
+  if (csrfToken) return csrfToken;
+  if (!csrfPromise) {
+    csrfPromise = safeFetch(`${BASE_URL}/auth/csrf`, {
+      method: 'GET',
+      headers: buildHeaders(),
+      credentials: 'include',
+    }).then(async (res) => {
+      csrfPromise = null;
+      if (res.ok) {
+        const data = await res.json();
+        csrfToken = data.csrf_token;
+        return csrfToken;
+      }
+      return null;
+    }).catch(() => {
+      csrfPromise = null;
+      return null;
+    });
+  }
+  return csrfPromise;
+};
+
 let refreshPromise: Promise<boolean> | null = null;
 
-const fetchWithAuth = async (path: string, init: RequestInit): Promise<Response> => {
+const fetchWithAuth = async (path: string, init: RequestInit & { _isCsrfRetry?: boolean }): Promise<Response> => {
+  const method = init.method || 'GET';
+  if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method.toUpperCase())) {
+    const token = await fetchCsrfToken();
+    if (token) {
+      init.headers = {
+        ...init.headers,
+        'x-csrf-token': token,
+      };
+    }
+  }
+
   let response = await safeFetch(`${BASE_URL}${path}`, init);
 
+  if (response.status === 403 && !init._isCsrfRetry) {
+    const clone = response.clone();
+    try {
+      const data = await clone.json();
+      if (data?.detail === 'CSRF token validation failed') {
+        csrfToken = null;
+        const newToken = await fetchCsrfToken();
+        if (newToken) {
+          init.headers = {
+            ...init.headers,
+            'x-csrf-token': newToken,
+          };
+          init._isCsrfRetry = true;
+          response = await safeFetch(`${BASE_URL}${path}`, init);
+        }
+      }
+    } catch {}
+  }
+
   if (
+
     response.status === 401 && 
     !path.includes('/auth/refresh') && 
     !path.includes('/auth/login') && 

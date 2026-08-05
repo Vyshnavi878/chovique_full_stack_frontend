@@ -157,10 +157,31 @@ export const SuperadminDashboard: React.FC = () => {
 
   // --- Theme Presets State ---
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [customThemes, setCustomThemes] = useState<ThemePreset[]>(() => {
-    const saved = localStorage.getItem('chovique_custom_themes');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [customThemes, setCustomThemes] = useState<ThemePreset[]>([]);
+
+  useEffect(() => {
+    adminService.getThemes()
+      .then(themes => {
+        if (Array.isArray(themes)) {
+          const mapped = themes.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            description: 'Custom theme',
+            colors: JSON.parse(t.properties_json)
+          }));
+          setCustomThemes(mapped);
+          
+          const activeTheme = themes.find((t: any) => t.is_active);
+          if (activeTheme) {
+            setActivePresetId(activeTheme.id);
+            const activeColors = JSON.parse(activeTheme.properties_json);
+            setThemeInput(activeColors);
+            updateThemeColors(activeColors);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch themes', err));
+  }, []);
   const [showAddThemeForm, setShowAddThemeForm] = useState(false);
   const [newThemeName, setNewThemeName] = useState('');
   const [newThemeDesc, setNewThemeDesc] = useState('');
@@ -193,7 +214,7 @@ export const SuperadminDashboard: React.FC = () => {
 
   // --- Admin Accounts Management State ---
   const [showAddAdminForm, setShowAddAdminForm] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '' });
+  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '', role: 'admin' });
   const [adminCreateError, setAdminCreateError] = useState('');
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
@@ -446,11 +467,21 @@ export const SuperadminDashboard: React.FC = () => {
   // Preset operations
   const allPresets = [...builtInPresets, ...customThemes];
 
-  const handleApplyPreset = (preset: ThemePreset) => {
+  const handleApplyPreset = async (preset: ThemePreset) => {
     setActivePresetId(preset.id);
     setThemeInput(preset.colors);
     updateThemeColors(preset.colors);
     addLogEntry(`Applied Theme Preset: "${preset.name}"`, 'setting');
+    
+    // Attempt to set it as active on backend if it's a backend custom theme
+    const isBuiltIn = builtInPresets.find(p => p.id === preset.id);
+    if (!isBuiltIn) {
+      try {
+        await adminService.setActiveTheme(preset.id);
+      } catch (err) {
+        console.error('Failed to set active theme on backend', err);
+      }
+    }
   };
 
   const handleApplyTheme = () => {
@@ -473,31 +504,43 @@ export const SuperadminDashboard: React.FC = () => {
     addLogEntry('Reset theme color tokens to defaults', 'setting');
   };
 
-  const handleAddCustomTheme = () => {
+  const handleAddCustomTheme = async () => {
     if (!newThemeName.trim()) return;
-    const newTheme: ThemePreset = {
-      id: `custom-${Date.now()}`,
-      name: newThemeName,
-      description: newThemeDesc || 'Custom theme',
-      colors: { ...newThemeColors },
-    };
-    const updated = [...customThemes, newTheme];
-    setCustomThemes(updated);
-    localStorage.setItem('chovique_custom_themes', JSON.stringify(updated));
-    setNewThemeName('');
-    setNewThemeDesc('');
-    setShowAddThemeForm(false);
-    addLogEntry(`Created Custom Theme: "${newTheme.name}"`, 'setting');
+    try {
+      const created = await adminService.saveTheme({
+        name: newThemeName,
+        properties_json: JSON.stringify(newThemeColors)
+      });
+      const newTheme: ThemePreset = {
+        id: created.id,
+        name: created.name,
+        description: newThemeDesc || 'Custom theme',
+        colors: JSON.parse(created.properties_json),
+      };
+      setCustomThemes([...customThemes, newTheme]);
+      setNewThemeName('');
+      setNewThemeDesc('');
+      setShowAddThemeForm(false);
+      addLogEntry(`Created Custom Theme: "${newTheme.name}"`, 'setting');
+    } catch (err) {
+       console.error('Failed to create theme', err);
+       alert('Failed to save custom theme to backend.');
+    }
   };
 
-  const handleRemoveCustomTheme = (id: string) => {
+  const handleRemoveCustomTheme = async (id: string) => {
     const targetTheme = customThemes.find(t => t.id === id);
-    const updated = customThemes.filter((t) => t.id !== id);
-    setCustomThemes(updated);
-    localStorage.setItem('chovique_custom_themes', JSON.stringify(updated));
-    if (activePresetId === id) setActivePresetId(null);
-    if (targetTheme) {
-      addLogEntry(`Deleted Custom Theme: "${targetTheme.name}"`, 'setting');
+    try {
+      await adminService.deleteTheme(id);
+      const updated = customThemes.filter((t) => t.id !== id);
+      setCustomThemes(updated);
+      if (activePresetId === id) setActivePresetId(null);
+      if (targetTheme) {
+        addLogEntry(`Deleted Custom Theme: "${targetTheme.name}"`, 'setting');
+      }
+    } catch (err) {
+      console.error('Failed to delete theme', err);
+      alert('Failed to delete custom theme.');
     }
   };
 
@@ -553,18 +596,31 @@ export const SuperadminDashboard: React.FC = () => {
         full_name: newAdmin.name,
         email: newAdmin.email,
         password: newAdmin.password,
+        role: newAdmin.role,
       });
 
       setSystemUsers((prev) => [created, ...prev]);
       addLogEntry(`Registered new administrator account: ${created.name} (${created.email})`, 'security');
 
-      setNewAdmin({ name: '', email: '', password: '' });
+      setNewAdmin({ name: '', email: '', password: '', role: 'admin' });
       setShowAddAdminForm(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register admin account.';
       setAdminCreateError(msg);
     } finally {
       setIsCreatingAdmin(false);
+    }
+  };
+
+  const handlePromoteAdmin = async (id: string, name: string) => {
+    if (!window.confirm(`Promote ${name} to Superadmin?`)) return;
+    try {
+      const updatedUser = await adminService.promoteAdmin(id);
+      setSystemUsers((prev) => prev.map((u) => u.id === id ? updatedUser : u));
+      addLogEntry(`Promoted administrator account: ${name} to superadmin`, 'security');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to promote administrator.';
+      alert(msg);
     }
   };
 
@@ -1627,6 +1683,24 @@ export const SuperadminDashboard: React.FC = () => {
                           if (adminCreateError) setAdminCreateError('');
                         }}
                       />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <label style={{ fontSize: '0.85rem', color: 'var(--cream)', marginBottom: '8px', fontWeight: 600 }}>Role</label>
+                        <select
+                          value={newAdmin.role}
+                          onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })}
+                          style={{
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid var(--glass-border)',
+                            color: 'var(--cream)',
+                            padding: '10px 14px',
+                            borderRadius: '6px',
+                            outline: 'none',
+                          }}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="superadmin">Superadmin</option>
+                        </select>
+                      </div>
                       <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'flex-end' }}>
                         <Button variant="gold" type="submit" glow disabled={isCreatingAdmin} style={{ height: '42px', minWidth: '150px', whiteSpace: 'nowrap', width: '100%' }}>
                           {isCreatingAdmin ? 'Creating...' : 'Register Account'}
@@ -1813,6 +1887,28 @@ export const SuperadminDashboard: React.FC = () => {
                                 onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
                               >
                                 <UserCheck size={14} /> Edit
+                              </button>
+                              {/* Promote to Superadmin button */}
+                              <button
+                                onClick={() => handlePromoteAdmin(u.id, u.name)}
+                                style={{
+                                  color: 'var(--gold)',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'rgba(201,168,76,0.08)',
+                                  border: '1px solid rgba(201,168,76,0.3)',
+                                  borderRadius: '4px',
+                                  padding: '5px 10px',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
+                              >
+                                <UserCheck size={14} /> Promote
                               </button>
                               {/* Reset Password button */}
                               <button
