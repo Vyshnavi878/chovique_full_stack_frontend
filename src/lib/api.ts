@@ -68,10 +68,23 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   }
 };
 
+const getCookie = (name: string): string | null => {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+};
+
 let csrfToken: string | null = null;
 let csrfPromise: Promise<string | null> | null = null;
 
 const fetchCsrfToken = async (): Promise<string | null> => {
+  const cookieToken = getCookie('csrf_token');
+  if (cookieToken) {
+    csrfToken = cookieToken;
+    return csrfToken;
+  }
   if (csrfToken) return csrfToken;
   if (!csrfPromise) {
     csrfPromise = safeFetch(`${BASE_URL}/auth/csrf`, {
@@ -82,7 +95,7 @@ const fetchCsrfToken = async (): Promise<string | null> => {
       csrfPromise = null;
       if (res.ok) {
         const data = await res.json();
-        csrfToken = data.csrf_token;
+        csrfToken = data.csrf_token || getCookie('csrf_token');
         return csrfToken;
       }
       return null;

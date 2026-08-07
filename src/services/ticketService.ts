@@ -24,4 +24,8 @@ export const ticketService = {
   /** Submit customer feedback on a resolved ticket */
   submitFeedback: (ticketId: string, payload: TicketFeedbackPayload): Promise<SupportTicket> =>
     apiPost<SupportTicket>(`/support/tickets/${ticketId}/feedback`, payload),
+
+  /** Fetch all support tickets site-wide (admin only) */
+  getAllTickets: (): Promise<SupportTicket[]> =>
+    apiGet<SupportTicket[]>('/admin/tickets'),
 };

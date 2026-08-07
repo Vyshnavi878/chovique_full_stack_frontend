@@ -117,11 +117,30 @@ export const CustomerDashboard: React.FC = () => {
     }
   };
 
+  const handleDownloadInvoice = async (orderId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const html = await orderService.getInvoiceHtml(orderId);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${orderId.slice(0, 8).toUpperCase()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download invoice', err);
+      alert('Could not download invoice.');
+    }
+  };
+
   const handleCancelOrder = async (orderId: string) => {
     if (!confirm('Are you sure you want to cancel this order?')) return;
     try {
-      await orderService.cancelOrder(orderId);
-      window.location.reload();
+      const cancelledOrder = await orderService.cancelOrder(orderId);
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Cancelled' } : o)));
     } catch (err) {
       console.error('Failed to cancel order', err);
       alert('Could not cancel order. It may be too late to cancel.');
@@ -140,6 +159,8 @@ export const CustomerDashboard: React.FC = () => {
   }, [user]);
 
   // --- Avatar upload state ---
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
 
@@ -195,8 +216,20 @@ export const CustomerDashboard: React.FC = () => {
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
+    setAvatarError('');
     setIsProfileSaving(true);
     try {
+      if (pendingAvatarFile) {
+        setIsAvatarUploading(true);
+        const formData = new FormData();
+        formData.append('avatar', pendingAvatarFile);
+        const result = await userService.uploadAvatar(formData);
+        updateUserProfilePicture(result.avatar_url);
+        setPendingAvatarFile(null);
+        setAvatarPreviewUrl(null);
+        setIsAvatarUploading(false);
+      }
+
       await updateUserProfile({
         name: profileForm.name,
         phone: profileForm.phone,
@@ -208,6 +241,7 @@ export const CustomerDashboard: React.FC = () => {
       setProfileError(msg);
     } finally {
       setIsProfileSaving(false);
+      setIsAvatarUploading(false);
     }
   };
 
@@ -571,9 +605,9 @@ export const CustomerDashboard: React.FC = () => {
                 
                 {/* Profile Picture Uploader */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid var(--glass-border)' }}>
-                  {user.profile.avatarUrl ? (
+                  {avatarPreviewUrl || user.profile.avatarUrl ? (
                     <img
-                      src={user.profile.avatarUrl}
+                      src={avatarPreviewUrl || user.profile.avatarUrl!}
                       alt="Profile Preview"
                       style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)' }}
                     />
@@ -590,24 +624,12 @@ export const CustomerDashboard: React.FC = () => {
                       id="profile-img-upload"
                       style={{ display: 'none' }}
                       disabled={isAvatarUploading}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         setAvatarError('');
-                        setIsAvatarUploading(true);
-                        try {
-                          // Send the raw file as multipart/form-data — backend returns a hosted URL
-                          const formData = new FormData();
-                          formData.append('avatar', file);
-                          const result = await userService.uploadAvatar(formData);
-                          updateUserProfilePicture(result.avatar_url);
-                        } catch (err: unknown) {
-                          const message = err instanceof Error ? err.message : 'Failed to upload image. Please try again.';
-                          setAvatarError(message);
-                        } finally {
-                          setIsAvatarUploading(false);
-                          e.target.value = '';
-                        }
+                        setPendingAvatarFile(file);
+                        setAvatarPreviewUrl(URL.createObjectURL(file));
                       }}
                     />
                     <label
@@ -805,6 +827,24 @@ export const CustomerDashboard: React.FC = () => {
                             >
                               <FileText size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'text-bottom' }} />
                               View Invoice
+                            </a>
+                            <a 
+                              href="#" 
+                              onClick={(e) => handleDownloadInvoice(ord.id, e)}
+                              style={{ 
+                                color: 'var(--gold)', 
+                                fontSize: '0.85rem', 
+                                textDecoration: 'none',
+                                padding: '5px 12px',
+                                border: '1px solid var(--gold)',
+                                borderRadius: '4px',
+                                transition: 'all 0.3s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(212, 175, 55, 0.2)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <Download size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'text-bottom' }} />
+                              Download
                             </a>
                           </div>
                         </div>

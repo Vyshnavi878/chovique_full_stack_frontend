@@ -95,9 +95,6 @@ export const ForgotPasswordPage: React.FC = () => {
     try {
       const res = await authService.forgotPassword(email.trim());
       setSuccessInfo(res.message || 'OTP sent successfully to your email.');
-      if (res.dev_otp) {
-        setOtp(res.dev_otp);
-      }
       setStep('RESET');
       setTimeLeft(30);
     } catch (err: unknown) {
@@ -116,9 +113,6 @@ export const ForgotPasswordPage: React.FC = () => {
     try {
       const res = await authService.resendForgotOtp(email);
       setSuccessInfo(res.message || 'A new 6-digit OTP code has been sent to your email.');
-      if (res.dev_otp) {
-        setOtp(res.dev_otp);
-      }
       setTimeLeft(30);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to resend OTP.';

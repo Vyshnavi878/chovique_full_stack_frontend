@@ -58,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'offline-sales', label: 'Offline Sales', icon: Coins },
     { id: 'customers', label: 'Order Management', icon: Users },
     { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
+    { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
     { id: 'testimonials', label: 'Atelier Testimonials', icon: Star },
     { id: 'contact-messages', label: 'Contact Messages', icon: Mail },
     { id: 'complaints', label: 'Customer Complaints', icon: AlertTriangle },
@@ -71,10 +72,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'admin-mgmt', label: 'Admin Management', icon: Users },
     { id: 'audit-logs', label: 'Audit Logs', icon: FileClock },
     { id: 'theme-builder', label: 'Theme Builder', icon: Palette },
-    { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
-    { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
-    { id: 'testimonials', label: 'Atelier Testimonials', icon: Star },
-    { id: 'contact-messages', label: 'Contact Messages', icon: Mail },
     { id: 'platform-settings', label: 'Platform Settings', icon: Settings },
   ];
 

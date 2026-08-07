@@ -80,16 +80,16 @@ export const authService = {
   /**
    * Forgot password — sends reset OTP to email.
    */
-  forgotPassword: async (email: string): Promise<{ message: string; dev_otp?: string }> => {
-    return apiPost<{ message: string; dev_otp?: string }>('/auth/forgot-password', { email });
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    return apiPost<{ message: string }>('/auth/forgot-password', { email });
   },
 
 
   /**
    * Resend forgot-password OTP.
    */
-  resendForgotOtp: async (email: string): Promise<{ message: string; dev_otp?: string }> => {
-    return apiPost<{ message: string; dev_otp?: string }>('/auth/resend-forgot-otp', { email });
+  resendForgotOtp: async (email: string): Promise<{ message: string }> => {
+    return apiPost<{ message: string }>('/auth/resend-forgot-otp', { email });
   },
 
   /**

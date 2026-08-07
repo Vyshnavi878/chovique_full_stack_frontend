@@ -25,6 +25,7 @@ import {
   Layers,
   ArrowRight,
   UserCheck,
+  UserX,
   Activity,
   AlertTriangle,
   Key
@@ -123,7 +124,7 @@ const builtInPresets: ThemePreset[] = [
 
 
 export const SuperadminDashboard: React.FC = () => {
-  const { theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners } = useApp();
+  const { user, theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners } = useApp();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('enterprise');
@@ -414,6 +415,9 @@ export const SuperadminDashboard: React.FC = () => {
     minOrderFreeShipping: 1500,
     allowRegistrations: true,
     idleTimeout: 30,
+    taxRate: 5,
+    platformFee: 0,
+    currency: 'INR (₹)',
   });
   
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -620,6 +624,18 @@ export const SuperadminDashboard: React.FC = () => {
       addLogEntry(`Promoted administrator account: ${name} to superadmin`, 'security');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to promote administrator.';
+      alert(msg);
+    }
+  };
+
+  const handleDemoteAdmin = async (id: string, name: string) => {
+    if (!window.confirm(`Demote ${name} back to regular Admin?`)) return;
+    try {
+      const updatedUser = await adminService.demoteAdmin(id);
+      setSystemUsers((prev) => prev.map((u) => u.id === id ? updatedUser : u));
+      addLogEntry(`Demoted superadmin account: ${name} back to admin`, 'security');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to demote superadmin.';
       alert(msg);
     }
   };
@@ -1859,36 +1875,36 @@ export const SuperadminDashboard: React.FC = () => {
                         </td>
                         <td style={{ color: '#2ecc71', fontWeight: 600 }}>Active</td>
                         <td style={{ textAlign: 'right' }}>
-                          {u.role === 'admin' ? (
-                            <div style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                              {/* Edit button */}
-                              <button
-                                onClick={() => {
-                                  setEditAdminUser(u);
-                                  setEditAdminForm({ name: u.name, email: u.email });
-                                  setEditAdminError('');
-                                  setResetAdminUser(null);
-                                }}
-                                style={{
-                                  color: 'var(--gold)',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(201,168,76,0.08)',
-                                  border: '1px solid rgba(201,168,76,0.3)',
-                                  borderRadius: '4px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
-                              >
-                                <UserCheck size={14} /> Edit
-                              </button>
-                              {/* Promote to Superadmin button */}
+                          <div style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {/* Edit button */}
+                            <button
+                              onClick={() => {
+                                setEditAdminUser(u);
+                                setEditAdminForm({ name: u.name, email: u.email });
+                                setEditAdminError('');
+                                setResetAdminUser(null);
+                              }}
+                              style={{
+                                color: 'var(--gold)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'rgba(201,168,76,0.08)',
+                                border: '1px solid rgba(201,168,76,0.3)',
+                                borderRadius: '4px',
+                                padding: '5px 10px',
+                                fontSize: '0.82rem',
+                                fontWeight: 600,
+                                transition: 'all 0.2s ease',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
+                            >
+                              <UserCheck size={14} /> Edit
+                            </button>
+                            {/* Promote / Demote button */}
+                            {u.role === 'admin' ? (
                               <button
                                 onClick={() => handlePromoteAdmin(u.id, u.name)}
                                 style={{
@@ -1910,64 +1926,87 @@ export const SuperadminDashboard: React.FC = () => {
                               >
                                 <UserCheck size={14} /> Promote
                               </button>
-                              {/* Reset Password button */}
+                            ) : u.id !== user?.id ? (
                               <button
-                                onClick={() => {
-                                  setResetAdminUser(u);
-                                  setResetAdminPassword('');
-                                  setResetPasswordError('');
-                                  setResetPasswordSuccess('');
-                                  setEditAdminUser(null);
-                                }}
+                                onClick={() => handleDemoteAdmin(u.id, u.name)}
                                 style={{
-                                  color: 'var(--beige)',
+                                  color: '#ffaa00',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  background: 'rgba(255,255,255,0.05)',
-                                  border: '1px solid rgba(255,255,255,0.15)',
+                                  background: 'rgba(255,170,0,0.08)',
+                                  border: '1px solid rgba(255,170,0,0.3)',
                                   borderRadius: '4px',
                                   padding: '5px 10px',
                                   fontSize: '0.82rem',
                                   fontWeight: 600,
                                   transition: 'all 0.2s ease',
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,170,0,0.18)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,170,0,0.08)'; }}
                               >
-                                <Key size={14} /> Password
+                                <UserX size={14} /> Demote
                               </button>
-                              {/* Delete button */}
+                            ) : null}
+                            {/* Reset Password button */}
+                            <button
+                              onClick={() => {
+                                setResetAdminUser(u);
+                                setResetAdminPassword('');
+                                setResetPasswordError('');
+                                setResetPasswordSuccess('');
+                                setEditAdminUser(null);
+                              }}
+                              style={{
+                                color: 'var(--beige)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: '4px',
+                                padding: '5px 10px',
+                                fontSize: '0.82rem',
+                                fontWeight: 600,
+                                transition: 'all 0.2s ease',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                            >
+                              <Key size={14} /> Password
+                            </button>
+                            {/* Delete button — allow superadmin to delete any non-self admin/superadmin account */}
+                            {u.id !== user?.id && (
                               <button
                                 onClick={() => {
-                                  if (window.confirm(`Revoke admin account for "${u.name}" (${u.email})? This cannot be undone.`)) {
+                                  if (window.confirm(`Revoke administrator account for "${u.name}" (${u.email})? This cannot be undone.`)) {
                                     handleRemoveAdmin(u.id, u.name, u.email);
                                   }
                                 }}
                                 style={{
-                                  color: '#e74c3c',
+                                  color: '#ff6b6b',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  background: 'rgba(231,76,60,0.08)',
-                                  border: '1px solid rgba(231,76,60,0.3)',
+                                  background: 'rgba(255,107,107,0.08)',
+                                  border: '1px solid rgba(255,107,107,0.3)',
                                   borderRadius: '4px',
                                   padding: '5px 10px',
                                   fontSize: '0.82rem',
                                   fontWeight: 600,
                                   transition: 'all 0.2s ease',
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(231,76,60,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(231,76,60,0.08)'; }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.18)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.08)'; }}
+                                title="Delete Account"
                               >
                                 <Trash2 size={14} /> Delete
                               </button>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic', padding: '5px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)' }}>Superadmin</span>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2629,633 +2668,7 @@ export const SuperadminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* BANNER & CAROUSEL MANAGEMENT TAB */}
-        {activeTab === 'home-mgmt' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-              <div>
-                <span className="section-label">Homepage CMS</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
-                  Banner & Carousel Manager
-                </h1>
-              </div>
 
-              <Button
-                variant="gold"
-                glow
-                onClick={() => setShowAddBannerModal(!showAddBannerModal)}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                {showAddBannerModal ? <X size={16} /> : <Plus size={16} />}
-                {showAddBannerModal ? 'Close Form' : 'Add New Banner Slide'}
-              </Button>
-            </div>
-
-            {/* Expandable Add New Banner Form */}
-            <AnimatePresence>
-              {showAddBannerModal && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                  animate={{ opacity: 1, height: 'auto', marginBottom: 35 }}
-                  exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                  style={{ overflow: 'hidden' }}
-                >
-                  <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                      Create New Hero Banner Slide
-                    </h3>
-                    
-                    {bannerCreateError && (
-                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '4px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '20px' }}>
-                        {bannerCreateError}
-                      </div>
-                    )}
-
-                    <form onSubmit={handleCreateNewBanner} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px' }}>
-                      <Input
-                        label="Heading / Main Title"
-                        required
-                        placeholder="e.g. Imperial Gold Selection"
-                        value={newBannerData.title}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, title: e.target.value })}
-                      />
-                      <Input
-                        label="Subheading / Description"
-                        placeholder="e.g. Handcrafted pralines infused with 24k gold"
-                        value={newBannerData.subtitle}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, subtitle: e.target.value })}
-                      />
-                      <Input
-                        label="Tag Line / Badge"
-                        placeholder="e.g. Winter Collection 2026"
-                        value={newBannerData.tag}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, tag: e.target.value })}
-                      />
-                      <Input
-                        label="CTA Button Label"
-                        placeholder="Explore Collection"
-                        value={newBannerData.buttonText}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, buttonText: e.target.value })}
-                      />
-                      <Input
-                        label="CTA Target Link"
-                        placeholder="/products"
-                        value={newBannerData.link}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, link: e.target.value })}
-                      />
-                      <Input
-                        label="Banner Image URL (Optional if uploading file below)"
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={newBannerData.image_url}
-                        onChange={(e) => setNewBannerData({ ...newBannerData, image_url: e.target.value })}
-                      />
-
-                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--cream)', fontWeight: 600 }}>Or Upload Image File:</span>
-                        <input
-                          type="file"
-                          ref={newBannerFileInputRef}
-                          accept="image/*"
-                          onChange={(e) => setNewBannerImageFile(e.target.files?.[0] || null)}
-                          style={{
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid var(--glass-border)',
-                            color: 'var(--cream)',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                          }}
-                        />
-                        {newBannerImageFile && (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--gold)' }}>
-                            Selected file: {newBannerImageFile.name} ({(newBannerImageFile.size / (1024 * 1024)).toFixed(2)} MB)
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '15px', marginTop: '10px' }}>
-                        <Button variant="gold" type="submit" glow disabled={isCreatingBanner}>
-                          {isCreatingBanner ? 'Creating Banner...' : 'Publish Banner Slide'}
-                        </Button>
-                        <Button variant="glass" type="button" onClick={() => setShowAddBannerModal(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Empty Banners State */}
-            {banners.length === 0 ? (
-              <div
-                className="glass-panel"
-                style={{
-                  padding: '60px 30px',
-                  textAlign: 'center',
-                  border: '2px dashed var(--gold)',
-                  borderRadius: '12px',
-                  background: 'rgba(26,13,0,0.4)',
-                }}
-              >
-                <div
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    background: 'rgba(201, 168, 76, 0.15)',
-                    border: '1px solid var(--gold)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 20px auto',
-                    color: 'var(--gold)',
-                  }}
-                >
-                  <Image size={32} />
-                </div>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '10px' }}>
-                  No Hero Banners Published
-                </h3>
-                <p style={{ color: 'var(--beige)', maxWidth: '480px', margin: '0 auto 24px auto', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                  The homepage hero carousel is currently empty. Click the button below to add your first banner slide with custom text and imagery.
-                </p>
-                <Button variant="gold" glow onClick={() => setShowAddBannerModal(true)}>
-                  <Plus size={16} style={{ marginRight: '6px' }} /> Add First Hero Banner
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* Carousel Slide Selector — Thumbnail Grid */}
-                <div style={{ marginBottom: '35px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '16px' }}>
-                    Select Carousel Slide to Edit ({banners.length} Active)
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                    {banners.map((banner, idx) => {
-                      const isSelected = selectedSlideIdx === idx;
-                      return (
-                        <div
-                          key={banner.id}
-                          onClick={() => setSelectedSlideIdx(idx)}
-                          style={{
-                            position: 'relative',
-                            borderRadius: '12px',
-                            overflow: 'hidden',
-                            border: isSelected ? '3px solid var(--gold)' : '2px solid var(--glass-border)',
-                            cursor: 'pointer',
-                            transition: 'all 0.3s ease',
-                            boxShadow: isSelected ? '0 4px 20px rgba(201, 168, 76, 0.3)' : 'none',
-                          }}
-                        >
-                          {/* Delete Banner Button overlay */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBanner(banner.id, banner.title);
-                            }}
-                            title="Delete Slide"
-                            style={{
-                              position: 'absolute',
-                              top: '8px',
-                              left: '8px',
-                              zIndex: 10,
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '50%',
-                              background: 'rgba(231, 76, 60, 0.85)',
-                              border: '1px solid #e74c3c',
-                              color: 'white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-
-                          {/* Thumbnail image */}
-                          <img
-                            src={banner.image}
-                            alt={banner.title}
-                            style={{
-                              width: '100%',
-                              height: '120px',
-                              objectFit: 'cover',
-                              filter: isSelected ? 'brightness(0.7)' : 'brightness(0.4)',
-                              transition: 'filter 0.3s ease',
-                            }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80';
-                            }}
-                          />
-
-                          {/* Slide label overlay */}
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              padding: '10px 12px',
-                              background: 'linear-gradient(transparent, rgba(0,0,0,0.85))',
-                            }}
-                          >
-                            <span style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              color: isSelected ? 'var(--gold)' : 'var(--cream)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '1px',
-                            }}>
-                              Slide {idx + 1}
-                            </span>
-                            <p style={{
-                              margin: '2px 0 0 0',
-                              fontSize: '0.7rem',
-                              color: 'var(--grey-light)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}>
-                              {banner.title}
-                            </p>
-                          </div>
-
-                          {/* Selected check badge */}
-                          {isSelected && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '8px',
-                              right: '8px',
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '50%',
-                              background: 'var(--gradient-gold)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              boxShadow: '0 2px 8px rgba(201, 168, 76, 0.4)',
-                            }}>
-                              <Check size={16} color="#1A0D00" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Selected Slide Editor */}
-                {selectedBanner && (
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-                    {/* Editor Fields */}
-                    <div
-                      className="glass-panel"
-                      style={{
-                        padding: '30px',
-                        border: '1px solid var(--glass-border)',
-                        background: 'rgba(26,13,0,0.4)',
-                        borderRadius: '12px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '1.3rem',
-                          color: 'var(--gold)',
-                          margin: 0,
-                        }}>
-                          Editing Slide {selectedSlideIdx + 1}
-                        </h3>
-
-                        <button
-                          onClick={() => handleDeleteBanner(selectedBanner.id, selectedBanner.title)}
-                          style={{
-                            color: '#e74c3c',
-                            background: 'rgba(231, 76, 60, 0.1)',
-                            border: '1px solid #e74c3c',
-                            borderRadius: '4px',
-                            padding: '4px 10px',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <Trash2 size={14} /> Delete Slide
-                        </button>
-                      </div>
-
-                      <Input
-                        label="Heading / Title Text"
-                        value={selectedBanner.title}
-                        onChange={(e) => updateBanner(selectedBanner.id, { title: e.target.value })}
-                      />
-                      <Input
-                        label="Subheading / Description"
-                        value={selectedBanner.subtitle}
-                        onChange={(e) => updateBanner(selectedBanner.id, { subtitle: e.target.value })}
-                      />
-                      <Input
-                        label="Tag Line"
-                        value={selectedBanner.tag}
-                        onChange={(e) => updateBanner(selectedBanner.id, { tag: e.target.value })}
-                      />
-                      <Input
-                        label="CTA Button Text"
-                        value={selectedBanner.buttonText}
-                        onChange={(e) => updateBanner(selectedBanner.id, { buttonText: e.target.value })}
-                      />
-                      <Input
-                        label="Image URL (or upload below)"
-                        value={selectedBanner.image.startsWith('data:') ? '(Uploaded file)' : selectedBanner.image}
-                        onChange={(e) => updateBanner(selectedBanner.id, { image: e.target.value })}
-                      />
-
-                      {/* File Upload for banner image */}
-                      <div style={{ marginTop: '12px' }}>
-                        <input
-                          type="file"
-                          ref={bannerFileRef}
-                          accept="image/*"
-                          onChange={handleBannerFileUpload}
-                          style={{ display: 'none' }}
-                        />
-                        <Button
-                          variant="glass"
-                          fullWidth
-                          onClick={() => bannerFileRef.current?.click()}
-                        >
-                          <UploadCloud size={18} />
-                          Upload Banner Image
-                        </Button>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '8px', textAlign: 'center' }}>
-                          Supports JPG, PNG, WebP. Recommended: 1920×1080px
-                        </p>
-                      </div>
-                    </div>
-
-
-
-                {/* Live Preview Panel */}
-                <div
-                  className="glass-panel"
-                  style={{
-                    padding: '0',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ position: 'relative', width: '100%', height: '260px' }}>
-                    <img
-                      src={selectedBanner.image}
-                      alt={selectedBanner.title}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        filter: 'brightness(0.5)',
-                      }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80';
-                      }}
-                    />
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '20px',
-                      textAlign: 'center',
-                    }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--gold-light)', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>
-                        {selectedBanner.tag}
-                      </span>
-                      <h4 style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.4rem',
-                        color: 'var(--cream)',
-                        marginBottom: '8px',
-                        fontWeight: 700,
-                      }}>
-                        {selectedBanner.title}
-                      </h4>
-                      <p style={{
-                        fontFamily: 'var(--font-elegant)',
-                        fontSize: '0.85rem',
-                        color: 'var(--beige)',
-                        marginBottom: '12px',
-                        maxWidth: '360px',
-                        lineHeight: 1.4,
-                      }}>
-                        {selectedBanner.subtitle}
-                      </p>
-                      <div style={{
-                        padding: '6px 16px',
-                        background: 'var(--gradient-gold)',
-                        borderRadius: '4px',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        color: 'var(--dark-chocolate)',
-                        textTransform: 'uppercase',
-                      }}>
-                        {selectedBanner.buttonText}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: '14px 20px',
-                    background: 'rgba(0,0,0,0.4)',
-                    textAlign: 'center',
-                  }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      Live Preview — Slide {selectedSlideIdx + 1}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-
-          {/* PLATFORM SITE STATS MANAGER */}
-          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <span className="section-label">Site Analytics</span>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
-                Platform Counter Stats
-              </h3>
-              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                Configure animated stats counters displayed on the homepage counter bar.
-              </p>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
-                <Input
-                  label="Happy Customers"
-                  type="number"
-                  value={siteStats.happy_customers}
-                  onChange={(e) => setSiteStats({ ...siteStats, happy_customers: parseInt(e.target.value) || 0 })}
-                />
-                <Input
-                  label="Unique Flavors"
-                  type="number"
-                  value={siteStats.unique_flavors}
-                  onChange={(e) => setSiteStats({ ...siteStats, unique_flavors: parseInt(e.target.value) || 0 })}
-                />
-                <Input
-                  label="Countries Shipped"
-                  type="number"
-                  value={siteStats.countries_shipped}
-                  onChange={(e) => setSiteStats({ ...siteStats, countries_shipped: parseInt(e.target.value) || 0 })}
-                />
-                <Input
-                  label="5-Star Reviews %"
-                  type="number"
-                  value={siteStats.five_star_reviews_percent}
-                  onChange={(e) => setSiteStats({ ...siteStats, five_star_reviews_percent: parseInt(e.target.value) || 0 })}
-                />
-                <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                  <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px' }}>
-                    {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? '✓ Counter Stats Saved!' : 'Save Counter Stats'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          {/* INSTAGRAM REELS MANAGER */}
-          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <span className="section-label">Social Media Video</span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
-                  Instagram Reels Showcase ({cmsReels.length})
-                </h3>
-                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                  Manage video reels displayed in the homepage Instagram section.
-                </p>
-              </div>
-              <Button variant="gold" glow onClick={() => setShowAddReelModal(!showAddReelModal)}>
-                {showAddReelModal ? <X size={16} /> : <Plus size={16} />}
-                {showAddReelModal ? 'Close Form' : 'Add New Reel'}
-              </Button>
-            </div>
-
-            {/* Expandable Add Reel Form */}
-            <AnimatePresence>
-              {showAddReelModal && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '25px' }}>
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
-                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.2rem' }}>
-                      Add Instagram Reel Video
-                    </h4>
-                    <form onSubmit={handleCreateReelSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
-                      <Input label="Caption / Title" required placeholder="Pouring our signature glaze... #chovique" value={newReelData.title} onChange={(e) => setNewReelData({ ...newReelData, title: e.target.value })} />
-                      <Input label="Likes Display" placeholder="14.2K" value={newReelData.likes} onChange={(e) => setNewReelData({ ...newReelData, likes: e.target.value })} />
-                      <Input label="Comments Count" placeholder="348" value={newReelData.comments} onChange={(e) => setNewReelData({ ...newReelData, comments: e.target.value })} />
-                      <Input label="Views Display" placeholder="124K views" value={newReelData.views} onChange={(e) => setNewReelData({ ...newReelData, views: e.target.value })} />
-                      <Input label="Video URL (e.g. mp4 link)" placeholder="https://..." value={newReelData.video_url} onChange={(e) => setNewReelData({ ...newReelData, video_url: e.target.value })} />
-                      <div>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Or Upload Video File:</span>
-                        <input type="file" accept="video/*" onChange={(e) => setNewReelVideoFile(e.target.files?.[0] || null)} style={{ marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: 'var(--cream)', padding: '6px', width: '100%', borderRadius: '4px' }} />
-                      </div>
-                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
-                        <Button variant="gold" type="submit" glow disabled={isCreatingReel}>{isCreatingReel ? 'Publishing...' : 'Publish Reel Video'}</Button>
-                        <Button variant="glass" type="button" onClick={() => setShowAddReelModal(false)}>Cancel</Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Reels Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
-              {cmsReels.map((reel) => (
-                <div key={reel.id} className="glass-panel" style={{ padding: '16px', position: 'relative', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
-                  <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title || '')} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Trash2 size={14} />
-                  </button>
-                  <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '30px' }}>{reel.title}</p>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{reel.likes} Likes • {reel.views}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* CUSTOMER TESTIMONIALS MANAGER */}
-          <div style={{ marginTop: '50px', paddingTop: '35px', borderTop: '1px solid var(--glass-border)', marginBottom: '30px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <span className="section-label">Customer Reviews</span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--gold)', margin: 0 }}>
-                  Customer Testimonials ({cmsTestimonials.length})
-                </h3>
-                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                  Add and manage verified customer reviews displayed on the home page.
-                </p>
-              </div>
-              <Button variant="gold" glow onClick={() => setShowAddTestimonialModal(!showAddTestimonialModal)}>
-                {showAddTestimonialModal ? <X size={16} /> : <Plus size={16} />}
-                {showAddTestimonialModal ? 'Close Form' : 'Add Testimonial'}
-              </Button>
-            </div>
-
-            {/* Expandable Add Testimonial Form */}
-            <AnimatePresence>
-              {showAddTestimonialModal && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '25px' }}>
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
-                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.2rem' }}>
-                      Add Customer Review Testimonial
-                    </h4>
-                    <form onSubmit={handleCreateTestimonialSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
-                      <Input label="Customer / Author Name" required placeholder="e.g. Priya Sharma" value={newTestimonialData.author} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, author: e.target.value })} />
-                      <Input label="Title / City" placeholder="e.g. Food Critic, Mumbai" value={newTestimonialData.title} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, title: e.target.value })} />
-                      <Input label="Rating Stars (1-5)" type="number" min={1} max={5} value={newTestimonialData.rating} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, rating: parseFloat(e.target.value) || 5 })} />
-                      <Input label="Initials (e.g. PS)" placeholder="PS" value={newTestimonialData.initials} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, initials: e.target.value })} />
-                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2' }}>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Review Text</label>
-                        <textarea rows={3} required placeholder="Absolutely divine..." value={newTestimonialData.text} onChange={(e) => setNewTestimonialData({ ...newTestimonialData, text: e.target.value })} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', color: 'var(--cream)', borderRadius: '4px', marginTop: '4px' }} />
-                      </div>
-                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
-                        <Button variant="gold" type="submit" glow disabled={isCreatingTestimonial}>{isCreatingTestimonial ? 'Publishing...' : 'Publish Testimonial'}</Button>
-                        <Button variant="glass" type="button" onClick={() => setShowAddTestimonialModal(false)}>Cancel</Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Testimonials List */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-              {cmsTestimonials.map((t) => (
-                <div key={t.author + t.title} className="glass-panel" style={{ padding: '16px', position: 'relative', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
-                  <button onClick={() => handleDeleteTestimonialSubmit(t.id || t.author, t.author)} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Trash2 size={14} />
-                  </button>
-                  <h4 style={{ color: 'var(--cream)', fontSize: '0.95rem', margin: '0 0 4px 0', paddingRight: '30px' }}>{t.author}</h4>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{t.title} • {t.stars} ★</span>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--beige)', fontStyle: 'italic', marginTop: '8px', marginBottom: 0 }}>"{t.text}"</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
 
 
@@ -3333,6 +2746,26 @@ export const SuperadminDashboard: React.FC = () => {
                       style={{ accentColor: 'var(--gold)', width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                   </div>
+                  <Input
+                    label="Tax Rate (GST %)"
+                    type="number"
+                    required
+                    value={platformSettings.taxRate}
+                    onChange={(e) => setPlatformSettings({ ...platformSettings, taxRate: parseFloat(e.target.value) || 0 })}
+                  />
+                  <Input
+                    label="Platform Fee (₹)"
+                    type="number"
+                    required
+                    value={platformSettings.platformFee}
+                    onChange={(e) => setPlatformSettings({ ...platformSettings, platformFee: parseFloat(e.target.value) || 0 })}
+                  />
+                  <Input
+                    label="Base Currency"
+                    required
+                    value={platformSettings.currency}
+                    onChange={(e) => setPlatformSettings({ ...platformSettings, currency: e.target.value })}
+                  />
                   <Input
                     label="Min Order for Free Shipping (₹)"
                     type="number"

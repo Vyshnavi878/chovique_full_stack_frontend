@@ -87,6 +87,10 @@ export const adminService = {
   promoteAdmin: (userId: string): Promise<SystemUser> =>
     apiPost<SystemUser>(`/admin/users/${userId}/promote`, {}),
 
+  /** Demote a superadmin to admin. */
+  demoteAdmin: (userId: string): Promise<SystemUser> =>
+    apiPost<SystemUser>(`/admin/users/${userId}/demote`, {}),
+
   /** Fetch all orders site-wide. */
   getAllOrders: (): Promise<Order[]> =>
     apiGet<Order[]>('/admin/orders'),

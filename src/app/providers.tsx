@@ -178,170 +178,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Auth Handlers — connected to FastAPI backend via authService
-  // ---------------------------------------------------------------------------
-
-  const login = useCallback(
-    async (email: string, password: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
-      try {
-        const response = await authService.login({ email, password });
-        const loggedInUser = response.user as User;
-        setUser(loggedInUser);
-        setRole(loggedInUser.role);
-        
-        // Merge guest cart
-        try {
-          const saved = localStorage.getItem('chovique_guest_cart');
-          if (saved) {
-            const guestCart = JSON.parse(saved);
-            if (guestCart.length > 0) {
-              const itemsToSync = guestCart.map((item: any) => ({
-                product_id: item.product.id,
-                quantity: item.quantity
-              }));
-              await cartService.syncCart(itemsToSync);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to merge guest cart', e);
-        } finally {
-          localStorage.removeItem('chovique_guest_cart');
-        }
-
-        return { success: true, role: loggedInUser.role };
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
-        return { success: false, error: message };
-      }
-    },
-    []
-  );
-
-  const register = useCallback(
-    async (name: string, email: string, password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
-      try {
-        await authService.register({ name, email, password, confirmPassword });
-        return { success: true };
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : 'Registration failed. Please try again.';
-        return { success: false, error: message };
-      }
-    },
-    []
-  );
-
-  const verifyOtp = useCallback(
-    async (email: string, otp: string, fullName: string, password: string): Promise<{ success: boolean; error?: string }> => {
-      try {
-        const response = await authService.verifyOtp({ email, otp, fullName, password });
-        const newUser = response.user as User;
-        setUser(newUser);
-        setRole(newUser.role);
-        
-        // Merge guest cart
-        try {
-          const saved = localStorage.getItem('chovique_guest_cart');
-          if (saved) {
-            const guestCart = JSON.parse(saved);
-            if (guestCart.length > 0) {
-              const itemsToSync = guestCart.map((item: any) => ({
-                product_id: item.product.id,
-                quantity: item.quantity
-              }));
-              await cartService.syncCart(itemsToSync);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to merge guest cart', e);
-        } finally {
-          localStorage.removeItem('chovique_guest_cart');
-        }
-
-        return { success: true };
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : 'OTP verification failed. Please try again.';
-        return { success: false, error: message };
-      }
-    },
-    []
-  );
-
-  const googleLogin = useCallback(
-    async (idToken: string): Promise<{ success: boolean; error?: string; role?: UserRole; user?: User }> => {
-      try {
-        const response = await authService.googleSignIn(idToken);
-        if (response.user) {
-          const loggedInUser = response.user as User;
-          setUser(loggedInUser);
-          setRole(loggedInUser.role);
-          
-          // Merge guest cart
-          try {
-            const saved = localStorage.getItem('chovique_guest_cart');
-            if (saved) {
-              const guestCart = JSON.parse(saved);
-              if (guestCart.length > 0) {
-                const itemsToSync = guestCart.map((item: any) => ({
-                  product_id: item.product.id,
-                  quantity: item.quantity
-                }));
-                await cartService.syncCart(itemsToSync);
-              }
-            }
-          } catch (e) {
-            console.error('Failed to merge guest cart', e);
-          } finally {
-            localStorage.removeItem('chovique_guest_cart');
-          }
-
-          return { success: true, role: loggedInUser.role, user: loggedInUser };
-        }
-        return { success: false, error: response.message || 'Google Sign-In failed.' };
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Google Sign-In failed.';
-        return { success: false, error: message };
-      }
-    },
-    []
-  );
-
-  const setPassword = useCallback(
-    async (password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
-      try {
-        const response = await authService.setPassword(password, confirmPassword);
-        if (response.user) {
-          setUser(response.user as User);
-        }
-        return { success: true };
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to set password.';
-        return { success: false, error: message };
-      }
-    },
-    []
-  );
-
-  const logout = useCallback(async (): Promise<void> => {
-    try {
-      await authService.logout();
-    } catch {
-      // Best-effort server-side logout — always clear local state
-    } finally {
-      setUser(null);
-      setRole('guest');
-      setCart([]);
-      setWishlist([]);
-      setOrders([]);
-      setTickets([]);
-      setAddresses([]);
-      setNotifications([]);
-    }
-  }, []);
-
-  // ---------------------------------------------------------------------------
   // Theme State
   // ---------------------------------------------------------------------------
 
@@ -415,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Keep localStorage in sync for guests
   useEffect(() => {
-    if (role === 'guest') {
+    if (role === 'guest' && cart.length > 0) {
       localStorage.setItem('chovique_guest_cart', JSON.stringify(cart));
     }
   }, [cart, role]);
@@ -432,11 +268,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart(cartItems);
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Wishlist State — backend-persistent
-  // ---------------------------------------------------------------------------
+  const [wishlist, setWishlist] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('chovique_guest_wishlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  const [wishlist, setWishlist] = useState<Product[]>([]);
+  // Keep localStorage in sync for guest wishlist
+  useEffect(() => {
+    if (role === 'guest' && wishlist.length > 0) {
+      localStorage.setItem('chovique_guest_wishlist', JSON.stringify(wishlist));
+    }
+  }, [wishlist, role]);
 
   // ---------------------------------------------------------------------------
   // Support Tickets — fetched after login
@@ -457,6 +303,181 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<SupportNotification[]>([]);
 
   // ---------------------------------------------------------------------------
+  // Auth Handlers — connected to FastAPI backend via authService
+  // ---------------------------------------------------------------------------
+
+  const mergeGuestSession = async () => {
+    // Merge guest cart
+    try {
+      const savedCart = localStorage.getItem('chovique_guest_cart');
+      if (savedCart) {
+        const guestCart = JSON.parse(savedCart);
+        if (guestCart.length > 0) {
+          const itemsToSync = guestCart.map((item: any) => ({
+            product_id: item.product.id,
+            quantity: item.quantity,
+          }));
+          await cartService.syncCart(itemsToSync);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to merge guest cart', e);
+    } finally {
+      localStorage.removeItem('chovique_guest_cart');
+    }
+
+    // Merge guest wishlist
+    try {
+      const savedWish = localStorage.getItem('chovique_guest_wishlist');
+      if (savedWish) {
+        const guestWishlist: Product[] = JSON.parse(savedWish);
+        if (guestWishlist.length > 0) {
+          for (const item of guestWishlist) {
+            try {
+              await wishlistService.addToWishlist(item.id);
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to merge guest wishlist', e);
+    } finally {
+      localStorage.removeItem('chovique_guest_wishlist');
+    }
+  };
+
+  const refreshUserCartAndWishlist = async () => {
+    try {
+      const cartRes = await cartService.getCart();
+      syncCartFromBackend(cartRes.items);
+    } catch (e) {
+      console.error('Failed to fetch cart on login', e);
+    }
+    try {
+      const wishRes = await wishlistService.getWishlist();
+      setWishlist(wishRes.map((i) => i.product));
+    } catch (e) {
+      console.error('Failed to fetch wishlist on login', e);
+    }
+  };
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+      try {
+        const response = await authService.login({ email, password });
+        const loggedInUser = response.user as User;
+        setUser(loggedInUser);
+        setRole(loggedInUser.role);
+        
+        await mergeGuestSession();
+        await refreshUserCartAndWishlist();
+
+        return { success: true, role: loggedInUser.role };
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
+        return { success: false, error: message };
+      }
+    },
+    [syncCartFromBackend]
+  );
+
+  const register = useCallback(
+    async (name: string, email: string, password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        await authService.register({ name, email, password, confirmPassword });
+        return { success: true };
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Registration failed. Please try again.';
+        return { success: false, error: message };
+      }
+    },
+    []
+  );
+
+  const verifyOtp = useCallback(
+    async (email: string, otp: string, fullName: string, password: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const response = await authService.verifyOtp({ email, otp, fullName, password });
+        const newUser = response.user as User;
+        setUser(newUser);
+        setRole(newUser.role);
+        
+        await mergeGuestSession();
+        await refreshUserCartAndWishlist();
+
+        return { success: true };
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'OTP verification failed. Please try again.';
+        return { success: false, error: message };
+      }
+    },
+    [syncCartFromBackend]
+  );
+
+  const googleLogin = useCallback(
+    async (idToken: string): Promise<{ success: boolean; error?: string; role?: UserRole; user?: User }> => {
+      try {
+        const response = await authService.googleSignIn(idToken);
+        if (response.user) {
+          const loggedInUser = response.user as User;
+          setUser(loggedInUser);
+          setRole(loggedInUser.role);
+          
+          await mergeGuestSession();
+          await refreshUserCartAndWishlist();
+
+          return { success: true, role: loggedInUser.role, user: loggedInUser };
+        }
+        return { success: false, error: response.message || 'Google Sign-In failed.' };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Google Sign-In failed.';
+        return { success: false, error: message };
+      }
+    },
+    [syncCartFromBackend]
+  );
+
+  const setPassword = useCallback(
+    async (password: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const response = await authService.setPassword(password, confirmPassword);
+        if (response.user) {
+          setUser(response.user as User);
+        }
+        return { success: true };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to set password.';
+        return { success: false, error: message };
+      }
+    },
+    []
+  );
+
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      await authService.logout();
+    } catch {
+      // Best-effort server-side logout — always clear local state
+    } finally {
+      localStorage.removeItem('chovique_guest_cart');
+      localStorage.removeItem('chovique_guest_wishlist');
+      sessionStorage.clear();
+      setUser(null);
+      setRole('guest');
+      setCart([]);
+      setWishlist([]);
+      setOrders([]);
+      setTickets([]);
+      setAddresses([]);
+      setNotifications([]);
+      window.location.href = '/';
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Fetch user-scoped data after auth resolves
   // ---------------------------------------------------------------------------
 
@@ -466,8 +487,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Fetch orders from backend
     orderService.getOrders().then((res) => setOrders(res)).catch(() => { });
 
-    // Fetch tickets
-    ticketService.getTickets().then((res) => setTickets(res)).catch(() => { });
+    // Fetch tickets (admin sees all site-wide tickets, user sees personal tickets)
+    if (['admin', 'superadmin'].includes(role)) {
+      ticketService.getAllTickets().then((res) => setTickets(res)).catch(() => { });
+    } else {
+      ticketService.getTickets().then((res) => setTickets(res)).catch(() => { });
+    }
 
     // Fetch addresses
     userService.getAddresses().then((res) => setAddresses(res)).catch(() => { });
@@ -546,7 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       });
     }
-  }, [syncCartFromBackend]);
+  }, [role, syncCartFromBackend]);
 
   const updateCartQuantity = useCallback(async (productId: string, quantity: number): Promise<void> => {
     // Optimistic update
@@ -564,7 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Failed to update cart quantity:', err);
     }
-  }, [syncCartFromBackend]);
+  }, [role, syncCartFromBackend]);
 
   const removeFromCart = useCallback(async (productId: string): Promise<void> => {
     // Optimistic update
@@ -578,7 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Failed to remove from cart:', err);
     }
-  }, [syncCartFromBackend]);
+  }, [role, syncCartFromBackend]);
 
   const clearCart = useCallback(async (): Promise<void> => {
     setCart([]);
@@ -590,7 +615,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Failed to clear cart:', err);
     }
-  }, []);
+  }, [role]);
 
   // ---------------------------------------------------------------------------
   // Wishlist Operations — backend-synced
@@ -605,6 +630,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setWishlist((prev) => [...prev, product]);
     }
+
+    if (role === 'guest') return;
 
     try {
       if (exists) {
@@ -621,7 +648,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWishlist((prev) => prev.filter((p) => p.id !== product.id));
       }
     }
-  }, [wishlist]);
+  }, [wishlist, role]);
 
   const moveToCart = useCallback(async (product: Product): Promise<void> => {
     await toggleWishlist(product);
@@ -676,8 +703,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
 
-  const deleteProduct = (productId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+  const deleteProduct = async (productId: string) => {
+    try {
+      await productService.deleteProduct(productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    } catch (err) {
+      console.error('Failed to delete product from database:', err);
+    }
   };
 
   // ---------------------------------------------------------------------------

@@ -43,7 +43,12 @@ export const AdminDashboard: React.FC = () => {
     addOfflineSale,
     importOfflineSales,
     tickets,
-    resolveSupportTicket
+    resolveSupportTicket,
+    banners,
+    updateBanner,
+    addBanner,
+    deleteBannerState,
+    refreshBanners
   } = useApp();
   const navigate = useNavigate();
 
@@ -242,10 +247,11 @@ export const AdminDashboard: React.FC = () => {
   const [newCoupon, setNewCoupon] = useState({
     code: '',
     description: '',
-    discount_percent: 0,
-    discount_amount: 0,
+    discount_percent: 10,
+    expires_at: '',
     is_active: true,
   });
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
 
   // --- Analytics State ---
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -263,10 +269,28 @@ export const AdminDashboard: React.FC = () => {
     try {
       const created = await adminService.createCoupon(newCoupon);
       setCouponsList([created, ...couponsList]);
-      setNewCoupon({ code: '', description: '', discount_percent: 0, discount_amount: 0, is_active: true });
+      setNewCoupon({ code: '', description: '', discount_percent: 10, expires_at: '', is_active: true });
     } catch (err: any) {
       console.error(err);
       alert(err.detail || 'Failed to create coupon');
+    }
+  };
+
+  const handleUpdateCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCoupon) return;
+    try {
+      const updated = await adminService.updateCoupon(editingCoupon.code, {
+        description: editingCoupon.description,
+        discount_percent: editingCoupon.discount_percent,
+        is_active: editingCoupon.is_active,
+        expires_at: editingCoupon.expires_at,
+      });
+      setCouponsList((prev) => prev.map((c) => (c.code === editingCoupon.code ? updated : c)));
+      setEditingCoupon(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.detail || 'Failed to update coupon');
     }
   };
 
@@ -281,8 +305,189 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // --- Site Stats State & Handlers ---
+  const [siteStats, setSiteStats] = useState({
+    happy_customers: 26000,
+    unique_flavors: 120,
+    countries_shipped: 15,
+    five_star_reviews_percent: 98,
+  });
+  const [isSavingStats, setIsSavingStats] = useState(false);
+  const [statsSavedSuccess, setStatsSavedSuccess] = useState(false);
+
+  const fetchSiteStats = () => {
+    fetch('http://localhost:8000/api/v1/home/stats')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data === 'object') {
+          setSiteStats({
+            happy_customers: data.happy_customers ?? 26000,
+            unique_flavors: data.unique_flavors ?? 120,
+            countries_shipped: data.countries_shipped ?? 15,
+            five_star_reviews_percent: data.five_star_reviews_percent ?? 98,
+          });
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleSaveSiteStatsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingStats(true);
+    try {
+      await adminService.updateSiteStats(siteStats);
+      setStatsSavedSuccess(true);
+      setTimeout(() => setStatsSavedSuccess(false), 3000);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to save site stats');
+    } finally {
+      setIsSavingStats(false);
+    }
+  };
+
+  // --- Instagram Reels State & Handlers ---
+  const [cmsReels, setCmsReels] = useState<any[]>([]);
+  const [showAddReelModal, setShowAddReelModal] = useState(false);
+  const [newReelData, setNewReelData] = useState({ title: '', likes: '14.2K', comments: '348', views: '124K views', video_url: '' });
+  const [newReelVideoFile, setNewReelVideoFile] = useState<File | null>(null);
+  const [isCreatingReel, setIsCreatingReel] = useState(false);
+
+  const fetchCmsReels = () => {
+    fetch('http://localhost:8000/api/v1/home/reels')
+      .then((res) => res.json())
+      .then((data) => { if (Array.isArray(data)) setCmsReels(data); })
+      .catch(() => {});
+  };
+
+  const handleCreateReelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReelData.title) return;
+    setIsCreatingReel(true);
+    const formData = new FormData();
+    formData.append('title', newReelData.title);
+    formData.append('likes', newReelData.likes || '14.2K');
+    formData.append('comments', newReelData.comments || '348');
+    formData.append('views', newReelData.views || '124K views');
+    formData.append('video_url', newReelData.video_url || '');
+    if (newReelVideoFile) formData.append('video', newReelVideoFile);
+
+    try {
+      await adminService.createReel(formData);
+      fetchCmsReels();
+      setShowAddReelModal(false);
+      setNewReelData({ title: '', likes: '14.2K', comments: '348', views: '124K views', video_url: '' });
+      setNewReelVideoFile(null);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to publish reel video');
+    } finally {
+      setIsCreatingReel(false);
+    }
+  };
+
+  const handleDeleteReelSubmit = async (reelId: string, title: string) => {
+    if (!window.confirm(`Delete reel video "${title}"?`)) return;
+    try {
+      await adminService.deleteReel(reelId);
+      setCmsReels((prev) => prev.filter((r) => r.id !== reelId));
+    } catch (err: any) {
+      alert('Failed to delete reel');
+    }
+  };
+
+  // --- Banner/Carousel State & Handlers ---
+  const [selectedSlideIdx, setSelectedSlideIdx] = useState(0);
+  const selectedBanner = banners && banners.length > 0 ? (banners[selectedSlideIdx] || banners[0]) : null;
+  const bannerFileRef = useRef<HTMLInputElement>(null);
+  const [showAddBannerModal, setShowAddBannerModal] = useState(false);
+  const [newBannerData, setNewBannerData] = useState({
+    title: '',
+    subtitle: '',
+    tag: '',
+    buttonText: 'Explore Collection',
+    link: '/products',
+    image_url: '',
+  });
+  const [newBannerImageFile, setNewBannerImageFile] = useState<File | null>(null);
+  const [isCreatingBanner, setIsCreatingBanner] = useState(false);
+  const [bannerCreateError, setBannerCreateError] = useState('');
+  const newBannerFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBannerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const currentBanner = banners[selectedSlideIdx];
+    if (currentBanner) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await adminService.uploadBannerImage(currentBanner.id, formData);
+        if (updateBanner) updateBanner(currentBanner.id, { image: res.image_url });
+        alert('Banner image uploaded successfully!');
+      } catch (err: any) {
+        alert(err?.message || 'Failed to upload banner image.');
+      }
+    }
+    if (bannerFileRef.current) bannerFileRef.current.value = '';
+  };
+
+  const handleCreateNewBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBannerData.title.trim()) {
+      setBannerCreateError('Please enter a heading/title for the banner slide.');
+      return;
+    }
+    setIsCreatingBanner(true);
+    setBannerCreateError('');
+    try {
+      const formData = new FormData();
+      formData.append('title', newBannerData.title);
+      if (newBannerData.subtitle) formData.append('subtitle', newBannerData.subtitle);
+      if (newBannerData.tag) formData.append('tag', newBannerData.tag);
+      if (newBannerData.buttonText) formData.append('button_text', newBannerData.buttonText);
+      if (newBannerData.link) formData.append('link', newBannerData.link);
+      if (newBannerImageFile) {
+        formData.append('image', newBannerImageFile);
+      } else if (newBannerData.image_url) {
+        formData.append('image_url', newBannerData.image_url);
+      }
+
+      const created = await adminService.createBanner(formData);
+      if (addBanner) addBanner(created);
+      if (refreshBanners) await refreshBanners();
+
+      setNewBannerData({
+        title: '',
+        subtitle: '',
+        tag: '',
+        buttonText: 'Explore Collection',
+        link: '/products',
+        image_url: '',
+      });
+      setNewBannerImageFile(null);
+      setShowAddBannerModal(false);
+    } catch (err: any) {
+      setBannerCreateError(err?.message || 'Failed to create banner slide.');
+    } finally {
+      setIsCreatingBanner(false);
+    }
+  };
+
+  const handleDeleteBanner = async (bannerId: string) => {
+    if (!window.confirm('Are you sure you want to delete this hero banner slide?')) return;
+    try {
+      await adminService.deleteBanner(bannerId);
+      if (deleteBannerState) deleteBannerState(bannerId);
+      if (refreshBanners) await refreshBanners();
+      setSelectedSlideIdx(0);
+    } catch (err: any) {
+      alert('Failed to delete banner.');
+    }
+  };
+
   useEffect(() => {
     fetchExtraAdminData();
+    fetchSiteStats();
+    fetchCmsReels();
     // Fetch testimonials via homeService or backend API
     fetch('http://localhost:8000/api/v1/home/testimonials')
       .then(res => res.json())
@@ -568,7 +773,7 @@ export const AdminDashboard: React.FC = () => {
                   </thead>
                   <tbody>
                     {products.map((prod) => {
-                      const metrics = productMetrics[prod.id] || { stock: 0, sold: 0 };
+                      const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
                       return (
                         <tr key={prod.id}>
                           <td>
@@ -586,10 +791,10 @@ export const AdminDashboard: React.FC = () => {
                             <span
                               style={{
                                 fontWeight: 700,
-                                color: metrics.stock < 10 ? 'var(--rose-gold)' : 'var(--cream)',
+                                color: displayStock < 10 ? 'var(--rose-gold)' : 'var(--cream)',
                               }}
                             >
-                              {metrics.stock} units
+                              {displayStock} units
                             </span>
                           </td>
                           <td>
@@ -1109,51 +1314,138 @@ export const AdminDashboard: React.FC = () => {
                   <Input 
                     label="Discount Percent (%)" 
                     type="number"
+                    min={1}
+                    max={100}
                     value={newCoupon.discount_percent} 
                     onChange={e => setNewCoupon({...newCoupon, discount_percent: parseFloat(e.target.value) || 0})}
+                    required
                   />
                   <Input 
-                    label="Discount Amount (₹)" 
-                    type="number"
-                    value={newCoupon.discount_amount} 
-                    onChange={e => setNewCoupon({...newCoupon, discount_amount: parseFloat(e.target.value) || 0})}
+                    label="Expiry Date (Optional)" 
+                    type="date"
+                    value={newCoupon.expires_at || ''} 
+                    onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})}
                   />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: '-5px 0 5px 0' }}>
+                    Discount amount is dynamically computed during checkout based on cart total. Coupon automatically becomes INACTIVE after expiry date.
+                  </p>
                   <Button variant="gold" fullWidth type="submit" glow>Create Coupon</Button>
                 </form>
               </div>
 
               {/* Coupons List */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active & Past Coupons</h3>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active &amp; Past Coupons</h3>
                 {couponsList.length === 0 ? (
                   <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {couponsList.map((c: any) => (
-                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
-                            {!c.is_active && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,0,0,0.2)', color: '#ff6b6b', borderRadius: '4px' }}>INACTIVE</span>}
+                    {couponsList.map((c: any) => {
+                      const isExpired = c.expires_at ? new Date(c.expires_at) < new Date() : false;
+                      const isInactive = !c.is_active || isExpired;
+                      return (
+                        <div key={c.id || c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
+                              {isInactive ? (
+                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(255,0,0,0.2)', color: '#ff6b6b', borderRadius: '4px', fontWeight: 700 }}>
+                                  {isExpired ? 'INACTIVE (EXPIRED)' : 'INACTIVE'}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
+                              {c.discount_percent}% OFF (Dynamic Calculation)
+                            </div>
+                            {c.expires_at && (
+                              <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
+                                Expires: {new Date(c.expires_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--grey-mid)', marginTop: '4px' }}>
-                            {c.discount_percent > 0 ? `${c.discount_percent}% OFF` : `₹${c.discount_amount} OFF`}
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              onClick={() => setEditingCoupon({ ...c })}
+                              style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Edit Coupon"
+                            >
+                              <Edit2 size={14} /> Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteCoupon(c.code)}
+                              style={{ background: 'rgba(255,0,0,0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Delete Coupon"
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleDeleteCoupon(c.code)}
-                          style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '8px' }}
-                          title="Delete Coupon"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Edit Coupon Modal */}
+            {editingCoupon && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '450px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', marginBottom: '20px' }}>
+                    Edit Coupon: {editingCoupon.code}
+                  </h3>
+                  <form onSubmit={handleUpdateCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <Input 
+                      label="Description" 
+                      value={editingCoupon.description || ''} 
+                      onChange={e => setEditingCoupon({...editingCoupon, description: e.target.value})}
+                      required
+                    />
+                    <Input 
+                      label="Discount Percent (%)" 
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={editingCoupon.discount_percent || 0} 
+                      onChange={e => setEditingCoupon({...editingCoupon, discount_percent: parseFloat(e.target.value) || 0})}
+                      required
+                    />
+                    <Input 
+                      label="Expiry Date (Optional)" 
+                      type="date"
+                      value={editingCoupon.expires_at ? editingCoupon.expires_at.slice(0, 10) : ''} 
+                      onChange={e => setEditingCoupon({...editingCoupon, expires_at: e.target.value})}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
+                      <input 
+                        type="checkbox"
+                        id="coupon-active-check"
+                        checked={editingCoupon.is_active ?? true}
+                        onChange={e => setEditingCoupon({...editingCoupon, is_active: e.target.checked})}
+                      />
+                      <label htmlFor="coupon-active-check" style={{ color: 'var(--cream)', fontSize: '0.9rem', cursor: 'pointer' }}>
+                        Active Status (Check to enable coupon)
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
+                      <Button variant="gold" type="submit" style={{ flex: 1 }}>Save Changes</Button>
+                      <button 
+                        type="button"
+                        onClick={() => setEditingCoupon(null)}
+                        style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--grey-mid)', color: 'var(--cream)', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1494,22 +1786,183 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* SETTINGS AND OTHERS FALLBACK TAB */}
-        {!['products', 'inventory', 'offline-sales', 'customers', 'complaints'].includes(activeTab) && (
-          <div
-            className="glass-panel"
-            style={{
-              padding: '60px 40px',
-              textAlign: 'center',
-              border: '1px solid var(--glass-border)',
-            }}
-          >
-            <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', marginBottom: '15px' }}>
-              Panel Tab Under Construction
-            </h2>
-            <p style={{ color: 'var(--beige)', maxWidth: '400px', margin: '0 auto' }}>
-              The selected Workspace control tab "{activeTab}" is configured inside navigation, but its sub-panel is empty for mock representation. Use other active tabs.
-            </p>
+        {/* HOMEPAGE CMS & BANNER MANAGEMENT TAB */}
+        {activeTab === 'home-mgmt' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <div>
+                <span className="section-label">Homepage CMS</span>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
+                  Hero Banners &amp; Homepage Management
+                </h1>
+              </div>
+              <Button variant="gold" glow onClick={() => setShowAddBannerModal(!showAddBannerModal)}>
+                {showAddBannerModal ? <X size={16} /> : <Plus size={16} />}
+                {showAddBannerModal ? 'Close Form' : 'Add Hero Slide'}
+              </Button>
+            </div>
+
+            {/* Expandable Add Banner Form */}
+            <AnimatePresence>
+              {showAddBannerModal && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '30px' }}>
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.3rem' }}>
+                      Add New Hero Banner Slide
+                    </h3>
+                    <form onSubmit={handleCreateNewBanner} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
+                      <Input label="Main Heading / Title" required placeholder="Handcrafted Chocolate Masterpieces" value={newBannerData.title} onChange={(e) => setNewBannerData({ ...newBannerData, title: e.target.value })} />
+                      <Input label="Subtitle Description" placeholder="Made with Ghanaian cocoa mass..." value={newBannerData.subtitle} onChange={(e) => setNewBannerData({ ...newBannerData, subtitle: e.target.value })} />
+                      <Input label="Category Tag (e.g. Artisanal Series)" placeholder="Artisanal Series" value={newBannerData.tag} onChange={(e) => setNewBannerData({ ...newBannerData, tag: e.target.value })} />
+                      <Input label="Button Label (CTA)" placeholder="Explore Collection" value={newBannerData.buttonText} onChange={(e) => setNewBannerData({ ...newBannerData, buttonText: e.target.value })} />
+                      <Input label="Target Link URL" placeholder="/products" value={newBannerData.link} onChange={(e) => setNewBannerData({ ...newBannerData, link: e.target.value })} />
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Banner Image File:</span>
+                        <input ref={newBannerFileInputRef} type="file" accept="image/*" onChange={(e) => setNewBannerImageFile(e.target.files?.[0] || null)} style={{ marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: 'var(--cream)', padding: '6px', width: '100%', borderRadius: '4px' }} />
+                      </div>
+                      {bannerCreateError && (
+                        <p style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', color: 'var(--rose-gold)', fontSize: '0.85rem', margin: 0 }}>{bannerCreateError}</p>
+                      )}
+                      <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingBanner}>{isCreatingBanner ? 'Creating Slide...' : 'Create Hero Slide'}</Button>
+                        <Button variant="glass" type="button" onClick={() => setShowAddBannerModal(false)}>Cancel</Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Banner Slides List & Preview */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 2fr', gap: '24px', marginBottom: '40px' }}>
+              {/* Slide selector list */}
+              <div className="glass-panel" style={{ padding: '20px', border: '1px solid var(--glass-border)' }}>
+                <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.1rem' }}>Active Hero Slides ({banners?.length || 0})</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {banners?.map((b, idx) => (
+                    <div
+                      key={b.id || idx}
+                      onClick={() => setSelectedSlideIdx(idx)}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        background: selectedSlideIdx === idx ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.03)',
+                        border: selectedSlideIdx === idx ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600 }}>Slide {idx + 1}</span>
+                        <p style={{ margin: '2px 0 0 0', color: 'var(--cream)', fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{b.title}</p>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteBanner(b.id); }}
+                        style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Slide Details & Image Upload */}
+              {selectedBanner ? (
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', margin: 0 }}>Slide {selectedSlideIdx + 1}: {selectedBanner.title}</h4>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{selectedBanner.tag}</span>
+                  </div>
+                  <p style={{ color: 'var(--cream)', fontSize: '0.9rem', marginBottom: '16px' }}>{selectedBanner.subtitle}</p>
+                  
+                  {selectedBanner.image && (
+                    <div style={{ marginBottom: '20px', borderRadius: '8px', overflow: 'hidden', height: '200px', border: '1px solid var(--glass-border)' }}>
+                      <img src={selectedBanner.image} alt={selectedBanner.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  )}
+
+                  <input ref={bannerFileRef} type="file" accept="image/*" onChange={handleBannerFileUpload} style={{ display: 'none' }} />
+                  <Button variant="gold" glow onClick={() => bannerFileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <UploadCloud size={16} />
+                    Replace Slide Image
+                  </Button>
+                </div>
+              ) : (
+                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
+                  No hero banners available. Click "Add Hero Slide" above to create one.
+                </div>
+              )}
+            </div>
+
+            {/* Platform Counter Stats Manager */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
+                Platform Counter Stats
+              </h3>
+              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                Configure animated stats counters displayed on the homepage counter bar.
+              </p>
+              <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
+                <Input label="Happy Customers" type="number" value={siteStats.happy_customers} onChange={(e) => setSiteStats({ ...siteStats, happy_customers: parseInt(e.target.value) || 0 })} />
+                <Input label="Unique Flavors" type="number" value={siteStats.unique_flavors} onChange={(e) => setSiteStats({ ...siteStats, unique_flavors: parseInt(e.target.value) || 0 })} />
+                <Input label="Countries Shipped" type="number" value={siteStats.countries_shipped} onChange={(e) => setSiteStats({ ...siteStats, countries_shipped: parseInt(e.target.value) || 0 })} />
+                <Input label="5-Star Reviews %" type="number" value={siteStats.five_star_reviews_percent} onChange={(e) => setSiteStats({ ...siteStats, five_star_reviews_percent: parseInt(e.target.value) || 0 })} />
+                <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px' }}>
+                    {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? '✓ Counter Stats Saved!' : 'Save Counter Stats'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            {/* Instagram Reels Showcase Manager */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
+                    Instagram Reels Showcase ({cmsReels.length})
+                  </h3>
+                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                    Manage video reels displayed in the homepage Instagram section.
+                  </p>
+                </div>
+                <Button variant="gold" size="sm" glow onClick={() => setShowAddReelModal(!showAddReelModal)}>
+                  {showAddReelModal ? 'Close Form' : 'Add Reel'}
+                </Button>
+              </div>
+
+              {showAddReelModal && (
+                <form onSubmit={handleCreateReelSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid var(--gold)' }}>
+                  <Input label="Caption / Title" required placeholder="Pouring our signature glaze... #chovique" value={newReelData.title} onChange={(e) => setNewReelData({ ...newReelData, title: e.target.value })} />
+                  <Input label="Likes Display" placeholder="14.2K" value={newReelData.likes} onChange={(e) => setNewReelData({ ...newReelData, likes: e.target.value })} />
+                  <Input label="Views Display" placeholder="124K views" value={newReelData.views} onChange={(e) => setNewReelData({ ...newReelData, views: e.target.value })} />
+                  <Input label="Video URL" placeholder="https://..." value={newReelData.video_url} onChange={(e) => setNewReelData({ ...newReelData, video_url: e.target.value })} />
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Or Upload Video File:</span>
+                    <input type="file" accept="video/*" onChange={(e) => setNewReelVideoFile(e.target.files?.[0] || null)} style={{ marginTop: '4px', color: 'var(--cream)', fontSize: '0.8rem' }} />
+                  </div>
+                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px', marginTop: '6px' }}>
+                    <Button variant="gold" type="submit" size="sm" glow disabled={isCreatingReel}>{isCreatingReel ? 'Publishing...' : 'Publish Reel'}</Button>
+                    <Button variant="secondary" type="button" size="sm" onClick={() => setShowAddReelModal(false)}>Cancel</Button>
+                  </div>
+                </form>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                {cmsReels.map((reel) => (
+                  <div key={reel.id} style={{ padding: '16px', position: 'relative', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title || '')} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Trash2 size={14} />
+                    </button>
+                    <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', margin: '0 0 6px 0', paddingRight: '28px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reel.title}</p>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{reel.likes} Likes • {reel.views}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1792,9 +2245,6 @@ export const AdminDashboard: React.FC = () => {
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <Button variant="gold" fullWidth type="submit" disabled={uploadingStoryVideo} glow>
                         {uploadingStoryVideo ? 'Uploading...' : 'Upload Video'}
-                      </Button>
-                      <Button variant="secondary" type="button" onClick={handleDeleteStoryVideo}>
-                        Reset
                       </Button>
                     </div>
                   </form>
