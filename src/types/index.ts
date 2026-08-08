@@ -67,6 +67,7 @@ export interface Product {
 
   image: string;
   hoverImage?: string;
+  images?: string[];
   reviews: Review[];
   stock?: number;
 }
@@ -341,10 +342,14 @@ export interface OrderPayload {
 }
 
 export interface ProductUpdatePayload {
+  name?: string;
+  category?: Product['category'];
   price?: number;
   weight?: string;
   stock?: number;
   badge?: Product['badge'];
+  description?: string;
+  ingredients?: string;
 }
 
 export interface ProfileUpdatePayload {

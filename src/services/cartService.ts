@@ -86,4 +86,7 @@ export const cartService = {
    */
   validateCoupon: (code: string): Promise<CouponValidationResponse> =>
     apiPost<CouponValidationResponse>('/coupons/validate', { code }),
+
+  getAvailableCoupons: (): Promise<any[]> =>
+    apiGet<any[]>('/coupons/available'),
 };

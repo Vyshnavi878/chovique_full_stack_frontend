@@ -14,7 +14,7 @@ type TabType = 'description' | 'ingredients' | 'nutrition' | 'reviews';
 export const ProductDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, cart, addToCart, wishlist, toggleWishlist, role } = useApp();
+  const { products, cart, addToCart, updateCartQuantity, removeFromCart, wishlist, toggleWishlist, role } = useApp();
 
   const [product, setProduct] = useState(products.find((p) => p.id === id));
   const [activeTab, setActiveTab] = useState<TabType>('description');
@@ -42,11 +42,30 @@ export const ProductDetails: React.FC = () => {
   if (!product) return null;
 
   const isLiked = wishlist.some((p) => p.id === product.id);
-  const inCart = cart.some((item) => item.product.id === product.id);
+  const cartItem = cart.find((item) => item.product.id === product.id);
+  const inCart = !!cartItem;
+  
+  const displayQuantity = inCart ? cartItem.quantity : quantity;
 
   // Handlers for quantity
-  const handleIncrement = () => setQuantity((q) => q + 1);
-  const handleDecrement = () => setQuantity((q) => Math.max(1, q - 1));
+  const handleIncrement = () => {
+    if (inCart) {
+      updateCartQuantity(product.id, cartItem.quantity + 1);
+    } else {
+      setQuantity((q) => q + 1);
+    }
+  };
+  const handleDecrement = () => {
+    if (inCart) {
+      if (cartItem.quantity > 1) {
+        updateCartQuantity(product.id, cartItem.quantity - 1);
+      } else {
+        removeFromCart(product.id);
+      }
+    } else {
+      setQuantity((q) => Math.max(1, q - 1));
+    }
+  };
 
   // Add to cart trigger
   const handleAddToCart = () => {
@@ -133,12 +152,13 @@ export const ProductDetails: React.FC = () => {
         {/* Core Layout Grid */}
         <div className="details-grid">
           {/* Gallery Column */}
-          <div className="gallery-container">
+          <div className="gallery-container" style={{ position: 'relative' }}>
             <div
               className="main-image-wrapper"
               onMouseMove={handleMouseMove}
               onMouseEnter={() => setIsZoomed(true)}
               onMouseLeave={() => setIsZoomed(false)}
+              style={{ position: 'relative' }}
             >
               <img
                 src={activeImage}
@@ -153,60 +173,52 @@ export const ProductDetails: React.FC = () => {
                     'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=800&q=80';
                 }}
               />
+              {/* Navigation Arrows for Carousel */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const allImages = [product.image, ...(product.images || [])].filter((v, i, a) => a.indexOf(v) === i);
+                  const currentIndex = allImages.findIndex(img => getImageUrl(img) === activeImage);
+                  const prevIndex = (currentIndex - 1 + allImages.length) % allImages.length;
+                  setActiveImage(getImageUrl(allImages[prevIndex]));
+                }}
+                style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--gold)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--gold)', cursor: 'pointer', zIndex: 10 }}
+              >
+                &larr;
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const allImages = [product.image, ...(product.images || [])].filter((v, i, a) => a.indexOf(v) === i);
+                  const currentIndex = allImages.findIndex(img => getImageUrl(img) === activeImage);
+                  const nextIndex = (currentIndex + 1) % allImages.length;
+                  setActiveImage(getImageUrl(allImages[nextIndex]));
+                }}
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--gold)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--gold)', cursor: 'pointer', zIndex: 10 }}
+              >
+                &rarr;
+              </button>
             </div>
 
             {/* Thumbnails row */}
-            <div className="thumbnail-row">
-              <button
-                onClick={() => setActiveImage(getImageUrl(product.image))}
-                className={`thumbnail-btn ${activeImage === getImageUrl(product.image) ? 'active' : ''}`}
-              >
-                <img
-                  src={getImageUrl(product.image)}
-                  alt="Product view 1"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </button>
-              {/* Extra mock thumbnail 1 */}
-              <button
-                onClick={() =>
-                  setActiveImage(
-                    'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80'
-                  )
-                }
-                className={`thumbnail-btn ${
-                  activeImage ===
-                  'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80'
-                    ? 'active'
-                    : ''
-                }`}
-              >
-                <img
-                  src="https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=100&q=80"
-                  alt="Product view 2"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </button>
-              {/* Extra mock thumbnail 2 */}
-              <button
-                onClick={() =>
-                  setActiveImage(
-                    'https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=400&q=80'
-                  )
-                }
-                className={`thumbnail-btn ${
-                  activeImage ===
-                  'https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=400&q=80'
-                    ? 'active'
-                    : ''
-                }`}
-              >
-                <img
-                  src="https://images.unsplash.com/photo-1587132137056-bfbf0166836e?auto=format&fit=crop&w=100&q=80"
-                  alt="Product view 3"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </button>
+            <div className="thumbnail-row" style={{ display: 'flex', gap: '10px', marginTop: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
+              {[product.image, ...(product.images || [])]
+                .filter((v, i, a) => a.indexOf(v) === i) // Unique images
+                .map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImage(getImageUrl(img))}
+                    className={`thumbnail-btn ${activeImage === getImageUrl(img) ? 'active' : ''}`}
+                    style={{ flexShrink: 0, width: '80px', height: '80px', padding: 0, border: activeImage === getImageUrl(img) ? '2px solid var(--gold)' : '2px solid transparent', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer' }}
+                  >
+                    <img
+                      src={getImageUrl(img)}
+                      alt={`Product view ${idx + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </button>
+                ))
+              }
             </div>
           </div>
 
@@ -300,7 +312,7 @@ export const ProductDetails: React.FC = () => {
                   <Minus size={16} />
                 </button>
                 <span style={{ width: '40px', textAlign: 'center', fontWeight: 600, color: 'var(--cream)' }}>
-                  {quantity}
+                  {displayQuantity}
                 </span>
                 <button
                   onClick={handleIncrement}

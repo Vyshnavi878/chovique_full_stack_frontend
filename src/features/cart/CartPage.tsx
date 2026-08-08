@@ -17,13 +17,19 @@ export const CartPage: React.FC = () => {
   const [couponData, setCouponData] = useState<CouponValidationResponse | null>(null);
   const [couponError, setCouponError] = useState('');
   const [isCouponLoading, setIsCouponLoading] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (role !== 'guest') {
+      cartService.getAvailableCoupons().then(coupons => setAvailableCoupons(coupons)).catch(() => {});
+    }
+  }, [role]);
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   // Discount comes from backend coupon validation response
-  const discountPercent = couponData?.discount_percent ?? 0;
-  const discountAmount = couponData?.discount_amount ?? (subtotal * discountPercent) / 100;
+  const discountAmount = couponData?.calculated_discount ?? 0;
 
   const shippingAmount = subtotal > 1500 || subtotal === 0 ? 0 : 150;
   const totalAmount = subtotal - discountAmount + shippingAmount;
@@ -67,7 +73,6 @@ export const CartPage: React.FC = () => {
           'chovique_checkout_coupon',
           JSON.stringify({
             code: couponData.code,
-            discount_percent: couponData.discount_percent,
             discount_amount: discountAmount,
           })
         );
@@ -282,6 +287,26 @@ export const CartPage: React.FC = () => {
                 <span>₹{totalAmount.toLocaleString()}</span>
               </div>
             </div>
+
+            {/* Available Coupons */}
+            {availableCoupons.length > 0 && (
+              <div style={{ marginBottom: '24px', background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 style={{ color: 'var(--gold)', fontSize: '0.9rem', marginBottom: '10px' }}>Available Coupons</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {availableCoupons.map((c) => (
+                    <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.9rem' }}>{c.code}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{c.description}</div>
+                      </div>
+                      <button type="button" onClick={() => setCouponCode(c.code)} style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Use
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Coupon Promo form — validates against backend API */}
             <form onSubmit={handleApplyCoupon} style={{ marginBottom: '24px' }}>

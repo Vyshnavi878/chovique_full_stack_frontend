@@ -8,9 +8,9 @@
 
 .details-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 50px;
-  padding: 40px 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  padding: 20px 0;
 }
 
 @media (max-width: 992px) {
@@ -127,10 +127,12 @@
 .main-image-wrapper {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid var(--glass-border);
-  aspect-ratio: 1/1;
+  aspect-ratio: 4/3;
+  max-height: 550px;
   background: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .zoom-image {

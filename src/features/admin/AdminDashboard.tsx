@@ -27,7 +27,7 @@ import { Button } from '../../components/ui/Button';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { inventoryService } from '../../services/inventoryService';
-import { Product, OfflineSale, SystemUser } from '../../types';
+import { Product, OfflineSale, SystemUser, Banner } from '../../types';
 
 // SystemUser is imported from types/index.ts
 
@@ -75,8 +75,8 @@ export const AdminDashboard: React.FC = () => {
     description: '',
     ingredients: '',
     badge: '' as Product['badge'] | '',
-    imageFile: null as File | null,
-    imagePreviewUrl: '',
+    imageFiles: [] as File[],
+    imagePreviewUrls: [] as string[],
     stock: 10,
     calories: '550 kcal',
     totalFat: '35g',
@@ -92,6 +92,12 @@ export const AdminDashboard: React.FC = () => {
   // Stock is now stored in the Product object from backend (product.stock)
   const [productMetrics, setProductMetrics] = useState<{ [productId: string]: { stock: number; sold: number } }>({});
 
+  // --- Edit Product State ---
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProductImageFiles, setEditingProductImageFiles] = useState<File[]>([]);
+  const [editingProductImagePreviews, setEditingProductImagePreviews] = useState<string[]>([]);
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+
   // --- Inventory Editor State ---
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState(0);
@@ -106,23 +112,32 @@ export const AdminDashboard: React.FC = () => {
    * The actual file will be sent as multipart/form-data via productService.createProduct().
    */
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type.toLowerCase())) {
-      alert('Invalid file format. Please select a JPG, JPEG, PNG, or WebP image.');
-      if (imageInputRef.current) imageInputRef.current.value = '';
-      return;
+    const validFiles = files.filter(file => allowed.includes(file.type.toLowerCase()));
+    
+    if (validFiles.length !== files.length) {
+      alert('Some files were invalid format. Please select only JPG, JPEG, PNG, or WebP images.');
     }
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File too large. Maximum size for image upload is 10 MB.');
+    
+    const validSizeFiles = validFiles.filter(file => file.size <= 10 * 1024 * 1024);
+    if (validSizeFiles.length !== validFiles.length) {
+      alert('Some files were too large. Maximum size is 10 MB per image.');
+    }
+
+    if (!validSizeFiles.length) {
       if (imageInputRef.current) imageInputRef.current.value = '';
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    setNewProd(prev => ({ ...prev, imageFile: file, imagePreviewUrl: previewUrl }));
+    const previewUrls = validSizeFiles.map(file => URL.createObjectURL(file));
+    setNewProd(prev => ({ 
+      ...prev, 
+      imageFiles: [...prev.imageFiles, ...validSizeFiles], 
+      imagePreviewUrls: [...prev.imagePreviewUrls, ...previewUrls] 
+    }));
   };
 
   // Handle adding product — calls productService.createProduct with real FormData
@@ -140,7 +155,9 @@ export const AdminDashboard: React.FC = () => {
     formData.append('ingredients', newProd.ingredients);
     formData.append('stock', String(newProd.stock));
     if (newProd.badge) formData.append('badge', newProd.badge);
-    if (newProd.imageFile) formData.append('image', newProd.imageFile);
+    if (newProd.imageFiles.length > 0) {
+      newProd.imageFiles.forEach(file => formData.append('gallery_images', file));
+    }
     // Nutrition fields
     formData.append('nutrition_calories', newProd.calories);
     formData.append('nutrition_total_fat', newProd.totalFat);
@@ -169,8 +186,8 @@ export const AdminDashboard: React.FC = () => {
       description: '',
       ingredients: '',
       badge: '',
-      imageFile: null,
-      imagePreviewUrl: '',
+      imageFiles: [],
+      imagePreviewUrls: [],
       stock: 10,
       calories: '550 kcal',
       totalFat: '35g',
@@ -184,6 +201,33 @@ export const AdminDashboard: React.FC = () => {
       setProductAddedSuccess(false);
       setShowAddProductForm(false);
     }, 2000);
+  };
+
+  const handleEditProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    try {
+      await productService.updateProduct(editingProduct.id, {
+        name: editingProduct.name,
+        price: editingProduct.price,
+        stock: editingProduct.stock,
+        category: editingProduct.category,
+      });
+      if (editingProductImageFiles.length > 0) {
+        const formData = new FormData();
+        editingProductImageFiles.forEach(file => formData.append('images', file));
+        await productService.updateProductImage(editingProduct.id, formData);
+        window.location.reload();
+        return;
+      }
+      updateProductInventory(editingProduct.id, editingProduct.weight, editingProduct.price, editingProduct.stock ?? 0);
+      setEditingProduct(null);
+      setEditingProductImageFiles([]);
+      setEditingProductImagePreviews([]);
+    } catch (err: any) {
+      console.error('Failed to update product:', err);
+      alert(err?.detail || err?.message || 'Failed to update product');
+    }
   };
 
   // Handle inventory edit save — calls inventoryService.updateStock + productService.updateProduct
@@ -244,17 +288,42 @@ export const AdminDashboard: React.FC = () => {
 
   // --- Coupons State ---
   const [couponsList, setCouponsList] = useState<any[]>([]);
-  const [newCoupon, setNewCoupon] = useState({
+  const initialCouponState = {
     code: '',
+    name: '',
     description: '',
-    discount_percent: 10,
+    discount_type: 'PERCENTAGE',
+    discount_percent: 0,
+    discount_amount: 0,
+    maximum_discount_amount: 0,
+    minimum_order_amount: 0,
+    start_at: '',
     expires_at: '',
+    usage_limit: 0,
+    per_user_usage_limit: 1,
+    eligibility_rule: 'ALL_USERS',
+    eligibility_value: '',
+    applicability: 'ENTIRE_STORE',
+    applicable_ids: '',
     is_active: true,
-  });
+  };
+  const [newCoupon, setNewCoupon] = useState(initialCouponState);
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
 
   // --- Analytics State ---
   const [dashboardStats, setDashboardStats] = useState<any>(null);
+
+  const handleEditBannerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBanner) return;
+    try {
+      await updateBanner(editingBanner.id, editingBanner);
+      setEditingBanner(null);
+    } catch (error) {
+      console.error('Failed to update banner:', error);
+      alert('Failed to update banner.');
+    }
+  };
 
   const fetchExtraAdminData = () => {
     adminService.getUsers().then((users) => setSystemUsers(users)).catch((err) => console.error(err));
@@ -267,9 +336,13 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     if (!newCoupon.code || !newCoupon.description) return;
     try {
-      const created = await adminService.createCoupon(newCoupon);
+      const payload = {
+        ...newCoupon,
+        applicable_ids: typeof newCoupon.applicable_ids === 'string' ? newCoupon.applicable_ids.split(',').map(s=>s.trim()).filter(Boolean) : newCoupon.applicable_ids
+      };
+      const created = await adminService.createCoupon(payload);
       setCouponsList([created, ...couponsList]);
-      setNewCoupon({ code: '', description: '', discount_percent: 10, expires_at: '', is_active: true });
+      setNewCoupon(initialCouponState);
     } catch (err: any) {
       console.error(err);
       alert(err.detail || 'Failed to create coupon');
@@ -280,12 +353,11 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     if (!editingCoupon) return;
     try {
-      const updated = await adminService.updateCoupon(editingCoupon.code, {
-        description: editingCoupon.description,
-        discount_percent: editingCoupon.discount_percent,
-        is_active: editingCoupon.is_active,
-        expires_at: editingCoupon.expires_at,
-      });
+      const payload = {
+        ...editingCoupon,
+        applicable_ids: typeof editingCoupon.applicable_ids === 'string' ? editingCoupon.applicable_ids.split(',').map(s=>s.trim()).filter(Boolean) : editingCoupon.applicable_ids
+      };
+      const updated = await adminService.updateCoupon(editingCoupon.code, payload);
       setCouponsList((prev) => prev.map((c) => (c.code === editingCoupon.code ? updated : c)));
       setEditingCoupon(null);
     } catch (err: any) {
@@ -798,6 +870,14 @@ export const AdminDashboard: React.FC = () => {
                             </span>
                           </td>
                           <td>
+                            <button onClick={() => {
+                              setEditingProduct(prod);
+                              setEditingProductImageFiles([]);
+                              setEditingProductImagePreviews([]);
+                            }} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', marginRight: '10px' }}>
+                              <Edit2 size={14} />
+                              Edit
+                            </button>
                             <button
                               onClick={() => {
                                 if (window.confirm(`Are you sure you want to delete ${prod.name}?`)) {
@@ -891,15 +971,18 @@ export const AdminDashboard: React.FC = () => {
                       {/* File Upload image field */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '15px' }}>
                         <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                          Product Image File
+                          Product Images (Max 10MB each)
                         </label>
-                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                          {newProd.imagePreviewUrl ? (
-                            <img
-                              src={newProd.imagePreviewUrl}
-                              alt="Preview"
-                              style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--gold)' }}
-                            />
+                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {newProd.imagePreviewUrls.length > 0 ? (
+                            newProd.imagePreviewUrls.map((url, idx) => (
+                              <img
+                                key={idx}
+                                src={url}
+                                alt={`Preview ${idx + 1}`}
+                                style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--gold)' }}
+                              />
+                            ))
                           ) : (
                             <div style={{
                               width: '50px',
@@ -912,16 +995,17 @@ export const AdminDashboard: React.FC = () => {
                               color: 'var(--grey-light)',
                               fontSize: '0.7rem'
                             }}>
-                              No file
+                              No files
                             </div>
                           )}
                           <div style={{ flexGrow: 1 }}>
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/png, image/jpeg, image/jpg, image/webp"
+                              multiple
+                              ref={imageInputRef}
                               onChange={handleImageUpload}
                               style={{ display: 'none' }}
-                              ref={imageInputRef}
                             />
                             <Button
                               variant="glass"
@@ -1294,40 +1378,82 @@ export const AdminDashboard: React.FC = () => {
               Coupons & Discounts
             </h1>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 2fr', gap: '30px', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', alignItems: 'stretch' }}>
               {/* Create Coupon Form */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Create New Coupon</h3>
                 <form onSubmit={handleAddCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <Input 
-                    label="Coupon Code (e.g. SUMMER10)" 
-                    value={newCoupon.code} 
-                    onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})}
-                    required
-                  />
-                  <Input 
-                    label="Description" 
-                    value={newCoupon.description} 
-                    onChange={e => setNewCoupon({...newCoupon, description: e.target.value})}
-                    required
-                  />
-                  <Input 
-                    label="Discount Percent (%)" 
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={newCoupon.discount_percent} 
-                    onChange={e => setNewCoupon({...newCoupon, discount_percent: parseFloat(e.target.value) || 0})}
-                    required
-                  />
-                  <Input 
-                    label="Expiry Date (Optional)" 
-                    type="date"
-                    value={newCoupon.expires_at || ''} 
-                    onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})}
-                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input label="Coupon Code (e.g. SUMMER10)" value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} required />
+                    <Input label="Coupon Name" value={newCoupon.name} onChange={e => setNewCoupon({...newCoupon, name: e.target.value})} required />
+                  </div>
+                  <Input label="Description" value={newCoupon.description} onChange={e => setNewCoupon({...newCoupon, description: e.target.value})} required />
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Discount Type</label>
+                    <select value={newCoupon.discount_type} onChange={e => setNewCoupon({...newCoupon, discount_type: e.target.value})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="FIXED_AMOUNT">Fixed Amount (₹)</option>
+                      <option value="FREE_SHIPPING">Free Shipping</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    {newCoupon.discount_type === 'PERCENTAGE' && (
+                      <Input label="Discount Percent (%)" type="number" min={1} max={100} value={newCoupon.discount_percent} onChange={e => setNewCoupon({...newCoupon, discount_percent: parseFloat(e.target.value) || 0})} required />
+                    )}
+                    {newCoupon.discount_type === 'FIXED_AMOUNT' && (
+                      <Input label="Discount Amount (₹)" type="number" min={1} value={newCoupon.discount_amount} onChange={e => setNewCoupon({...newCoupon, discount_amount: parseFloat(e.target.value) || 0})} required />
+                    )}
+                    {newCoupon.discount_type !== 'FREE_SHIPPING' && (
+                      <Input label="Maximum Discount (Optional)" type="number" min={0} value={newCoupon.maximum_discount_amount} onChange={e => setNewCoupon({...newCoupon, maximum_discount_amount: parseFloat(e.target.value) || 0})} />
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input label="Minimum Order Value" type="number" min={0} value={newCoupon.minimum_order_amount} onChange={e => setNewCoupon({...newCoupon, minimum_order_amount: parseFloat(e.target.value) || 0})} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Eligibility Rule</label>
+                      <select value={newCoupon.eligibility_rule} onChange={e => setNewCoupon({...newCoupon, eligibility_rule: e.target.value, eligibility_value: ''})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
+                        <option value="ALL_USERS">All Users</option>
+                        <option value="FIRST_ORDER">First Order Only</option>
+                        <option value="INACTIVE_CUSTOMER">Inactive Customers (180+ days)</option>
+                        <option value="MIN_LIFETIME_SPEND">Min Lifetime Spend</option>
+                        <option value="SPECIFIC_USERS">Specific Users</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {(newCoupon.eligibility_rule === 'MIN_LIFETIME_SPEND' || newCoupon.eligibility_rule === 'SPECIFIC_USERS') && (
+                     <Input label={newCoupon.eligibility_rule === 'MIN_LIFETIME_SPEND' ? "Minimum Spend Amount (₹)" : "User IDs (comma separated)"} value={newCoupon.eligibility_value} onChange={e => setNewCoupon({...newCoupon, eligibility_value: e.target.value})} required />
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Applicability</label>
+                      <select value={newCoupon.applicability} onChange={e => setNewCoupon({...newCoupon, applicability: e.target.value, applicable_ids: ''})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
+                        <option value="ENTIRE_STORE">Entire Store</option>
+                        <option value="SPECIFIC_PRODUCTS">Specific Products</option>
+                        <option value="SPECIFIC_CATEGORIES">Specific Categories</option>
+                      </select>
+                    </div>
+                    {newCoupon.applicability !== 'ENTIRE_STORE' && (
+                       <Input label="Applicable IDs (comma separated)" value={newCoupon.applicable_ids} onChange={e => setNewCoupon({...newCoupon, applicable_ids: e.target.value})} required />
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input label="Usage Limit (Total)" type="number" min={0} value={newCoupon.usage_limit} onChange={e => setNewCoupon({...newCoupon, usage_limit: parseInt(e.target.value) || 0})} />
+                    <Input label="Limit Per User" type="number" min={1} value={newCoupon.per_user_usage_limit} onChange={e => setNewCoupon({...newCoupon, per_user_usage_limit: parseInt(e.target.value) || 1})} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input label="Start Date (Optional)" type="date" value={newCoupon.start_at || ''} onChange={e => setNewCoupon({...newCoupon, start_at: e.target.value})} />
+                    <Input label="Expiry Date (Optional)" type="date" value={newCoupon.expires_at || ''} onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})} />
+                  </div>
+                  
                   <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: '-5px 0 5px 0' }}>
-                    Discount amount is dynamically computed during checkout based on cart total. Coupon automatically becomes INACTIVE after expiry date.
+                    Discount is dynamically computed during checkout.
                   </p>
                   <Button variant="gold" fullWidth type="submit" glow>Create Coupon</Button>
                 </form>
@@ -1360,7 +1486,8 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
-                              {c.discount_percent}% OFF (Dynamic Calculation)
+                              {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
+                              {c.usage_count !== undefined && <span style={{color: 'var(--grey-light)', marginLeft: '10px'}}>(Used: {c.usage_count})</span>}
                             </div>
                             {c.expires_at && (
                               <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
@@ -1858,12 +1985,21 @@ export const AdminDashboard: React.FC = () => {
                         <span style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600 }}>Slide {idx + 1}</span>
                         <p style={{ margin: '2px 0 0 0', color: 'var(--cream)', fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{b.title}</p>
                       </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingBanner(b); }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '0.8rem' }}
+                      >
+                        <Edit2 size={14} />
+                        Edit
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteBanner(b.id); }}
                         style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
                       >
                         <Trash2 size={16} />
                       </button>
+                    </div>
                     </div>
                   ))}
                 </div>
@@ -2389,6 +2525,127 @@ export const AdminDashboard: React.FC = () => {
                   </Button>
                 </form>
               </div>
+            </div>
+          </div>
+        )}
+        {/* EDIT PRODUCT MODAL */}
+        {editingProduct && (
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div className="glass-panel" style={{ padding: '30px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ color: 'var(--cream)', marginBottom: '20px' }}>Edit Product</h3>
+              <form onSubmit={handleEditProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <Input label="Name" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} />
+                <Input label="Price (₹)" type="number" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: parseFloat(e.target.value)})} />
+                <Input label="Stock Quantity" type="number" value={editingProduct.stock} onChange={e => setEditingProduct({...editingProduct, stock: parseInt(e.target.value)})} />
+                <Select
+                  label="Category"
+                  options={[
+                    { label: 'Dark Chocolate', value: 'dark' },
+                    { label: 'Milk Chocolate', value: 'milk' },
+                    { label: 'White Chocolate', value: 'white' },
+                    { label: 'Gift Hamper', value: 'gift' },
+                    { label: 'Beverage', value: 'beverage' },
+                  ]}
+                  value={editingProduct.category}
+                  onChange={e => setEditingProduct({...editingProduct, category: e.target.value as "white" | "dark" | "milk" | "gift" | "beverage"})}
+                />
+                
+                <Select
+                  label="Badge / Section Tag"
+                  value={editingProduct.badge || ''}
+                  onChange={e => setEditingProduct({...editingProduct, badge: e.target.value})}
+                  options={[
+                    { label: 'None (Standard Product)', value: '' },
+                    { label: 'New (Shows in New Arrivals section)', value: 'New' },
+                    { label: 'Bestseller (Shows in Bestsellers section)', value: 'Bestseller' },
+                    { label: 'Premium (Shows in Popular / Premium section)', value: 'Premium' },
+                    { label: 'Gift Hamper (Shows in Gift Hampers section)', value: 'Gift Hamper' },
+                    { label: 'Signature (Shows in Signature Collection)', value: 'Signature' },
+                    { label: 'Limited Edition', value: 'Limited Edition' },
+                  ]}
+                />
+                <Input label="Ingredients" placeholder="e.g. Cocoa Mass, Sugar..." value={editingProduct.ingredients || ''} onChange={e => setEditingProduct({...editingProduct, ingredients: e.target.value})} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Product Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingProduct.description || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                    style={{
+                      padding: '10px',
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--cream)',
+                      borderRadius: '4px',
+                      outline: 'none',
+                      resize: 'vertical',
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--cream)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Product Images (Optional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                    {editingProductImagePreviews.length > 0 ? (
+                      editingProductImagePreviews.map((preview, idx) => (
+                        <img key={idx} src={preview} alt={`Preview ${idx + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }} />
+                      ))
+                    ) : (
+                      editingProduct.images?.length ? (
+                        editingProduct.images.map((imgUrl, idx) => (
+                          <img key={idx} src={imgUrl} alt={`Current ${idx + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }} />
+                        ))
+                      ) : (
+                        <img src={editingProduct.image} alt="Current" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }} />
+                      )
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length) {
+                          setEditingProductImageFiles(files);
+                          setEditingProductImagePreviews(files.map(f => URL.createObjectURL(f)));
+                        }
+                      }}
+                      style={{ fontSize: '0.8rem', color: 'var(--cream)' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <Button variant="text" type="button" onClick={() => {
+                    setEditingProduct(null);
+                    setEditingProductImageFiles([]);
+                    setEditingProductImagePreviews([]);
+                  }}>Cancel</Button>
+                  <Button variant="gold" type="submit">Save Changes</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT BANNER MODAL */}
+        {editingBanner && (
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div className="glass-panel" style={{ padding: '30px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ color: 'var(--cream)', marginBottom: '20px' }}>Edit Banner</h3>
+              <form onSubmit={handleEditBannerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <Input label="Title" value={editingBanner.title} onChange={e => setEditingBanner({...editingBanner, title: e.target.value})} />
+                <Input label="Subtitle" value={editingBanner.subtitle || ''} onChange={e => setEditingBanner({...editingBanner, subtitle: e.target.value})} />
+                <Input label="Button Text" value={editingBanner.buttonText || ''} onChange={e => setEditingBanner({...editingBanner, buttonText: e.target.value})} />
+                <Input label="Link URL" value={editingBanner.link || ''} onChange={e => setEditingBanner({...editingBanner, link: e.target.value})} />
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <Button variant="text" type="button" onClick={() => setEditingBanner(null)}>Cancel</Button>
+                  <Button variant="gold" type="submit">Save Changes</Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

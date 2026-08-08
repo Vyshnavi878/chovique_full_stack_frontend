@@ -48,6 +48,10 @@ export const productService = {
   updateProduct: (id: string, payload: ProductUpdatePayload): Promise<Product> =>
     apiPatch<Product>(`/products/${id}`, payload),
 
+  /** Update an existing product's image (admin only). */
+  updateProductImage: (id: string, formData: FormData): Promise<Product> =>
+    apiPostFormData<Product>(`/products/${id}/image`, formData),
+
   /** Delete a product (admin only). */
   deleteProduct: (id: string): Promise<void> =>
     apiDelete<void>(`/products/${id}`),

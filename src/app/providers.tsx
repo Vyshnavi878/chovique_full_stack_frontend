@@ -145,6 +145,9 @@ const defaultTheme = {
 // =============================================================================
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const cartOpIdRef = React.useRef(0);
+  const wishlistOpIdRef = React.useRef(0);
+
   // ---------------------------------------------------------------------------
   // Auth State
   // ---------------------------------------------------------------------------
@@ -347,15 +350,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshUserCartAndWishlist = async () => {
+    const cOpId = ++cartOpIdRef.current;
     try {
       const cartRes = await cartService.getCart();
-      syncCartFromBackend(cartRes.items);
+      if (cOpId === cartOpIdRef.current) syncCartFromBackend(cartRes.items);
     } catch (e) {
       console.error('Failed to fetch cart on login', e);
     }
+    const wOpId = ++wishlistOpIdRef.current;
     try {
       const wishRes = await wishlistService.getWishlist();
-      setWishlist(wishRes.map((i) => i.product));
+      if (wOpId === wishlistOpIdRef.current) setWishlist(wishRes.map((i) => i.product));
     } catch (e) {
       console.error('Failed to fetch wishlist on login', e);
     }
@@ -501,11 +506,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notificationService.getNotifications().then((res) => setNotifications(res)).catch(() => { });
 
     // Fetch cart
-    cartService.getCart().then((res) => syncCartFromBackend(res.items)).catch(() => { });
+    const cOpId = ++cartOpIdRef.current;
+    cartService.getCart().then((res) => {
+      if (cOpId === cartOpIdRef.current) syncCartFromBackend(res.items);
+    }).catch(() => { });
 
     // Fetch wishlist
+    const wOpId = ++wishlistOpIdRef.current;
     wishlistService.getWishlist()
-      .then((items) => setWishlist(items.map((i) => i.product)))
+      .then((items) => {
+        if (wOpId === wishlistOpIdRef.current) setWishlist(items.map((i) => i.product));
+      })
       .catch(() => { });
 
   }, [isAuthLoading, role, syncCartFromBackend]);
@@ -555,21 +566,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (role === 'guest') return;
 
+    const opId = ++cartOpIdRef.current;
     try {
       const res = await cartService.addToCart(product.id, quantity);
-      syncCartFromBackend(res.items);
+      if (opId === cartOpIdRef.current) syncCartFromBackend(res.items);
     } catch (err) {
       console.error('Failed to add to cart:', err);
       // Revert optimistic update on error
-      setCart((prev) => {
-        const existing = prev.find((item) => item.product.id === product.id);
-        if (!existing) return prev.filter((item) => item.product.id !== product.id);
-        const newQty = existing.quantity - quantity;
-        if (newQty <= 0) return prev.filter((item) => item.product.id !== product.id);
-        return prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: newQty } : item
-        );
-      });
+      if (opId === cartOpIdRef.current) {
+        setCart((prev) => {
+          const existing = prev.find((item) => item.product.id === product.id);
+          if (!existing) return prev.filter((item) => item.product.id !== product.id);
+          const newQty = existing.quantity - quantity;
+          if (newQty <= 0) return prev.filter((item) => item.product.id !== product.id);
+          return prev.map((item) =>
+            item.product.id === product.id ? { ...item, quantity: newQty } : item
+          );
+        });
+      }
     }
   }, [role, syncCartFromBackend]);
 
@@ -583,11 +597,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (role === 'guest') return;
 
+    const opId = ++cartOpIdRef.current;
     try {
       const res = await cartService.updateQuantity(productId, Math.max(1, quantity));
-      syncCartFromBackend(res.items);
+      if (opId === cartOpIdRef.current) syncCartFromBackend(res.items);
     } catch (err) {
       console.error('Failed to update cart quantity:', err);
+      // Need to refetch to correct state since we don't know the exact previous state here
+      if (opId === cartOpIdRef.current) {
+         cartService.getCart().then(res => {
+           if (cartOpIdRef.current === opId) syncCartFromBackend(res.items);
+         });
+      }
     }
   }, [role, syncCartFromBackend]);
 
@@ -597,11 +618,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (role === 'guest') return;
 
+    const opId = ++cartOpIdRef.current;
     try {
       const res = await cartService.removeFromCart(productId);
-      syncCartFromBackend(res.items);
+      if (opId === cartOpIdRef.current) syncCartFromBackend(res.items);
     } catch (err) {
       console.error('Failed to remove from cart:', err);
+      // Need to refetch to correct state
+      if (opId === cartOpIdRef.current) {
+         cartService.getCart().then(res => {
+           if (cartOpIdRef.current === opId) syncCartFromBackend(res.items);
+         });
+      }
     }
   }, [role, syncCartFromBackend]);
 
@@ -610,8 +638,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     if (role === 'guest') return;
 
+    const opId = ++cartOpIdRef.current;
     try {
       await cartService.clearCart();
+      if (opId === cartOpIdRef.current) setCart([]);
     } catch (err) {
       console.error('Failed to clear cart:', err);
     }
@@ -633,6 +663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (role === 'guest') return;
 
+    const opId = ++wishlistOpIdRef.current;
     try {
       if (exists) {
         await wishlistService.removeFromWishlist(product.id);
@@ -642,10 +673,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Failed to update wishlist:', err);
       // Revert optimistic update
-      if (exists) {
-        setWishlist((prev) => [...prev, product]);
-      } else {
-        setWishlist((prev) => prev.filter((p) => p.id !== product.id));
+      if (opId === wishlistOpIdRef.current) {
+        if (exists) {
+          setWishlist((prev) => [...prev, product]);
+        } else {
+          setWishlist((prev) => prev.filter((p) => p.id !== product.id));
+        }
       }
     }
   }, [wishlist, role]);

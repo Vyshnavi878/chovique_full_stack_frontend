@@ -278,6 +278,9 @@ export const adminService = {
   deleteCoupon: (code: string): Promise<void> =>
     apiDelete<void>(`/admin/coupons/${code}`),
 
+  updateBanner: (id: string, payload: any): Promise<any> =>
+    apiPatch<any>(`/admin/banners/${id}`, payload),
+
   // ======================================================
   // Theme & Platform Configs
   // ======================================================

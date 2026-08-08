@@ -47,6 +47,11 @@ button {
   color: inherit;
 }
 
+option {
+  background-color: var(--black);
+  color: var(--cream);
+}
+
 /* === Utility Classes === */
 .container {
   width: var(--container-width);
