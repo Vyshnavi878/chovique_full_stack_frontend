@@ -45,9 +45,21 @@ export const Boutique: React.FC = () => {
     }
   };
 
-  const filteredProducts = products.filter(
-    (product) => activeFilter === 'all' || product.category === activeFilter || product.category?.toLowerCase() === activeFilter.toLowerCase()
-  );
+  const filteredProducts = products.filter((product) => {
+    if (activeFilter === 'all') return true;
+    if (!product.category) return false;
+    const cat = product.category.toLowerCase();
+    const filter = activeFilter.toLowerCase();
+
+    if (cat === filter) return true;
+    if (filter.includes(cat) || cat.includes(filter)) return true;
+    if (cat === 'dark' && filter.includes('dark')) return true;
+    if (cat === 'milk' && filter.includes('milk')) return true;
+    if (cat === 'white' && filter.includes('white')) return true;
+    if (cat === 'gift' && (filter.includes('gift') || filter.includes('hamper'))) return true;
+    if (cat === 'beverage' && filter.includes('bev')) return true;
+    return false;
+  });
 
   return (
     <section

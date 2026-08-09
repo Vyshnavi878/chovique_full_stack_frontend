@@ -92,6 +92,11 @@ export interface Order {
   total: number;
   subtotal: number;
   discount: number;
+  coupon_code?: string;
+  coupon_discount?: number;
+  coins_used?: number;
+  coin_discount?: number;
+  coins_earned?: number;
   shipping: number;
   date: string;
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
@@ -339,7 +344,7 @@ export interface SendOtpResponse {
 }
 
 export interface OrderPayload {
-  items: Array<{
+  items?: Array<{
     product_id: string;
     quantity: number;
   }>;
@@ -353,8 +358,8 @@ export interface OrderPayload {
   };
   delivery_option: string;
   payment_method: string;
-  /** Optional coupon code to apply at order time */
   coupon_code?: string;
+  coins_to_use?: number;
 }
 
 export interface ProductUpdatePayload {

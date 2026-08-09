@@ -19,7 +19,8 @@ import {
   Plus,
   X,
   Menu,
-  Loader2
+  Loader2,
+  Coins
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
@@ -33,6 +34,7 @@ import type { UserCoupon } from '../../types';
 
 type CustomerTab =
   | 'overview'
+  | 'rewards'
   | 'profile'
   | 'orders'
   | 'wishlist'
@@ -47,6 +49,7 @@ export const CustomerDashboard: React.FC = () => {
   const {
     user,
     role,
+    wallet,
     orders,
     wishlist,
     logout,
@@ -364,17 +367,6 @@ export const CustomerDashboard: React.FC = () => {
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--cream)', margin: 0 }}>
                 {user.name}
               </h1>
-              <span
-                style={{
-                  color: 'var(--gold)',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                  fontWeight: 600,
-                }}
-              >
-                Gold Tier Connoisseur
-              </span>
             </div>
           </div>
 
@@ -426,6 +418,7 @@ export const CustomerDashboard: React.FC = () => {
 
             {[
               { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+              { id: 'rewards', label: 'Rewards & Coins', icon: Coins },
               { id: 'profile', label: 'My Profile', icon: User },
               { id: 'orders', label: 'Order History', icon: ShoppingBag },
               { id: 'wishlist', label: 'Wishlist', icon: Heart },
@@ -592,6 +585,138 @@ export const CustomerDashboard: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* REWARDS PANEL */}
+            {activeTab === 'rewards' && (
+              <div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '24px' }}>
+                  Chovique Reward Coins & Wallet
+                </h2>
+
+                {/* Coin balance card */}
+                <div
+                  className="glass-panel"
+                  style={{
+                    padding: '24px',
+                    border: '1px solid var(--gold)',
+                    borderRadius: '8px',
+                    background: 'rgba(212, 175, 55, 0.08)',
+                    marginBottom: '30px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '20px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div
+                      style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: 'var(--gradient-gold)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--dark-chocolate)',
+                        boxShadow: '0 0 15px rgba(212, 175, 55, 0.4)',
+                      }}
+                    >
+                      <Coins size={30} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+                        Available Reward Balance
+                      </span>
+                      <h3 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--cream)', margin: '2px 0 0 0' }}>
+                        {wallet?.coin_balance ?? 0} <span style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--beige)' }}>Coins</span>
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--grey-light)', margin: '4px 0 0 0' }}>
+                        Equivalent value: <strong style={{ color: 'var(--gold)' }}>₹{wallet?.rupee_value ?? 0}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '12px 18px',
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      color: 'var(--beige)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <div><strong>Earn Rule:</strong> ₹{wallet?.settings?.spend_per_coin ?? 10} spent = 1 Coin</div>
+                    <div><strong>Redeem Rule:</strong> {wallet?.settings?.coins_per_rupee ?? 10} Coins = ₹1 Discount</div>
+                    <div><strong>Max Usage:</strong> Up to {wallet?.settings?.max_redemption_percentage ?? 20}% per order</div>
+                  </div>
+                </div>
+
+                {/* Coin Transactions Audit History */}
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', marginBottom: '16px' }}>
+                  Transaction Ledger & Audit History
+                </h3>
+
+                {wallet?.recent_transactions && wallet.recent_transactions.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--glass-border)', color: 'var(--gold)' }}>
+                          <th style={{ padding: '12px' }}>Date</th>
+                          <th style={{ padding: '12px' }}>Type</th>
+                          <th style={{ padding: '12px' }}>Coins</th>
+                          <th style={{ padding: '12px' }}>Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wallet.recent_transactions.map((tx) => (
+                          <tr key={tx.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--cream)' }}>
+                            <td style={{ padding: '12px', color: 'var(--grey-light)', fontSize: '0.85rem' }}>
+                              {new Date(tx.created_at).toLocaleDateString()}
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '3px',
+                                  background:
+                                    tx.type === 'EARN' || tx.type === 'REFUND'
+                                      ? 'rgba(46, 204, 113, 0.2)'
+                                      : tx.type === 'REDEEM'
+                                      ? 'rgba(231, 76, 60, 0.2)'
+                                      : 'rgba(241, 196, 15, 0.2)',
+                                  color:
+                                    tx.type === 'EARN' || tx.type === 'REFUND'
+                                      ? '#2ecc71'
+                                      : tx.type === 'REDEEM'
+                                      ? '#e74c3c'
+                                      : '#f1c40f',
+                                }}
+                              >
+                                {tx.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', fontWeight: 700, color: tx.coins > 0 ? '#2ecc71' : '#e74c3c' }}>
+                              {tx.coins > 0 ? `+${tx.coins}` : tx.coins}
+                            </td>
+                            <td style={{ padding: '12px', color: 'var(--beige)', fontSize: '0.85rem' }}>
+                              {tx.description || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ color: 'var(--grey-light)', fontStyle: 'italic' }}>No coin transactions recorded yet.</p>
                 )}
               </div>
             )}

@@ -8,6 +8,8 @@ import {
   CreditCard,
   ChevronRight,
   Loader2,
+  Coins,
+  Tag,
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
@@ -16,6 +18,8 @@ import { Progress } from '../../components/ui/Progress';
 import { pageTransition, scaleUp } from '../../lib/framer';
 import { apiPost } from '../../lib/api';
 import { orderService } from '../../services/orderService';
+import { walletService } from '../../services/walletService';
+import { cartService } from '../../services/cartService';
 import type { Order, CheckoutInitiateResponse, VerifyPaymentPayload } from '../../types';
 
 // Razorpay global type declaration
@@ -34,13 +38,23 @@ interface CheckoutCouponData {
 }
 
 export const CheckoutPage: React.FC = () => {
-  const { cart, user, placeOrderLocal } = useApp();
+  const { cart, user, wallet, refreshWallet, placeOrderLocal } = useApp();
   const navigate = useNavigate();
 
   const [activeStep, setActiveStep] = useState(1);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+
+  // Coins redemption state
+  const [useCoins, setUseCoins] = useState(false);
+  const [coinsToUse, setCoinsToUse] = useState(0);
+  const [coinPreview, setCoinPreview] = useState<{
+    allowed_coins: number;
+    coin_discount: number;
+    max_usable_coins: number;
+    message: string;
+  }>({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
 
   // Check if this is a Buy Now flow or Cart flow
   const buyNowItemRaw = sessionStorage.getItem('chovique_buy_now_item');
@@ -68,29 +82,97 @@ export const CheckoutPage: React.FC = () => {
     phone: user?.profile?.phone || '',
   });
 
-  const [deliveryOption, setDeliveryOption] = useState('Standard Free Delivery');
+  const [deliveryOption, setDeliveryOption] = useState('Standard Delivery');
   const [paymentMethod, setPaymentMethod] = useState('Credit Card');
 
-  // Read coupon data from sessionStorage (set by CartPage)
-  const couponData = (() => {
+  // Coupon state: read initial coupon from sessionStorage or allow applying/removing directly
+  const [appliedCoupon, setAppliedCoupon] = useState<CheckoutCouponData | null>(() => {
     try {
       const raw = sessionStorage.getItem('chovique_checkout_coupon');
       return raw ? (JSON.parse(raw) as CheckoutCouponData) : null;
     } catch {
       return null;
     }
-  })();
+  });
+
+  const [couponInputCode, setCouponInputCode] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [isCouponLoading, setIsCouponLoading] = useState(false);
 
   // Pricing calculations (display-only; backend recalculates authoritatively)
   const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const discountAmount = couponData?.discount_amount ?? 0;
-  const shippingFee =
-    deliveryOption === 'Same Day Delivery'
-      ? 250
-      : deliveryOption === 'Express Delivery'
-      ? 150
-      : 0;
-  const total = subtotal - discountAmount + shippingFee;
+  const discountAmount = appliedCoupon?.discount_amount ?? 0;
+
+  // Calculate coin redemption when useCoins is toggled or subtotal/coupon changes
+  useEffect(() => {
+    if (wallet && wallet.coin_balance > 0 && useCoins) {
+      const requested = coinsToUse || wallet.coin_balance;
+      walletService
+        .calculateRedemption({
+          subtotal,
+          coupon_discount: discountAmount,
+          coins_to_use: requested,
+        })
+        .then((res) => {
+          setCoinPreview(res);
+          if (!coinsToUse || coinsToUse > res.allowed_coins) {
+            setCoinsToUse(res.allowed_coins);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
+    }
+  }, [wallet, useCoins, coinsToUse, subtotal, discountAmount]);
+
+  const coinDiscountAmount = useCoins ? coinPreview.coin_discount : 0;
+  // Free delivery for orders >= ₹1500, else ₹99
+  const shippingFee = subtotal >= 1500 ? 0 : 99;
+  const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee);
+
+  // Coupon handlers
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponInputCode.trim()) return;
+    setIsCouponLoading(true);
+    setCouponError('');
+    try {
+      const res = await cartService.validateCoupon(couponInputCode.trim().toUpperCase());
+      if (res.valid) {
+        let calculatedDisc = 0;
+        if (res.discount_type === 'PERCENTAGE') {
+          calculatedDisc = (subtotal * (res.discount_percent || 0)) / 100;
+          if (res.maximum_discount_amount > 0) {
+            calculatedDisc = Math.min(calculatedDisc, res.maximum_discount_amount);
+          }
+        } else if (res.discount_type === 'FIXED_AMOUNT') {
+          calculatedDisc = Math.min(res.discount_amount || 0, subtotal);
+        } else {
+          calculatedDisc = res.calculated_discount || 0;
+        }
+
+        const data: CheckoutCouponData = {
+          code: res.code,
+          discount_percent: res.discount_percent || 0,
+          discount_amount: calculatedDisc,
+        };
+        setAppliedCoupon(data);
+        sessionStorage.setItem('chovique_checkout_coupon', JSON.stringify(data));
+        setCouponInputCode('');
+      } else {
+        setCouponError(res.message || 'Invalid promo code');
+      }
+    } catch {
+      setCouponError('Could not validate promo code.');
+    } finally {
+      setIsCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    sessionStorage.removeItem('chovique_checkout_coupon');
+  };
 
   // Validate shipping form before proceeding from step 2
   const validateShipping = (): boolean => {
@@ -103,13 +185,13 @@ export const CheckoutPage: React.FC = () => {
       return; // Fields are marked required; browser/custom validation handles UI
     }
 
-    if (activeStep === 5) {
+    if (activeStep === 4) {
       // ================================================================
       // DIRECT ORDER PLACEMENT FLOW (bypasses Razorpay authentication errors)
       // ================================================================
       setIsPlacingOrder(true);
       setOrderError('');
-      setActiveStep(6); // Show processing screen immediately
+      setActiveStep(5); // Show processing screen immediately
 
       const orderPayload = {
         items: checkoutItems.map((item) => ({
@@ -126,28 +208,30 @@ export const CheckoutPage: React.FC = () => {
         },
         delivery_option: deliveryOption,
         payment_method: paymentMethod,
-        ...(couponData ? { coupon_code: couponData.code } : {}),
+        ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
+        coins_to_use: useCoins ? (coinsToUse || coinPreview.allowed_coins) : 0,
       };
 
       try {
         const order = await orderService.placeOrder(orderPayload);
         placeOrderLocal(order);
         setCreatedOrder(order);
+        refreshWallet();
         sessionStorage.removeItem('chovique_checkout_coupon');
         sessionStorage.removeItem('chovique_buy_now_item');
-        setActiveStep(7);
+        setActiveStep(6);
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'Failed to place order. Please try again.';
         setOrderError(message);
-        setActiveStep(5);
+        setActiveStep(4);
       } finally {
         setIsPlacingOrder(false);
       }
       return;
     }
 
-    setActiveStep((prev) => Math.min(prev + 1, 5));
+    setActiveStep((prev) => Math.min(prev + 1, 4));
   };
 
   const prevStep = () => {
@@ -157,9 +241,8 @@ export const CheckoutPage: React.FC = () => {
   const stepsHeader = [
     { num: 1, label: 'Cart Review' },
     { num: 2, label: 'Shipping Address' },
-    { num: 3, label: 'Delivery Options' },
-    { num: 4, label: 'Payment Method' },
-    { num: 5, label: 'Order Summary' },
+    { num: 3, label: 'Payment Method' },
+    { num: 4, label: 'Order Summary' },
   ];
 
   return (
@@ -171,8 +254,8 @@ export const CheckoutPage: React.FC = () => {
       className="checkout-page"
     >
       <div className="container">
-        {/* Checkout Header steps indicator (Only for steps 1-5) */}
-        {activeStep <= 5 && (
+        {/* Checkout Header steps indicator (Only for steps 1-4) */}
+        {activeStep <= 4 && (
           <div className="checkout-steps">
             <div className="checkout-step-list">
               {stepsHeader.map((st) => (
@@ -213,11 +296,11 @@ export const CheckoutPage: React.FC = () => {
                   >
                     {st.label}
                   </span>
-                  {st.num < 5 && <ChevronRight size={14} style={{ color: 'var(--grey-mid)' }} />}
+                  {st.num < 4 && <ChevronRight size={14} style={{ color: 'var(--grey-mid)' }} />}
                 </div>
               ))}
             </div>
-            <Progress value={activeStep} max={5} height={3} />
+            <Progress value={activeStep} max={4} height={3} />
           </div>
         )}
 
@@ -350,13 +433,13 @@ export const CheckoutPage: React.FC = () => {
                     glow
                     disabled={!validateShipping()}
                   >
-                    Configure Delivery
+                    Proceed to Payment
                   </Button>
                 </div>
               </motion.div>
             )}
 
-            {/* STEP 3: DELIVERY OPTIONS */}
+            {/* STEP 3: PAYMENT OPTIONS */}
             {activeStep === 3 && (
               <motion.div
                 key="step3"
@@ -368,62 +451,7 @@ export const CheckoutPage: React.FC = () => {
                 style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  3. Select Delivery Method
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
-                  {[
-                    { title: 'Standard Free Delivery', desc: 'Arrives in 3 - 5 business days.', price: 0 },
-                    { title: 'Express Delivery', desc: 'Arrives in 1 - 2 business days. Dusted with cooler packs.', price: 150 },
-                    { title: 'Same Day Delivery', desc: 'Instant local courier. Temperature regulated boxes. Orders before 2PM.', price: 250 },
-                  ].map((opt) => (
-                    <div
-                      key={opt.title}
-                      onClick={() => setDeliveryOption(opt.title)}
-                      className="checkout-option-card"
-                      style={{
-                        background: deliveryOption === opt.title ? 'rgba(201, 168, 76, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-                        border: deliveryOption === opt.title ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                        <Truck size={20} style={{ color: deliveryOption === opt.title ? 'var(--gold)' : 'var(--beige)' }} />
-                        <div>
-                          <h4 style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600, margin: 0 }}>
-                            {opt.title}
-                          </h4>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)' }}>{opt.desc}</span>
-                        </div>
-                      </div>
-                      <span style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '1rem' }}>
-                        {opt.price === 0 ? 'Free' : `₹${opt.price}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Button variant="secondary" onClick={prevStep}>
-                    Back
-                  </Button>
-                  <Button variant="gold" onClick={nextStep} glow>
-                    Select Payment
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 4: PAYMENT OPTIONS */}
-            {activeStep === 4 && (
-              <motion.div
-                key="step4"
-                variants={scaleUp}
-                initial="initial"
-                animate="animate"
-                exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
-              >
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  4. Choose Payment Option
+                  3. Choose Payment Option
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
                   {['Credit Card', 'UPI / Google Pay', 'Net Banking', 'Cash on Delivery'].map((method) => (
@@ -458,10 +486,10 @@ export const CheckoutPage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* STEP 5: ORDER PREVIEW */}
-            {activeStep === 5 && (
+            {/* STEP 4: ORDER PREVIEW */}
+            {activeStep === 4 && (
               <motion.div
-                key="step5"
+                key="step4"
                 variants={scaleUp}
                 initial="initial"
                 animate="animate"
@@ -470,7 +498,7 @@ export const CheckoutPage: React.FC = () => {
                 style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  5. Review and Place Order
+                  4. Review and Place Order
                 </h2>
 
                 {/* Order error banner */}
@@ -522,15 +550,144 @@ export const CheckoutPage: React.FC = () => {
                     }}
                   >
                     <h4 style={{ color: 'var(--gold)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
-                      Preferences:
+                      Payment & Delivery:
                     </h4>
                     <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
-                      <strong>Method:</strong> {deliveryOption}
+                      <strong>Payment Method:</strong> {paymentMethod}
                       <br />
-                      <strong>Payment:</strong> {paymentMethod}
+                      <strong>Delivery Charge:</strong> {shippingFee === 0 ? 'Free Standard Delivery' : 'Standard Delivery (₹99)'}
                     </p>
                   </div>
                 </div>
+
+                {/* Promo Code Entry & Applied Coupon Panel */}
+                <div style={{ marginBottom: '25px' }}>
+                  {appliedCoupon ? (
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        background: 'rgba(46, 204, 113, 0.1)',
+                        border: '1px solid #2ecc71',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#2ecc71' }}>
+                        <Tag size={18} />
+                        <div>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Coupon Code Applied: {appliedCoupon.code}</span>
+                          <span style={{ fontSize: '0.8rem', opacity: 0.9, display: 'block' }}>Saving -₹{discountAmount.toLocaleString()} on this order</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <Input
+                            placeholder="Enter Promo Code (e.g. WELCOME10)"
+                            value={couponInputCode}
+                            onChange={(e) => setCouponInputCode(e.target.value)}
+                            style={{ textTransform: 'uppercase' }}
+                          />
+                        </div>
+                        <Button variant="gold" type="submit" disabled={isCouponLoading || !couponInputCode.trim()} style={{ whiteSpace: 'nowrap' }}>
+                          {isCouponLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Apply Coupon'}
+                        </Button>
+                      </form>
+                      {couponError && (
+                        <p style={{ color: '#e74c3c', fontSize: '0.82rem', marginTop: '6px', marginBottom: 0 }}>{couponError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Rewards Panel */}
+                {wallet && wallet.coin_balance > 0 ? (
+                  <div
+                    style={{
+                      padding: '16px 20px',
+                      background: 'rgba(212, 175, 55, 0.08)',
+                      border: '1px solid var(--gold)',
+                      borderRadius: '6px',
+                      marginBottom: '25px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Coins size={24} style={{ color: 'var(--gold)' }} />
+                        <div>
+                          <h4 style={{ color: 'var(--cream)', margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+                            Chovique Reward Coins
+                          </h4>
+                          <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: 0 }}>
+                            Available: <strong>{wallet.coin_balance} coins</strong> (₹{(wallet.coin_balance / (wallet.settings?.coins_per_rupee || 10)).toFixed(0)} discount value)
+                          </p>
+                        </div>
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--gold)', fontWeight: 600, fontSize: '0.9rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={useCoins}
+                          onChange={(e) => {
+                            setUseCoins(e.target.checked);
+                            if (e.target.checked) {
+                              setCoinsToUse(wallet.coin_balance);
+                            }
+                          }}
+                          style={{ width: '18px', height: '18px', accentColor: 'var(--gold)', cursor: 'pointer' }}
+                        />
+                        <span>Use Available Coins</span>
+                      </label>
+                    </div>
+
+                    {useCoins && coinPreview.allowed_coins > 0 && (
+                      <div
+                        style={{
+                          marginTop: '12px',
+                          paddingTop: '10px',
+                          borderTop: '1px dashed rgba(212, 175, 55, 0.3)',
+                          display: 'flex',
+                          justify: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.85rem',
+                          color: '#2ecc71',
+                        }}
+                      >
+                        <span>✓ Redeeming {coinPreview.allowed_coins} coins</span>
+                        <span style={{ fontWeight: 700 }}>-₹{coinPreview.coin_discount.toLocaleString()} Off</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '6px',
+                      marginBottom: '25px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '0.85rem',
+                      color: 'var(--beige)',
+                    }}
+                  >
+                    <Coins size={18} style={{ color: 'var(--gold)' }} />
+                    <span>You will earn <strong style={{ color: 'var(--gold)' }}>+{Math.floor(subtotal / 10)} Chovique Reward Coins</strong> on this order!</span>
+                  </div>
+                )}
 
                 {/* Pricing totals */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '20px', borderBottom: '1px solid var(--glass-border)', marginBottom: '20px' }}>
@@ -538,19 +695,29 @@ export const CheckoutPage: React.FC = () => {
                     <span>Items Subtotal:</span>
                     <span>₹{subtotal.toLocaleString()}</span>
                   </div>
-                  {discountAmount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem' }}>
-                      <span>Discount Applied:</span>
+
+                  {appliedCoupon && discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Coupon Discount ({appliedCoupon.code}):</span>
                       <span>-₹{discountAmount.toLocaleString()}</span>
                     </div>
                   )}
+
+                  {useCoins && coinDiscountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Coins Discount ({coinPreview.allowed_coins} coins):</span>
+                      <span>-₹{coinDiscountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
-                    <span>Shipping Fee:</span>
-                    <span>{shippingFee === 0 ? 'Free' : `₹${shippingFee}`}</span>
+                    <span>Delivery Charges:</span>
+                    <span>{shippingFee === 0 ? 'Free (Order over ₹1,500)' : `₹${shippingFee}`}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)', fontSize: '1.2rem', fontWeight: 700, marginTop: '8px' }}>
-                    <span>Total Amount:</span>
-                    <span>₹{total.toLocaleString()}</span>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)', fontSize: '1.25rem', fontWeight: 700, marginTop: '8px', paddingTop: '10px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                    <span>Final Payable Amount:</span>
+                    <span style={{ color: 'var(--gold)' }}>₹{total.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -578,10 +745,10 @@ export const CheckoutPage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* STEP 6: PROCESSING LOADER */}
-            {activeStep === 6 && (
+            {/* STEP 5: PROCESSING LOADER */}
+            {activeStep === 5 && (
               <motion.div
-                key="step6"
+                key="step5"
                 variants={scaleUp}
                 initial="initial"
                 animate="animate"
@@ -612,8 +779,8 @@ export const CheckoutPage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* STEP 7: SUCCESS SCREEN */}
-            {activeStep === 7 && createdOrder && (
+            {/* STEP 6: SUCCESS SCREEN */}
+            {activeStep === 6 && createdOrder && (
               <motion.div
                 key="step7"
                 variants={scaleUp}
@@ -642,9 +809,32 @@ export const CheckoutPage: React.FC = () => {
                 <p style={{ color: 'var(--gold)', fontSize: '1.1rem', fontWeight: 600, marginBottom: '24px' }}>
                   Ticket Reference: {createdOrder.id}
                 </p>
-                <p style={{ color: 'var(--beige)', maxWidth: '500px', margin: '0 auto 30px auto', lineHeight: 1.6 }}>
+                <p style={{ color: 'var(--beige)', maxWidth: '500px', margin: '0 auto 20px auto', lineHeight: 1.6 }}>
                   Thank you for ordering with Chovique. Your chocolates are being prepared by hand and packaged in cooler-packs to ensure they reach you in immaculate form.
                 </p>
+
+                {createdOrder.coins_earned && createdOrder.coins_earned > 0 ? (
+                  <div
+                    style={{
+                      maxWidth: '500px',
+                      margin: '0 auto 30px auto',
+                      padding: '12px 20px',
+                      background: 'rgba(212, 175, 55, 0.15)',
+                      border: '1px solid var(--gold)',
+                      borderRadius: '6px',
+                      color: 'var(--gold)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <Coins size={20} />
+                    <span>You earned <strong>+{createdOrder.coins_earned} Chovique Reward Coins</strong> on this purchase!</span>
+                  </div>
+                ) : null}
 
                 {/* Invoice sheet */}
                 <div

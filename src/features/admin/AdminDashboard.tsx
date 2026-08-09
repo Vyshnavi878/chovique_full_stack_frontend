@@ -28,6 +28,7 @@ import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { walletService, RewardSettings } from '../../services/walletService';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { inventoryService } from '../../services/inventoryService';
@@ -512,7 +513,61 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // --- Site Stats State & Handlers ---
+  // --- Reward Settings State & Handlers ---
+  const [rewardSettingsForm, setRewardSettingsForm] = useState<RewardSettings>({
+    reward_system_enabled: true,
+    spend_per_coin: 10,
+    coins_per_rupee: 10,
+    max_redemption_percentage: 20,
+  });
+  const [isSavingRewardSettings, setIsSavingRewardSettings] = useState(false);
+  const [rewardSettingsSaved, setRewardSettingsSaved] = useState(false);
+
+  // Manual coin adjustment state
+  const [adjustCoinForm, setAdjustCoinForm] = useState({ user_id: '', coins: 100, reason: 'Customer Goodwill' });
+  const [isAdjustingCoins, setIsAdjustingCoins] = useState(false);
+  const [adjustCoinsSuccess, setAdjustCoinsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'reward-settings') {
+      walletService.getRewardSettings()
+        .then((res) => setRewardSettingsForm(res))
+        .catch(() => {});
+    }
+  }, [activeTab]);
+
+  const handleSaveRewardSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingRewardSettings(true);
+    try {
+      await walletService.updateRewardSettings(rewardSettingsForm);
+      setRewardSettingsSaved(true);
+      setTimeout(() => setRewardSettingsSaved(false), 3000);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to save reward settings');
+    } finally {
+      setIsSavingRewardSettings(false);
+    }
+  };
+
+  const handleAdjustCoinsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustCoinForm.user_id.trim()) {
+      alert('Please enter a User ID');
+      return;
+    }
+    setIsAdjustingCoins(true);
+    try {
+      await walletService.adminAdjustCoins(adjustCoinForm.user_id, adjustCoinForm.coins, adjustCoinForm.reason);
+      setAdjustCoinsSuccess(true);
+      setTimeout(() => setAdjustCoinsSuccess(false), 3000);
+      setAdjustCoinForm({ user_id: '', coins: 100, reason: 'Customer Goodwill' });
+    } catch (err: any) {
+      alert(err?.message || 'Failed to adjust coins');
+    } finally {
+      setIsAdjustingCoins(false);
+    }
+  };
   const [siteStats, setSiteStats] = useState({
     happy_customers: 26000,
     unique_flavors: 120,
@@ -1572,6 +1627,152 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* REWARD SETTINGS TAB */}
+        {activeTab === 'reward-settings' && (
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
+              Customer Rewards & Coins System
+            </h1>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
+              {/* Rules Configuration Form */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', marginBottom: '20px' }}>
+                  System Earning & Redemption Rules
+                </h3>
+
+                <form onSubmit={handleSaveRewardSettings} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>Enable Reward System</span>
+                    <input
+                      type="checkbox"
+                      checked={rewardSettingsForm.reward_system_enabled}
+                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, reward_system_enabled: e.target.checked })}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--gold)', cursor: 'pointer' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      ₹ Spent per 1 Coin Earned
+                    </label>
+                    <Input
+                      type="number"
+                      value={rewardSettingsForm.spend_per_coin}
+                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, spend_per_coin: Number(e.target.value) })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                      Example: 10 means customer earns 1 coin for every ₹10 spent.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      Coins Needed for ₹1 Discount
+                    </label>
+                    <Input
+                      type="number"
+                      value={rewardSettingsForm.coins_per_rupee}
+                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, coins_per_rupee: Number(e.target.value) })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                      Example: 10 means 10 coins = ₹1 discount value.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      Maximum Order Redemption Limit (%)
+                    </label>
+                    <Input
+                      type="number"
+                      value={rewardSettingsForm.max_redemption_percentage}
+                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, max_redemption_percentage: Number(e.target.value) })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                      Example: 20 means coins can pay up to max 20% of order value.
+                    </span>
+                  </div>
+
+                  {rewardSettingsSaved && (
+                    <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      ✓ Reward system parameters updated successfully!
+                    </div>
+                  )}
+
+                  <Button variant="gold" type="submit" disabled={isSavingRewardSettings} glow style={{ marginTop: '10px' }}>
+                    {isSavingRewardSettings ? 'Saving Settings...' : 'Save Reward Rules'}
+                  </Button>
+                </form>
+              </div>
+
+              {/* Manual Customer Coin Adjustment Tool */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', marginBottom: '20px' }}>
+                  Manual Customer Coin Adjustment
+                </h3>
+
+                <form onSubmit={handleAdjustCoinsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      Customer User ID
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 303e18e4-3915-4e0e-8e4f-872769238882"
+                      value={adjustCoinForm.user_id}
+                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, user_id: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      Coins Adjustment (+ or -)
+                    </label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 100 or -50"
+                      value={adjustCoinForm.coins}
+                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, coins: Number(e.target.value) })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                      Enter positive value to credit coins (+100) or negative to deduct (-50).
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
+                      Reason / Audit Log Note
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Customer goodwill / refund resolution"
+                      value={adjustCoinForm.reason}
+                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, reason: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  {adjustCoinsSuccess && (
+                    <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      ✓ Manual coin adjustment recorded successfully!
+                    </div>
+                  )}
+
+                  <Button variant="gold" type="submit" disabled={isAdjustingCoins} glow style={{ marginTop: '10px' }}>
+                    {isAdjustingCoins ? 'Processing Adjustment...' : 'Submit Coin Adjustment'}
+                  </Button>
+                </form>
+              </div>
+            </div>
           </div>
         )}
 

@@ -20,6 +20,7 @@ import { orderService } from '../services/orderService';
 import { ticketService } from '../services/ticketService';
 import { userService } from '../services/userService';
 import { notificationService } from '../services/notificationService';
+import { walletService, UserWallet } from '../services/walletService';
 
 // =============================================================================
 // CONTEXT INTERFACE
@@ -119,6 +120,10 @@ interface AppContextType {
   addAddress: (address: Omit<CustomerAddress, 'id'>) => Promise<void>;
   deleteAddress: (id: string) => Promise<void>;
   setDefaultAddress: (id: string) => Promise<void>;
+
+  // Wallet & Rewards
+  wallet: UserWallet | null;
+  refreshWallet: () => Promise<void>;
 
   // Notifications
   notifications: SupportNotification[];
@@ -298,6 +303,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ---------------------------------------------------------------------------
 
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+
+  // ---------------------------------------------------------------------------
+  // Wallet & Rewards
+  // ---------------------------------------------------------------------------
+
+  const [wallet, setWallet] = useState<UserWallet | null>(null);
+
+  const refreshWallet = useCallback(async () => {
+    if (role === 'guest') return;
+    try {
+      const res = await walletService.getWallet();
+      setWallet(res);
+    } catch (err) {
+      console.error('Failed to fetch wallet:', err);
+    }
+  }, [role]);
 
   // ---------------------------------------------------------------------------
   // Notifications
@@ -519,7 +540,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => { });
 
-  }, [isAuthLoading, role, syncCartFromBackend]);
+    // Fetch wallet
+    refreshWallet();
+
+  }, [isAuthLoading, role, syncCartFromBackend, refreshWallet]);
 
   // ---------------------------------------------------------------------------
   // Side Effects — persist intentional client-side state to localStorage
@@ -1026,6 +1050,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAddress,
         deleteAddress,
         setDefaultAddress,
+        wallet,
+        refreshWallet,
         notifications,
         removeNotification,
         addNotification,

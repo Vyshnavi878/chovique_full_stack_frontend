@@ -75,6 +75,28 @@ export const LoginPage: React.FC = () => {
           <p className="auth-subtitle">Sign in to Chovique</p>
         </div>
 
+        {isGoogleLoading && (
+          <div
+            style={{
+              padding: '14px 18px',
+              background: 'rgba(201, 168, 76, 0.15)',
+              border: '1px solid var(--gold)',
+              borderRadius: '8px',
+              color: 'var(--gold)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              marginBottom: '20px',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+            }}
+          >
+            <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+            <span>Authenticating with Google... Redirecting, please wait.</span>
+          </div>
+        )}
+
         {/* Credentials Form */}
         <form onSubmit={handleSubmit} noValidate>
           {error && (

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Star, Quote, MessageSquarePlus, X, CheckCircle, Loader2 } from 'lucide-react';
+import { useApp } from '../../app/providers';
 import { homeService } from '../../services/homeService';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -35,6 +37,8 @@ const FALLBACK_TESTIMONIALS: Testimonial[] = [
 ];
 
 export const Reviews: React.FC = () => {
+  const { user, role } = useApp();
+  const navigate = useNavigate();
   const [textTestimonials, setTextTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +52,19 @@ export const Reviews: React.FC = () => {
     rating: 5,
     text: '',
   });
+
+  const handleOpenModal = () => {
+    if (!user || role === 'guest') {
+      alert('Please sign in to share your experience with Chovique chocolates.');
+      navigate('/login');
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      author: user.full_name || user.name || prev.author,
+    }));
+    setShowModal(true);
+  };
 
   const fetchApprovedTestimonials = () => {
     setLoading(true);
@@ -117,7 +134,7 @@ export const Reviews: React.FC = () => {
           <Button
             variant="gold"
             glow
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenModal}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
           >
             <MessageSquarePlus size={16} /> Share Your Experience
