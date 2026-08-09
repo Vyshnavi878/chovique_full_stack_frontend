@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
 
@@ -8,6 +9,8 @@ export const Hero: React.FC = () => {
   const { banners } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const duration = 6000;
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -19,6 +22,76 @@ export const Hero: React.FC = () => {
   if (!banners || banners.length === 0) return null;
 
   const activeBanner = banners[currentSlide];
+
+  /**
+   * Smart navigation handler for hero banner buttons.
+   * Handles:
+   *   #anchor   → smooth scroll on homepage, or navigate home then scroll
+  /**
+   * Smart navigation handler for hero banner buttons.
+   * Handles:
+   *   1. Explore Collection → scroll to "store" (Explore Our Collection) on homepage
+   *   2. View Gift Sets / Gift Collections → navigate to home and scroll to "gift-collections" / "gift-hampers"
+   *   3. Shop the Deals → redirect to /shop
+   *   4. Discover Our Process → redirect to /our-story
+   */
+  const handleBannerClick = (buttonText: string, link: string) => {
+    const textLower = (buttonText || '').toLowerCase();
+    const linkLower = (link || '').toLowerCase();
+
+    // 1. Explore Collection → scroll to "store" on homepage
+    if (textLower.includes('explore') || linkLower.includes('store') || linkLower.includes('collection')) {
+      if (location.pathname === '/') {
+        const el = document.getElementById('store');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        navigate('/', { state: { scrollTo: 'store' } });
+      }
+      return;
+    }
+
+    // 2. View Gift Sets / Gift Collections → scroll to "gift-collections" / "gift-hampers" on homepage
+    if (textLower.includes('gift') || linkLower.includes('gift-collections') || linkLower.includes('gift-hampers')) {
+      if (location.pathname === '/') {
+        const el = document.getElementById('gift-collections') || document.getElementById('gift-hampers');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        navigate('/', { state: { scrollTo: 'gift-collections' } });
+      }
+      return;
+    }
+
+    // 3. Discover Our Process / Our Story → redirect to /our-story
+    if (textLower.includes('process') || textLower.includes('story') || linkLower.includes('story') || linkLower === '/our-story') {
+      navigate('/our-story');
+      return;
+    }
+
+    // 4. Shop the Deals / Shop → redirect to /shop
+    if (textLower.includes('shop') || textLower.includes('deals') || linkLower.includes('shop') || linkLower === '/shop') {
+      navigate('/shop');
+      return;
+    }
+
+    // Fallback: anchor links starting with #
+    if (link && link.startsWith('#')) {
+      const targetId = link.substring(1);
+      if (location.pathname === '/') {
+        const el = document.getElementById(targetId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        navigate('/', { state: { scrollTo: targetId } });
+      }
+      return;
+    }
+
+    // Direct link fallback
+    if (link) {
+      navigate(link);
+    } else {
+      navigate('/shop');
+    }
+  };
 
   // Create array of particles for background animation
   const particles = Array.from({ length: 20 });
@@ -177,13 +250,7 @@ export const Hero: React.FC = () => {
               variant="gold"
               size="lg"
               glow
-              onClick={() => {
-                const target = activeBanner.link;
-                if (target.startsWith('#')) {
-                  const el = document.getElementById(target.substring(1));
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
+              onClick={() => handleBannerClick(activeBanner.buttonText, activeBanner.link)}
             >
               {activeBanner.buttonText}
               <ArrowRight size={16} />

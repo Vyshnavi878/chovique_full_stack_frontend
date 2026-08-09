@@ -54,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   // Admin tab items
   const adminItems = [
     { id: 'products', label: 'Products', icon: ShoppingBag },
+    { id: 'categories', label: 'Categories', icon: FolderTree },
     { id: 'inventory', label: 'Inventory', icon: Warehouse },
     { id: 'offline-sales', label: 'Offline Sales', icon: Coins },
     { id: 'customers', label: 'Order Management', icon: Users },

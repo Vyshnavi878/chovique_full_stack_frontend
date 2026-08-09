@@ -18,7 +18,11 @@ import {
   Phone,
   Mail,
   Clock,
-  MessageSquare
+  MessageSquare,
+  FolderTree,
+  ToggleLeft,
+  ToggleRight,
+  ImagePlus
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
@@ -27,7 +31,9 @@ import { Button } from '../../components/ui/Button';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { inventoryService } from '../../services/inventoryService';
+import { categoryService, AdminCategory } from '../../services/categoryService';
 import { Product, OfflineSale, SystemUser, Banner } from '../../types';
+import { getImageUrl } from '../../utils/imageUrl';
 
 // SystemUser is imported from types/index.ts
 
@@ -63,6 +69,14 @@ export const AdminDashboard: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Fetch categories list when categories tab becomes active
+  useEffect(() => {
+    if (activeTab === 'categories' && categoriesList.length === 0) {
+      fetchCategories();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // --- Add Product Form Toggling ---
   const [showAddProductForm, setShowAddProductForm] = useState(false);
 
@@ -87,6 +101,8 @@ export const AdminDashboard: React.FC = () => {
     protein: '7g',
   });
   const [productAddedSuccess, setProductAddedSuccess] = useState(false);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
 
   // --- Dynamic local state for stock/units sold to keep them interactive ---
   // Stock is now stored in the Product object from backend (product.stock)
@@ -144,6 +160,9 @@ export const AdminDashboard: React.FC = () => {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProd.name || newProd.price <= 0) return;
+    if (isCreatingProduct) return;
+
+    setIsCreatingProduct(true);
 
     // Build FormData for multipart/form-data submission to backend
     const formData = new FormData();
@@ -156,6 +175,7 @@ export const AdminDashboard: React.FC = () => {
     formData.append('stock', String(newProd.stock));
     if (newProd.badge) formData.append('badge', newProd.badge);
     if (newProd.imageFiles.length > 0) {
+      formData.append('image', newProd.imageFiles[0]);
       newProd.imageFiles.forEach(file => formData.append('gallery_images', file));
     }
     // Nutrition fields
@@ -170,42 +190,45 @@ export const AdminDashboard: React.FC = () => {
     try {
       const created = await productService.createProduct(formData);
       addProduct(created);
+      setProductAddedSuccess(true);
+      setNewProd({
+        name: '',
+        category: dynamicCategoryOptions[0]?.value || 'dark-chocolate',
+        price: 0,
+        weight: '100g',
+        description: '',
+        ingredients: '',
+        badge: '',
+        imageFiles: [],
+        imagePreviewUrls: [],
+        stock: 10,
+        calories: '550 kcal',
+        totalFat: '35g',
+        saturatedFat: '20g',
+        cholesterol: '0mg',
+        sodium: '15mg',
+        totalCarb: '50g',
+        protein: '7g',
+      });
+      setTimeout(() => {
+        setProductAddedSuccess(false);
+        setShowAddProductForm(false);
+      }, 1500);
     } catch (err: any) {
       console.error('Failed to create product:', err);
       const detail = err?.detail || err?.message || 'Failed to create product. Please try again.';
       alert(detail);
-      return;
+    } finally {
+      setIsCreatingProduct(false);
     }
-
-    setProductAddedSuccess(true);
-    setNewProd({
-      name: '',
-      category: 'dark',
-      price: 0,
-      weight: '100g',
-      description: '',
-      ingredients: '',
-      badge: '',
-      imageFiles: [],
-      imagePreviewUrls: [],
-      stock: 10,
-      calories: '550 kcal',
-      totalFat: '35g',
-      saturatedFat: '20g',
-      cholesterol: '0mg',
-      sodium: '15mg',
-      totalCarb: '50g',
-      protein: '7g',
-    });
-    setTimeout(() => {
-      setProductAddedSuccess(false);
-      setShowAddProductForm(false);
-    }, 2000);
   };
 
   const handleEditProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+    if (isUpdatingProduct) return;
+
+    setIsUpdatingProduct(true);
     try {
       await productService.updateProduct(editingProduct.id, {
         name: editingProduct.name,
@@ -227,6 +250,8 @@ export const AdminDashboard: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to update product:', err);
       alert(err?.detail || err?.message || 'Failed to update product');
+    } finally {
+      setIsUpdatingProduct(false);
     }
   };
 
@@ -312,6 +337,116 @@ export const AdminDashboard: React.FC = () => {
 
   // --- Analytics State ---
   const [dashboardStats, setDashboardStats] = useState<any>(null);
+
+  // =============================================================
+  // CATEGORIES STATE
+  // =============================================================
+  const [categoriesList, setCategoriesList] = useState<AdminCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<AdminCategory | null>(null);
+  const [categoryImageFile, setCategoryImageFile] = useState<File | null>(null);
+  const [categoryImagePreview, setCategoryImagePreview] = useState<string>('');
+  const [editCategoryImageFile, setEditCategoryImageFile] = useState<File | null>(null);
+  const [editCategoryImagePreview, setEditCategoryImagePreview] = useState<string>('');
+  const [categorySuccess, setCategorySuccess] = useState(false);
+  const categoryImageRef = useRef<HTMLInputElement>(null);
+  const editCategoryImageRef = useRef<HTMLInputElement>(null);
+
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    slug: '',
+    description: '',
+    sort_order: 0,
+    is_active: true,
+  });
+
+  const fetchCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const data = await categoryService.adminGetAllCategories();
+      setCategoriesList(data);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategory.name) return;
+    try {
+      const formData = new FormData();
+      formData.append('name', newCategory.name);
+      if (newCategory.slug) formData.append('slug', newCategory.slug);
+      if (newCategory.description) formData.append('description', newCategory.description);
+      formData.append('sort_order', String(newCategory.sort_order));
+      formData.append('is_active', String(newCategory.is_active));
+      if (categoryImageFile) formData.append('image', categoryImageFile);
+
+      const created = await categoryService.adminCreateCategory(formData);
+      setCategoriesList((prev) => [...prev, created]);
+      setNewCategory({ name: '', slug: '', description: '', sort_order: 0, is_active: true });
+      setCategoryImageFile(null);
+      setCategoryImagePreview('');
+      setCategorySuccess(true);
+      setTimeout(() => {
+        setCategorySuccess(false);
+        setShowAddCategoryForm(false);
+      }, 2000);
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to create category.');
+    }
+  };
+
+  const handleEditCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    try {
+      // Upload new image if selected
+      if (editCategoryImageFile) {
+        const fd = new FormData();
+        fd.append('image', editCategoryImageFile);
+        const res = await categoryService.adminUploadCategoryImage(editingCategory.id, fd);
+        editingCategory.image_url = res.image_url;
+      }
+      await categoryService.adminUpdateCategory(editingCategory.id, {
+        name: editingCategory.name,
+        slug: editingCategory.slug,
+        description: editingCategory.description,
+        sort_order: editingCategory.sort_order,
+        is_active: editingCategory.is_active,
+      });
+      setCategoriesList((prev) =>
+        prev.map((c) => (c.id === editingCategory.id ? { ...editingCategory } : c))
+      );
+      setEditingCategory(null);
+      setEditCategoryImageFile(null);
+      setEditCategoryImagePreview('');
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to update category.');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!window.confirm(`Delete category "${name}"? This cannot be undone.`)) return;
+    try {
+      await categoryService.adminDeleteCategory(id);
+      setCategoriesList((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to delete category.');
+    }
+  };
+
+  const handleToggleCategoryStatus = async (cat: AdminCategory) => {
+    try {
+      const updated = await categoryService.adminUpdateCategory(cat.id, { is_active: !cat.is_active });
+      setCategoriesList((prev) => prev.map((c) => (c.id === cat.id ? updated : c)));
+    } catch (err: any) {
+      alert('Failed to toggle category status.');
+    }
+  };
 
   const handleEditBannerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -556,16 +691,77 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Testimonial Moderation & Review State
+  const [testimonialStatusFilter, setTestimonialStatusFilter] = useState<string>('all');
+  const [reviewsList, setReviewsList] = useState<any[]>([]);
+
+  const fetchAdminTestimonials = (status?: string) => {
+    adminService.adminGetTestimonials(status)
+      .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
+      .catch((err) => { console.error('Failed to load admin testimonials:', err); });
+  };
+
+  const fetchAdminReviews = () => {
+    adminService.adminGetReviews()
+      .then(data => { if (Array.isArray(data)) setReviewsList(data); })
+      .catch((err) => { console.error('Failed to load admin reviews:', err); });
+  };
+
   useEffect(() => {
     fetchExtraAdminData();
     fetchSiteStats();
     fetchCmsReels();
-    // Fetch testimonials via homeService or backend API
-    fetch('http://localhost:8000/api/v1/home/testimonials')
-      .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
-      .catch(() => { });
+    fetchCategories();
+    fetchAdminTestimonials(testimonialStatusFilter);
+    fetchAdminReviews();
   }, []);
+
+  // Compute dynamic category options from database categories
+  const dynamicCategoryOptions = React.useMemo(() => {
+    if (categoriesList && categoriesList.length > 0) {
+      return categoriesList
+        .filter((cat) => cat.is_active !== false)
+        .map((cat) => ({
+          value: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
+          label: cat.name,
+        }));
+    }
+    return [
+      { value: 'dark-chocolate', label: 'Dark Chocolate' },
+      { value: 'milk-chocolate', label: 'Milk Chocolate' },
+      { value: 'gift-hamper', label: 'Gift Hamper' },
+      { value: 'white-chocolate', label: 'White Chocolate' },
+    ];
+  }, [categoriesList]);
+
+  useEffect(() => {
+    if (dynamicCategoryOptions.length > 0 && (!newProd.category || !dynamicCategoryOptions.some(o => o.value === newProd.category))) {
+      setNewProd(prev => ({ ...prev, category: dynamicCategoryOptions[0].value as any }));
+    }
+  }, [dynamicCategoryOptions]);
+
+  const handleStatusFilterChange = (status: string) => {
+    setTestimonialStatusFilter(status);
+    fetchAdminTestimonials(status);
+  };
+
+  const handleApproveTestimonial = async (id: string) => {
+    try {
+      await adminService.updateTestimonialStatus(id, 'approved');
+      fetchAdminTestimonials(testimonialStatusFilter);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to approve testimonial');
+    }
+  };
+
+  const handleRejectTestimonial = async (id: string) => {
+    try {
+      await adminService.updateTestimonialStatus(id, 'rejected');
+      fetchAdminTestimonials(testimonialStatusFilter);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to reject testimonial');
+    }
+  };
 
   const handleAddTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -587,10 +783,7 @@ export const AdminDashboard: React.FC = () => {
       alert('Testimonial created successfully!');
       setNewTestimonial({ author: '', title: '', text: '', rating: 5, initials: '' });
       setTestimonialAvatarFile(null);
-      fetch('http://localhost:8000/api/v1/home/testimonials')
-        .then(res => res.json())
-        .then(data => { if (Array.isArray(data)) setTestimonialsList(data); })
-        .catch(() => { });
+      fetchAdminTestimonials(testimonialStatusFilter);
     } catch (err: any) {
       alert(err?.message || 'Failed to create testimonial');
     } finally {
@@ -599,12 +792,22 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteTestimonial = async (id: string) => {
-    if (!window.confirm('Delete this testimonial?')) return;
+    if (!window.confirm('Delete this testimonial permanently?')) return;
     try {
       await adminService.deleteTestimonial(id);
-      setTestimonialsList(prev => prev.filter(t => t.id !== id));
+      fetchAdminTestimonials(testimonialStatusFilter);
     } catch (err: any) {
       alert('Failed to delete testimonial');
+    }
+  };
+
+  const handleDeleteReview = async (id: string) => {
+    if (!window.confirm('Delete this product review? The product average rating will be recalculated.')) return;
+    try {
+      await adminService.adminDeleteReview(id);
+      fetchAdminReviews();
+    } catch (err: any) {
+      alert('Failed to delete product review');
     }
   };
 
@@ -850,13 +1053,24 @@ export const AdminDashboard: React.FC = () => {
                         <tr key={prod.id}>
                           <td>
                             <img
-                              src={prod.image}
+                              src={getImageUrl(prod.image)}
                               alt={prod.name}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=600&q=80';
+                              }}
                               style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
                             />
                           </td>
                           <td>{prod.name}</td>
-                          <td style={{ textTransform: 'capitalize', color: 'var(--beige)' }}>{prod.category}</td>
+                          <td style={{ textTransform: 'capitalize', color: 'var(--beige)' }}>
+                            {categoriesList.find(c => c.slug === prod.category || c.name.toLowerCase().includes(prod.category))?.name || (
+                              prod.category === 'dark' ? 'Dark Chocolate' :
+                              prod.category === 'milk' ? 'Milk Chocolate' :
+                              prod.category === 'white' ? 'White Chocolate' :
+                              prod.category === 'gift' ? 'Gift Hamper' :
+                              prod.category === 'beverage' ? 'Beverage' : prod.category
+                            )}
+                          </td>
                           <td>{prod.weight}</td>
                           <td>₹{prod.price}</td>
                           <td>
@@ -924,13 +1138,7 @@ export const AdminDashboard: React.FC = () => {
 
                       <Select
                         label="Category"
-                        options={[
-                          { value: 'dark', label: 'Dark Collection' },
-                          { value: 'milk', label: 'Milk Collection' },
-                          { value: 'white', label: 'White Collection' },
-                          { value: 'gift', label: 'Gift Boxes & Hampers' },
-                          { value: 'beverage', label: 'Beverages' },
-                        ]}
+                        options={dynamicCategoryOptions}
                         value={newProd.category}
                         onChange={(e) => setNewProd({ ...newProd, category: e.target.value as any })}
                       />
@@ -1062,14 +1270,308 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       )}
 
-                      <Button variant="gold" fullWidth type="submit" glow>
-                        Create Product
+                      <Button variant="gold" fullWidth type="submit" disabled={isCreatingProduct} glow>
+                        {isCreatingProduct ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                            Creating Product...
+                          </span>
+                        ) : (
+                          'Create Product'
+                        )}
                       </Button>
                     </form>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
+          </div>
+        )}
+
+        {/* CATEGORIES TAB */}
+        {activeTab === 'categories' && (
+          <div>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '35px' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
+                Categories
+              </h1>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <Button variant="secondary" onClick={fetchCategories} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+                  <Loader2 size={14} style={{ ...(categoriesLoading ? { animation: 'spin 1s linear infinite' } : {}) }} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="gold"
+                  glow
+                  onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {showAddCategoryForm ? <X size={16} /> : <Plus size={16} />}
+                  {showAddCategoryForm ? 'Cancel' : 'Add Category'}
+                </Button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: showAddCategoryForm ? (isMobileGrid ? '1fr' : '1.4fr 1fr') : '1fr', gap: '40px', alignItems: 'flex-start' }}>
+              {/* Category List Table */}
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'transparent' }}>
+                {categoriesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gold)' }}>
+                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} />
+                  </div>
+                ) : categoriesList.length === 0 ? (
+                  <p style={{ color: 'var(--beige)', textAlign: 'center', padding: '40px', opacity: 0.7 }}>
+                    No categories yet. Add your first category!
+                  </p>
+                ) : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Image</th>
+                        <th>Name</th>
+                        <th>Slug</th>
+                        <th>Sort Order</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {categoriesList.map((cat) => (
+                        <tr key={cat.id}>
+                          <td>
+                            {cat.image_url ? (
+                              <img
+                                src={cat.image_url}
+                                alt={cat.name}
+                                style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--glass-border)' }}
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <FolderTree size={20} style={{ color: 'var(--gold)', opacity: 0.5 }} />
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ color: 'var(--cream)', fontWeight: 600 }}>{cat.name}</td>
+                          <td style={{ color: 'var(--beige)', fontFamily: 'monospace', fontSize: '0.82rem' }}>{cat.slug}</td>
+                          <td style={{ color: 'var(--beige)', textAlign: 'center' }}>{cat.sort_order}</td>
+                          <td>
+                            <button
+                              onClick={() => handleToggleCategoryStatus(cat)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, background: cat.is_active ? 'rgba(90,190,90,0.1)' : 'rgba(255,80,80,0.1)', color: cat.is_active ? '#6fbf6f' : '#f07070', border: `1px solid ${cat.is_active ? 'rgba(90,190,90,0.3)' : 'rgba(255,80,80,0.3)'}`, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                              title={cat.is_active ? 'Click to deactivate' : 'Click to activate'}
+                            >
+                              {cat.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                              {cat.is_active ? 'Active' : 'Inactive'}
+                            </button>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => {
+                                  setEditingCategory({ ...cat });
+                                  setEditCategoryImageFile(null);
+                                  setEditCategoryImagePreview('');
+                                }}
+                                style={{ color: 'var(--gold)', padding: '6px', borderRadius: '4px', background: 'rgba(200,160,60,0.08)', transition: 'background 0.2s' }}
+                                title="Edit category"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                style={{ color: 'var(--rose-gold)', padding: '6px', borderRadius: '4px', background: 'rgba(183,110,121,0.08)', transition: 'background 0.2s' }}
+                                title="Delete category"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Add Category Form */}
+              {showAddCategoryForm && (
+                <div className="glass-panel" style={{ padding: '28px', border: '1px solid var(--glass-border)', background: 'transparent' }}>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', marginBottom: '24px', margin: '0 0 24px 0' }}>
+                    {categorySuccess ? (
+                      <span style={{ color: '#6fbf6f', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle size={18} /> Category Created!
+                      </span>
+                    ) : 'New Category'}
+                  </h2>
+                  <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <Input
+                      label="Category Name *"
+                      placeholder="e.g. Dark Chocolate"
+                      value={newCategory.name}
+                      onChange={(e) => {
+                        const slug = e.target.value.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+                        setNewCategory((p) => ({ ...p, name: e.target.value, slug }));
+                      }}
+                      required
+                    />
+                    <Input
+                      label="Slug (auto-generated)"
+                      placeholder="dark-chocolate"
+                      value={newCategory.slug}
+                      onChange={(e) => setNewCategory((p) => ({ ...p, slug: e.target.value }))}
+                    />
+                    <div>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)', display: 'block', marginBottom: '6px' }}>Description</label>
+                      <textarea
+                        placeholder="Optional short description..."
+                        value={newCategory.description}
+                        onChange={(e) => setNewCategory((p) => ({ ...p, description: e.target.value }))}
+                        rows={2}
+                        style={{ width: '100%', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '4px', color: 'var(--cream)', padding: '10px', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <Input
+                      label="Sort Order"
+                      type="number"
+                      value={String(newCategory.sort_order)}
+                      onChange={(e) => setNewCategory((p) => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))}
+                    />
+                    <div>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)', display: 'block', marginBottom: '8px' }}>Category Image</label>
+                      <input
+                        ref={categoryImageRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setCategoryImageFile(file);
+                          if (file) setCategoryImagePreview(URL.createObjectURL(file));
+                          else setCategoryImagePreview('');
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => categoryImageRef.current?.click()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'rgba(255,255,255,0.04)', border: '1px dashed var(--glass-border)', borderRadius: '4px', color: 'var(--beige)', cursor: 'pointer', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }}
+                      >
+                        <ImagePlus size={16} style={{ color: 'var(--gold)' }} />
+                        {categoryImageFile ? categoryImageFile.name : 'Upload Image (optional)'}
+                      </button>
+                      {categoryImagePreview && (
+                        <img src={categoryImagePreview} alt="preview" style={{ marginTop: '10px', width: '100%', height: '120px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--glass-border)' }} />
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Active</label>
+                      <button
+                        type="button"
+                        onClick={() => setNewCategory((p) => ({ ...p, is_active: !p.is_active }))}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: newCategory.is_active ? '#6fbf6f' : 'var(--beige)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      >
+                        {newCategory.is_active ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                        {newCategory.is_active ? 'Yes' : 'No'}
+                      </button>
+                    </div>
+                    <Button variant="gold" type="submit" style={{ marginTop: '8px' }}>
+                      <Plus size={16} /> Create Category
+                    </Button>
+                  </form>
+                </div>
+              )}
+            </div>
+
+            {/* Edit Category Modal */}
+            {editingCategory && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                <div className="glass-panel" style={{ padding: '32px', maxWidth: '500px', width: '100%', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'var(--dark-chocolate)', maxHeight: '90vh', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0 }}>Edit Category</h2>
+                    <button onClick={() => { setEditingCategory(null); setEditCategoryImageFile(null); setEditCategoryImagePreview(''); }} style={{ color: 'var(--rose-gold)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleEditCategorySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <Input
+                      label="Name *"
+                      value={editingCategory.name}
+                      onChange={(e) => setEditingCategory((p) => p ? { ...p, name: e.target.value } : p)}
+                      required
+                    />
+                    <Input
+                      label="Slug"
+                      value={editingCategory.slug}
+                      onChange={(e) => setEditingCategory((p) => p ? { ...p, slug: e.target.value } : p)}
+                    />
+                    <div>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)', display: 'block', marginBottom: '6px' }}>Description</label>
+                      <textarea
+                        value={editingCategory.description || ''}
+                        onChange={(e) => setEditingCategory((p) => p ? { ...p, description: e.target.value } : p)}
+                        rows={2}
+                        style={{ width: '100%', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '4px', color: 'var(--cream)', padding: '10px', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <Input
+                      label="Sort Order"
+                      type="number"
+                      value={String(editingCategory.sort_order)}
+                      onChange={(e) => setEditingCategory((p) => p ? { ...p, sort_order: parseInt(e.target.value) || 0 } : p)}
+                    />
+                    <div>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)', display: 'block', marginBottom: '8px' }}>Category Image</label>
+                      {editingCategory.image_url && !editCategoryImagePreview && (
+                        <img src={editingCategory.image_url} alt="current" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--glass-border)', marginBottom: '8px' }} />
+                      )}
+                      {editCategoryImagePreview && (
+                        <img src={editCategoryImagePreview} alt="new preview" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--gold)', marginBottom: '8px' }} />
+                      )}
+                      <input
+                        ref={editCategoryImageRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setEditCategoryImageFile(file);
+                          if (file) setEditCategoryImagePreview(URL.createObjectURL(file));
+                          else setEditCategoryImagePreview('');
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => editCategoryImageRef.current?.click()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'rgba(255,255,255,0.04)', border: '1px dashed var(--glass-border)', borderRadius: '4px', color: 'var(--beige)', cursor: 'pointer', width: '100%', justifyContent: 'center', fontSize: '0.82rem' }}
+                      >
+                        <ImagePlus size={14} style={{ color: 'var(--gold)' }} />
+                        {editCategoryImageFile ? editCategoryImageFile.name : 'Change Image'}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Active</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory((p) => p ? { ...p, is_active: !p.is_active } : p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', color: editingCategory.is_active ? '#6fbf6f' : 'var(--beige)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      >
+                        {editingCategory.is_active ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                        {editingCategory.is_active ? 'Yes' : 'No'}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                      <Button variant="secondary" type="button" onClick={() => { setEditingCategory(null); setEditCategoryImageFile(null); setEditCategoryImagePreview(''); }} style={{ flex: 1 }}>
+                        Cancel
+                      </Button>
+                      <Button variant="gold" type="submit" style={{ flex: 1 }}>
+                        <Check size={16} /> Save Changes
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2264,56 +2766,116 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'testimonials' && (
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Atelier Testimonials Management
+              Testimonials & Reviews Moderation Hub
             </h1>
+
+            {/* Testimonial Status Filter Tabs */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+              {['all', 'pending', 'approved', 'rejected'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => handleStatusFilterChange(st)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '20px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    textTransform: 'capitalize',
+                    background: testimonialStatusFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                    color: testimonialStatusFilter === st ? 'var(--dark-chocolate)' : 'var(--cream)',
+                    border: testimonialStatusFilter === st ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s',
+                  }}
+                >
+                  {st} Testimonials
+                </button>
+              ))}
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
               {/* Testimonials List */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  Active Customer Testimonials
+                  Customer Testimonials ({testimonialsList.length})
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '500px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '550px', overflowY: 'auto' }}>
                   {testimonialsList.length === 0 ? (
-                    <p style={{ color: 'var(--beige)', fontStyle: 'italic' }}>No testimonials found.</p>
+                    <p style={{ color: 'var(--beige)', fontStyle: 'italic' }}>No testimonials found in this category.</p>
                   ) : (
-                    testimonialsList.map((t, idx) => (
-                      <div
-                        key={t.id || idx}
-                        style={{
-                          padding: '16px',
-                          background: 'rgba(255,255,255,0.03)',
-                          border: '1px solid var(--glass-border)',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)', marginBottom: '6px' }}>
-                            {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
-                              <Star key={i} size={14} fill="currentColor" />
-                            ))}
+                    testimonialsList.map((t, idx) => {
+                      const st = t.status || (t.is_active ? 'approved' : 'pending');
+                      return (
+                        <div
+                          key={t.id || idx}
+                          style={{
+                            padding: '16px',
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)' }}>
+                              {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
+                                <Star key={i} size={14} fill="currentColor" />
+                              ))}
+                            </div>
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: st === 'approved' ? 'rgba(90,190,90,0.15)' : st === 'rejected' ? 'rgba(250,90,90,0.15)' : 'rgba(240,190,60,0.15)',
+                                color: st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040',
+                                border: `1px solid ${st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040'}`,
+                              }}
+                            >
+                              {st}
+                            </span>
                           </div>
-                          <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: '0 0 8px 0' }}>
+                          <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
                             "{t.text}"
                           </p>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>
-                            {t.author} — {t.title}
-                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>
+                              {t.author} {t.title ? `— ${t.title}` : ''}
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {st !== 'approved' && t.id && (
+                                <button
+                                  onClick={() => handleApproveTestimonial(t.id)}
+                                  style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '4px', padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              {st !== 'rejected' && t.id && (
+                                <button
+                                  onClick={() => handleRejectTestimonial(t.id)}
+                                  style={{ background: 'rgba(240,160,60,0.2)', border: '1px solid #e09040', color: '#e09040', borderRadius: '4px', padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              {t.id && (
+                                <button
+                                  onClick={() => handleDeleteTestimonial(t.id)}
+                                  style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px' }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        {t.id && (
-                          <button
-                            onClick={() => handleDeleteTestimonial(t.id)}
-                            style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -2385,6 +2947,52 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </form>
                 </div>
+              </div>
+            </div>
+
+            {/* Site-wide Product Reviews Moderation */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginTop: '30px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                Site-Wide Product Reviews Moderation ({reviewsList.length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
+                {reviewsList.length === 0 ? (
+                  <p style={{ color: 'var(--beige)', fontStyle: 'italic' }}>No product reviews submitted yet.</p>
+                ) : (
+                  reviewsList.map((rev) => (
+                    <div
+                      key={rev.id}
+                      style={{
+                        padding: '14px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '16px',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: '0.85rem' }}>★ {rev.rating}</span>
+                          <span style={{ color: 'var(--cream)', fontWeight: 600, fontSize: '0.9rem' }}>{rev.author}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>• {rev.date || 'Recent'}</span>
+                        </div>
+                        <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: 0, fontStyle: 'italic' }}>
+                          "{rev.text}"
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteReview(rev.id)}
+                        style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '6px' }}
+                        title="Delete Review & Recalculate Rating"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -2539,15 +3147,9 @@ export const AdminDashboard: React.FC = () => {
                 <Input label="Stock Quantity" type="number" value={editingProduct.stock} onChange={e => setEditingProduct({...editingProduct, stock: parseInt(e.target.value)})} />
                 <Select
                   label="Category"
-                  options={[
-                    { label: 'Dark Chocolate', value: 'dark' },
-                    { label: 'Milk Chocolate', value: 'milk' },
-                    { label: 'White Chocolate', value: 'white' },
-                    { label: 'Gift Hamper', value: 'gift' },
-                    { label: 'Beverage', value: 'beverage' },
-                  ]}
+                  options={dynamicCategoryOptions}
                   value={editingProduct.category}
-                  onChange={e => setEditingProduct({...editingProduct, category: e.target.value as "white" | "dark" | "milk" | "gift" | "beverage"})}
+                  onChange={e => setEditingProduct({...editingProduct, category: e.target.value as any})}
                 />
                 
                 <Select
@@ -2624,7 +3226,16 @@ export const AdminDashboard: React.FC = () => {
                     setEditingProductImageFiles([]);
                     setEditingProductImagePreviews([]);
                   }}>Cancel</Button>
-                  <Button variant="gold" type="submit">Save Changes</Button>
+                  <Button variant="gold" type="submit" disabled={isUpdatingProduct}>
+                    {isUpdatingProduct ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                        Saving...
+                      </span>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
                 </div>
               </form>
             </div>

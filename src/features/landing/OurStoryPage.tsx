@@ -4,6 +4,7 @@ import { Eye, Heart, Target, Star, Leaf, Award, Play, Pause, Volume2, VolumeX } 
 import { slideInLeft, slideInRight, fadeIn } from '../../lib/framer';
 import { adminService } from '../../services/adminService';
 import { Footer } from '../../components/Footer';
+import { Reviews } from './Reviews';
 
 export const OurStoryPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -415,104 +416,8 @@ export const OurStoryPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Testimonials / Written Reviews */}
-      <section style={{ padding: '100px 0', background: 'var(--gradient-section-1)', borderTop: '1px solid var(--glass-border)' }}>
-        <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '60px' }}>
-            <span className="section-label" style={{ justifyContent: 'center' }}>Appreciations</span>
-            <h2 className="section-title">Atelier <span className="gold">Testimonials</span></h2>
-            <div className="gold-divider" style={{ margin: '15px auto', width: '80px', height: '2px', background: 'var(--gradient-gold)' }} />
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '30px',
-            }}
-          >
-            {[
-              {
-                stars: 5,
-                text: "The dedication to the craft is visible in every single bite. Their dark chocolate truffles are a masterclass in balance and purity. It's rare to find chocolate of this caliber in India.",
-                author: "Aditi Rao",
-                title: "Gourmet Chocolatier Reviewer",
-                initials: "AR"
-              },
-              {
-                stars: 5,
-                text: "Chovique is a revelation. Knowing exactly which farm my cocoa beans came from makes every bite feel deeply personal and sustainable. Incredible texture and complex fruit notes.",
-                author: "Karan Johar",
-                title: "Luxury Lifestyle Blogger",
-                initials: "KJ"
-              },
-              {
-                stars: 5,
-                text: "As someone who appreciates fine confectionery, I am absolutely blown away by their tempering. Glossy finish, perfect snap, and absolutely rich flavor complexity. Absolutely brilliant.",
-                author: "Meera Sen",
-                title: "Culinary Critic",
-                initials: "MS"
-              }
-            ].map((rev, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.15, duration: 0.6 }}
-                className="glass-panel"
-                style={{
-                  padding: '40px 30px',
-                  background: 'rgba(var(--dark-chocolate-rgb), 0.3)',
-                  border: '1px solid var(--glass-border)',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  height: '100%',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', gap: '4px', marginBottom: '20px' }}>
-                    {[...Array(rev.stars)].map((_, sIdx) => (
-                      <Star key={sIdx} size={16} fill="var(--gold)" color="var(--gold)" />
-                    ))}
-                  </div>
-                  <p style={{ color: 'var(--beige)', fontSize: '0.95rem', lineHeight: 1.7, fontStyle: 'italic', marginBottom: '30px' }}>
-                    "{rev.text}"
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '50%',
-                      background: 'var(--gradient-gold)',
-                      color: 'var(--dark-chocolate)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.95rem',
-                    }}
-                  >
-                    {rev.initials}
-                  </div>
-                  <div>
-                    <h5 style={{ color: 'var(--cream)', fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
-                      {rev.author}
-                    </h5>
-                    <p style={{ color: 'var(--grey-light)', fontSize: '0.8rem', margin: 0 }}>
-                      {rev.title}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Synchronized Approved Testimonials */}
+      <Reviews />
     </div>
   );
 };

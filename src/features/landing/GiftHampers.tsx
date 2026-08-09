@@ -32,6 +32,7 @@ export const GiftHampers: React.FC = () => {
         overflow: 'hidden',
       }}
     >
+      <div id="gift-collections" style={{ position: 'absolute', top: 0 }} />
       {/* Background radial highlight */}
       <div
         style={{

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Hero } from './Hero';
 import { PopularProducts } from './PopularProducts';
 import { BestsellersNewArrivals } from './BestsellersNewArrivals';
@@ -12,6 +13,23 @@ export { OurStoryPage } from './OurStoryPage';
 export { ContactPage } from './ContactPage';
 
 export const LandingPage: React.FC = () => {
+  const location = useLocation();
+
+  // Scroll to a section when arriving from another page with state.scrollTo
+  useEffect(() => {
+    const scrollTo = (location.state as { scrollTo?: string } | null)?.scrollTo;
+    if (scrollTo) {
+      // Wait a tick for the page to render before scrolling
+      const timeout = setTimeout(() => {
+        const el = document.getElementById(scrollTo);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [location.state]);
+
   return (
     <div style={{ background: 'var(--black)', width: '100vw', overflowX: 'hidden' }}>
       <Hero />
@@ -27,4 +45,3 @@ export const LandingPage: React.FC = () => {
 };
 
 export default LandingPage;
-

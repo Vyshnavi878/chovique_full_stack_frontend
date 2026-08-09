@@ -60,12 +60,20 @@ export const productService = {
   getProductReviews: (productId: string): Promise<Review[]> =>
     apiGet<Review[]>(`/products/${productId}/reviews`),
 
+  /** Fetch reviews with rating summary & star breakdown for a product. */
+  getProductReviewsWithSummary: (productId: string): Promise<{
+    reviews: Review[];
+    average_rating: number;
+    total_reviews: number;
+    star_breakdown: { [key: number]: number };
+  }> => apiGet(`/products/${productId}/reviews`),
+
   /** Post a review for a product (authenticated). */
   createProductReview: (
     productId: string,
     payload: { author: string; rating: number; text: string }
-  ): Promise<Review> =>
-    apiPost<Review>(`/products/${productId}/reviews`, payload),
+  ): Promise<any> =>
+    apiPost<any>(`/products/${productId}/reviews`, payload),
 
   /** Fetch multiple products by ID (comma separated) */
   getBulkProducts: (ids: string): Promise<Product[]> =>

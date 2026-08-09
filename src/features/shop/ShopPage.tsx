@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Grid, List, Star, SlidersHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, ShoppingBag, Heart, Loader2 } from 'lucide-react';
+import { Search, Grid, List, Star, SlidersHorizontal, ChevronLeft, ChevronRight, ShoppingBag, Heart, Loader2 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Product } from '../../types';
 import { pageTransition, hoverLift } from '../../lib/framer';
 import { productService } from '../../services/productService';
+import { categoryService } from '../../services/categoryService';
 
 import { getImageUrl } from '../../utils/imageUrl';
 
@@ -24,16 +25,33 @@ export const ShopPage: React.FC = () => {
   // --- Filter states ---
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categoriesList, setCategoriesList] = useState<{ value: string; label: string }[]>([
+    { value: 'all', label: 'All Categories' },
+  ]);
   const [priceRange, setPriceRange] = useState({ min: 0, max: 5000 });
   const [minRating, setMinRating] = useState<number | null>(null);
-  const [sortBy, setSortBy] = useState<string>('featured');
   const [isGridView, setIsGridView] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Dynamic Category Loading from Backend (Admin managed)
+  useEffect(() => {
+    categoryService.getCategories()
+      .then((cats) => {
+        if (Array.isArray(cats) && cats.length > 0) {
+          setCategoriesList([
+            { value: 'all', label: 'All Categories' },
+            ...cats.map((c) => ({ value: c.slug, label: c.name })),
+          ]);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch categories:', err);
+      });
+  }, []);
 
   // Sync state with URL params on mount
   useEffect(() => {
     const categoryParam = searchParams.get('category');
-    const filterParam = searchParams.get('filter');
 
     if (categoryParam) {
       setSelectedCategory(categoryParam);
@@ -41,28 +59,8 @@ export const ShopPage: React.FC = () => {
       setSelectedCategory('all');
     }
 
-    if (filterParam) {
-      if (filterParam === 'bestseller' || filterParam === 'best-sellers') setSortBy('bestseller');
-      if (filterParam === 'new' || filterParam === 'new-arrivals') setSortBy('newest');
-      if (filterParam === 'premium') setSortBy('featured');
-    } else {
-      setSortBy('featured');
-    }
     setCurrentPage(1);
   }, [searchParams]);
-
-  // --- Map client sortBy values to backend sort param ---
-  const getSortParam = (sort: string): string | undefined => {
-    switch (sort) {
-      case 'price-low': return 'price_asc';
-      case 'price-high': return 'price_desc';
-      case 'rating': return 'rating';
-      case 'newest': return 'newest';
-      case 'bestseller': return 'bestseller';
-      case 'name_asc': return 'name_asc';
-      default: return undefined; // 'featured' → default backend ordering
-    }
-  };
 
   // --- Fetch products from backend ---
   const fetchProducts = useCallback(async () => {
@@ -74,7 +72,6 @@ export const ShopPage: React.FC = () => {
         price_min: priceRange.min > 0 ? priceRange.min : undefined,
         price_max: priceRange.max < 5000 ? priceRange.max : undefined,
         min_rating: minRating ?? undefined,
-        sort: getSortParam(sortBy),
         page: currentPage,
         per_page: itemsPerPage,
       });
@@ -86,7 +83,7 @@ export const ShopPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, sortBy, currentPage]);
+  }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, currentPage]);
 
 
   useEffect(() => {
@@ -95,26 +92,15 @@ export const ShopPage: React.FC = () => {
 
   const totalPages = Math.ceil(totalProducts / itemsPerPage);
 
-  // Categories list
-  const categoriesList = [
-    { value: 'all', label: 'All Categories' },
-    { value: 'dark', label: 'Dark Chocolate' },
-    { value: 'milk', label: 'Milk Chocolate' },
-    { value: 'white', label: 'White Chocolate' },
-    { value: 'gift', label: 'Gifts & Hampers' },
-    { value: 'beverage', label: 'Beverages' },
-  ];
-
   // Rating stars filter options
-  const ratingOptions = [4.8, 4.7, 4.6];
+  const ratingOptions = [4.5, 4.0, 3.5, 3.0];
 
   // Reset Filters
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedCategory('all');
-    setPriceRange({ min: 0, max: 4000 });
+    setPriceRange({ min: 0, max: 5000 });
     setMinRating(null);
-    setSortBy('featured');
     setSearchParams({});
     setCurrentPage(1);
   };
@@ -229,7 +215,7 @@ export const ShopPage: React.FC = () => {
               <input
                 type="range"
                 min="0"
-                max="4000"
+                max="5000"
                 step="100"
                 value={priceRange.max}
                 onChange={(e) => {
@@ -287,7 +273,7 @@ export const ShopPage: React.FC = () => {
                     <div style={{ display: 'flex', color: 'var(--gold)' }}>
                       <Star size={14} fill="currentColor" />
                     </div>
-                    <span>{rating}+ Rated</span>
+                    <span>{rating}★ &amp; above</span>
                   </button>
                 ))}
               </div>
@@ -309,53 +295,28 @@ export const ShopPage: React.FC = () => {
                 )}
               </span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                {/* Sort Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
-                  <ArrowUpDown size={14} style={{ color: 'var(--gold)' }} />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--cream)',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <option value="featured" style={{ background: 'var(--dark-chocolate)' }}>Featured</option>
-                    <option value="price-low" style={{ background: 'var(--dark-chocolate)' }}>Price: Low to High</option>
-                    <option value="price-high" style={{ background: 'var(--dark-chocolate)' }}>Price: High to Low</option>
-                    <option value="rating" style={{ background: 'var(--dark-chocolate)' }}>Highest Rated</option>
-                    <option value="newest" style={{ background: 'var(--dark-chocolate)' }}>New Arrivals</option>
-                  </select>
-                </div>
-
-                {/* Grid/List toggles */}
-                <div style={{ display: 'flex', gap: '6px', borderLeft: '1px solid var(--glass-border)', paddingLeft: '15px' }}>
-                  <button
-                    onClick={() => setIsGridView(true)}
-                    style={{
-                      color: isGridView ? 'var(--gold)' : 'var(--beige)',
-                      padding: '4px',
-                    }}
-                    title="Grid View"
-                  >
-                    <Grid size={18} />
-                  </button>
-                  <button
-                    onClick={() => setIsGridView(false)}
-                    style={{
-                      color: !isGridView ? 'var(--gold)' : 'var(--beige)',
-                      padding: '4px',
-                    }}
-                    title="List View"
-                  >
-                    <List size={18} />
-                  </button>
-                </div>
+              {/* Grid/List toggles */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => setIsGridView(true)}
+                  style={{
+                    color: isGridView ? 'var(--gold)' : 'var(--beige)',
+                    padding: '4px',
+                  }}
+                  title="Grid View"
+                >
+                  <Grid size={18} />
+                </button>
+                <button
+                  onClick={() => setIsGridView(false)}
+                  style={{
+                    color: !isGridView ? 'var(--gold)' : 'var(--beige)',
+                    padding: '4px',
+                  }}
+                  title="List View"
+                >
+                  <List size={18} />
+                </button>
               </div>
             </div>
 

@@ -10,7 +10,7 @@
  *   GET /home/reels       → InstagramReel[]
  */
 
-import { apiGet } from '../lib/api';
+import { apiGet, apiPost } from '../lib/api';
 import type { Banner, Testimonial, HomeStats, ContactInfo, InstagramReel, HomePageData } from '../types';
 
 export const homeService = {
@@ -41,4 +41,8 @@ export const homeService = {
   /** Instagram-style reels/videos */
   getReels: (): Promise<InstagramReel[]> =>
     apiGet<InstagramReel[]>('/home/reels'),
+
+  /** Submit a customer testimonial (pending admin approval) */
+  submitTestimonial: (payload: { author: string; text: string; title?: string; rating?: number }): Promise<Testimonial> =>
+    apiPost<Testimonial>('/home/testimonials', payload),
 };

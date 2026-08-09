@@ -34,11 +34,20 @@ export interface User {
 
 export interface Review {
   id: string;
+  product_id?: string;
+  user_id?: string;
   author: string;
   rating: number;
   text: string;
   date: string;
   avatar?: string;
+  status?: string;
+}
+
+export interface ProductRatingSummary {
+  average_rating: number;
+  total_reviews: number;
+  star_breakdown: { [key: number]: number };
 }
 
 export interface NutritionInfo {
@@ -173,12 +182,17 @@ export interface UserCoupon {
 
 export interface Testimonial {
   id?: string;
+  user_id?: string;
   author: string;
   title?: string;
   text: string;
-  stars: number;
+  stars?: number;
+  rating?: number;
   initials?: string;
   avatar_url?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  is_active?: boolean;
+  created_at?: string;
 }
 
 export interface HomeStats {
@@ -227,7 +241,9 @@ export interface Category {
   slug: string;
   description?: string;
   image?: string;
+  image_url?: string;
   is_active: boolean;
+  sort_order?: number;
 }
 
 // =============================================================================

@@ -5,12 +5,28 @@ import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
 import { fadeInUp } from '../../lib/framer';
 
-type FilterType = 'all' | 'dark' | 'milk' | 'white' | 'gift' | 'beverage';
+import { categoryService } from '../../services/categoryService';
 
 export const Boutique: React.FC = () => {
   const { products } = useApp();
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [filterButtons, setFilterButtons] = useState<{ type: string; label: string }[]>([
+    { type: 'all', label: 'All' },
+  ]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    categoryService.getCategories()
+      .then((cats) => {
+        if (Array.isArray(cats) && cats.length > 0) {
+          setFilterButtons([
+            { type: 'all', label: 'All' },
+            ...cats.map((c) => ({ type: c.slug, label: c.name })),
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,17 +45,8 @@ export const Boutique: React.FC = () => {
     }
   };
 
-  const filterButtons: { type: FilterType; label: string }[] = [
-    { type: 'all', label: 'All' },
-    { type: 'dark', label: 'Dark' },
-    { type: 'milk', label: 'Milk' },
-    { type: 'white', label: 'White' },
-    { type: 'gift', label: 'Gifts' },
-    { type: 'beverage', label: 'Beverages' },
-  ];
-
   const filteredProducts = products.filter(
-    (product) => activeFilter === 'all' || product.category === activeFilter
+    (product) => activeFilter === 'all' || product.category === activeFilter || product.category?.toLowerCase() === activeFilter.toLowerCase()
   );
 
   return (
@@ -101,6 +108,7 @@ export const Boutique: React.FC = () => {
                 color: activeFilter === btn.type ? 'var(--dark-chocolate)' : 'var(--cream)',
                 border: activeFilter === btn.type ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
                 transition: 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                cursor: 'pointer',
               }}
             >
               {btn.label}
@@ -146,6 +154,7 @@ export const Boutique: React.FC = () => {
               boxShadow: 'var(--glass-shadow)',
               backdropFilter: 'blur(5px)',
               transition: 'background 0.3s, color 0.3s, border-color 0.3s',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--gold)';
@@ -173,22 +182,40 @@ export const Boutique: React.FC = () => {
             className="hide-scrollbar"
           >
             <AnimatePresence mode="popLayout">
-              {filteredProducts.map((product) => (
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product) => (
+                  <motion.div
+                    layout
+                    key={product.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    style={{
+                      flex: '0 0 280px',
+                      scrollSnapAlign: 'start',
+                    }}
+                  >
+                    <Card product={product} />
+                  </motion.div>
+                ))
+              ) : (
                 <motion.div
-                  layout
-                  key={product.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   style={{
-                    flex: '0 0 280px',
-                    scrollSnapAlign: 'start',
+                    flex: '1',
+                    textAlign: 'center',
+                    padding: '60px 20px',
+                    color: 'var(--beige)',
+                    opacity: 0.6,
+                    fontFamily: 'var(--font-elegant)',
+                    fontSize: '1.1rem',
                   }}
                 >
-                  <Card product={product} />
+                  No products in this category yet.
                 </motion.div>
-              ))}
+              )}
             </AnimatePresence>
           </div>
 
@@ -217,6 +244,7 @@ export const Boutique: React.FC = () => {
               boxShadow: 'var(--glass-shadow)',
               backdropFilter: 'blur(5px)',
               transition: 'background 0.3s, color 0.3s, border-color 0.3s',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--gold)';
@@ -234,4 +262,5 @@ export const Boutique: React.FC = () => {
     </section>
   );
 };
+
 export default Boutique;

@@ -160,10 +160,34 @@ export const adminService = {
     apiDelete<void>(`/admin/reels/${reelId}`),
 
   /**
+   * Fetch all testimonials for admin moderation (supports status filter).
+   */
+  adminGetTestimonials: (status?: string): Promise<Testimonial[]> =>
+    apiGet<Testimonial[]>(`/admin/testimonials${status ? `?status=${status}` : ''}`),
+
+  /**
+   * Approve, reject, or update status of a testimonial.
+   */
+  updateTestimonialStatus: (testimonialId: string, status: string): Promise<Testimonial> =>
+    apiPatch<Testimonial>(`/admin/testimonials/${testimonialId}/status`, { status }),
+
+  /**
    * Delete a customer testimonial.
    */
   deleteTestimonial: (testimonialId: string): Promise<void> =>
     apiDelete<void>(`/admin/testimonials/${testimonialId}`),
+
+  /**
+   * Get all product reviews site-wide (admin moderation).
+   */
+  adminGetReviews: (): Promise<Review[]> =>
+    apiGet<Review[]>('/admin/reviews'),
+
+  /**
+   * Delete a product review and recalculate product rating.
+   */
+  adminDeleteReview: (reviewId: string): Promise<void> =>
+    apiDelete<void>(`/admin/reviews/${reviewId}`),
 
   /**
    * Update homepage site stats (happy customers, flavors, etc.).
