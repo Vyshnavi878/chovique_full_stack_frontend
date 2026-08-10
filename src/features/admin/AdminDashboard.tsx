@@ -291,10 +291,18 @@ export const AdminDashboard: React.FC = () => {
   const [importSuccess, setImportSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Customers Inspector State — fetched from backend on mount ---
+  // --- Customers Inspector & Admin Orders State ---
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [inspectedCustomer, setInspectedCustomer] = useState<SystemUser | null>(null);
+  const [inspectedCustomerDetails, setInspectedCustomerDetails] = useState<any | null>(null);
+  const [inspectedCustomerLoading, setInspectedCustomerLoading] = useState(false);
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+
+  // --- Admin Site-Wide Orders State ---
+  const [adminOrders, setAdminOrders] = useState<any[]>([]);
+  const [adminOrdersLoading, setAdminOrdersLoading] = useState(false);
+  const [orderFulfillmentFilter, setOrderFulfillmentFilter] = useState('ALL');
+  const [orderPaymentFilter, setOrderPaymentFilter] = useState('ALL');
 
   // --- Testimonials & Contact Messages & Story Video States ---
   const [testimonialsList, setTestimonialsList] = useState<any[]>([]);
@@ -461,12 +469,60 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchAdminOrders = async (fulfillment = orderFulfillmentFilter, payment = orderPaymentFilter) => {
+    setAdminOrdersLoading(true);
+    try {
+      const data = await adminService.getAllOrders({
+        status: fulfillment,
+        payment_status: payment,
+      });
+      setAdminOrders(data);
+    } catch (err) {
+      console.error('Failed to fetch site-wide admin orders:', err);
+    } finally {
+      setAdminOrdersLoading(false);
+    }
+  };
+
+  const handleSelectCustomer = async (cust: SystemUser) => {
+    setInspectedCustomer(cust);
+    setInspectedCustomerDetails(null);
+    setInspectedCustomerLoading(true);
+    try {
+      const details = await adminService.getCustomerDetails(cust.id);
+      setInspectedCustomerDetails(details);
+    } catch (err) {
+      console.error('Failed to fetch customer details:', err);
+    } finally {
+      setInspectedCustomerLoading(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, payload: { status?: string; payment_status?: string }) => {
+    try {
+      const updated = await adminService.updateOrderStatus(orderId, payload);
+      setAdminOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      if (inspectedCustomerDetails) {
+        setInspectedCustomerDetails((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recent_orders: prev.recent_orders.map((o: any) => (o.id === orderId ? updated : o)),
+          };
+        });
+      }
+    } catch (err: any) {
+      alert(err?.detail || err?.message || 'Failed to update order status');
+    }
+  };
+
   const fetchExtraAdminData = () => {
     adminService.getUsers().then((users) => setSystemUsers(users)).catch((err) => console.error(err));
     adminService.getContactMessages().then((msgs) => setContactMessages(msgs)).catch(() => { });
     adminService.getStoryVideo().then((res) => { if (res?.video_url) setStoryVideoUrl(res.video_url); }).catch(() => { });
     adminService.getCoupons().then((coupons) => setCouponsList(coupons)).catch(() => { });
     adminService.getStats().then(stats => setDashboardStats(stats)).catch(() => {});
+    fetchAdminOrders();
   };
   const handleAddCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2315,12 +2371,272 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* ORDER MANAGEMENT TAB */}
+        {activeTab === 'orders' && (
+          <div>
+            <span className="section-label">Order Operations</span>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '25px' }}>
+              Order Management
+            </h1>
+
+            {/* Filters Toolbar */}
+            <div className="glass-panel" style={{ padding: '20px', marginBottom: '25px', border: '1px solid var(--glass-border)' }}>
+              {/* Order / Fulfillment Status Filter Tabs */}
+              <div style={{ marginBottom: '16px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  Fulfillment Status:
+                </span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['ALL', 'Processing', 'Confirmed', 'Shipped', 'Out_For_Delivery', 'Delivered', 'Cancelled'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setOrderFulfillmentFilter(st);
+                        fetchAdminOrders(st, orderPaymentFilter);
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '4px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        background: orderFulfillmentFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                        color: orderFulfillmentFilter === st ? '#000' : 'var(--cream)',
+                        border: orderFulfillmentFilter === st ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      {st === 'Out_For_Delivery' ? 'Out for Delivery' : st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Status Filter Tabs */}
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  Payment Status:
+                </span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['ALL', 'PENDING', 'PAID', 'FAILED', 'REFUNDED'].map((ps) => (
+                    <button
+                      key={ps}
+                      type="button"
+                      onClick={() => {
+                        setOrderPaymentFilter(ps);
+                        fetchAdminOrders(orderFulfillmentFilter, ps);
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '4px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        background: orderPaymentFilter === ps ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                        color: orderPaymentFilter === ps ? '#000' : 'var(--cream)',
+                        border: orderPaymentFilter === ps ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      {ps}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Orders Table */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', overflowX: 'auto' }}>
+              {adminOrdersLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
+                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px auto' }} />
+                  Loading site-wide orders...
+                </div>
+              ) : adminOrders.length === 0 ? (
+                <p style={{ color: 'var(--grey-light)', padding: '20px', textAlign: 'center' }}>
+                  No orders found matching the selected status filters.
+                </p>
+              ) : (
+                <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Order ID &amp; Date</th>
+                      <th>Customer</th>
+                      <th>Items &amp; Qty</th>
+                      <th>Payment Method</th>
+                      <th>Payment Status</th>
+                      <th>Fulfillment Status</th>
+                      <th>Total Breakdown</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminOrders.map((ord: any) => {
+                      const isCod = ord.paymentMethod === 'Cash on Delivery' || ord.paymentMethod === 'COD';
+                      const currentPs = ord.payment_status || 'PENDING';
+                      const currentSt = ord.status || 'Processing';
+
+                      // Payment badge color
+                      let psColor = '#f39c12'; // PENDING
+                      if (currentPs === 'PAID') psColor = '#2ecc71';
+                      if (currentPs === 'FAILED') psColor = '#e74c3c';
+                      if (currentPs === 'REFUNDED') psColor = '#9b59b6';
+
+                      return (
+                        <tr key={ord.id}>
+                          {/* Order ID & Date */}
+                          <td>
+                            <div style={{ fontWeight: 700, color: 'var(--cream)' }}>{ord.id}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{ord.date}</div>
+                          </td>
+
+                          {/* Customer */}
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{ord.shippingAddress?.name || 'Customer'}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--beige)' }}>{ord.shippingAddress?.phone}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>
+                              {ord.shippingAddress?.city}, {ord.shippingAddress?.state} {ord.shippingAddress?.zip}
+                            </div>
+                          </td>
+
+                          {/* Items */}
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {ord.items?.map((it: any, idx: number) => (
+                                <div key={idx} style={{ fontSize: '0.8rem', color: 'var(--cream)' }}>
+                                  • {it.product?.name || 'Product'} <strong>×{it.quantity}</strong> (₹{it.product?.price || 0})
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+
+                          {/* Payment Method */}
+                          <td>
+                            <span style={{ fontWeight: 600, color: 'var(--cream)' }}>{ord.paymentMethod}</span>
+                          </td>
+
+                          {/* Payment Status */}
+                          <td>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: `${psColor}22`,
+                                color: psColor,
+                                border: `1px solid ${psColor}`,
+                              }}
+                            >
+                              {currentPs}
+                            </span>
+                            {/* Option to mark COD payment as PAID */}
+                            {isCod && currentPs === 'PENDING' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(ord.id, { payment_status: 'PAID' })}
+                                style={{
+                                  display: 'block',
+                                  marginTop: '6px',
+                                  padding: '2px 8px',
+                                  fontSize: '0.7rem',
+                                  background: 'rgba(46,204,113,0.15)',
+                                  border: '1px solid #2ecc71',
+                                  color: '#2ecc71',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Mark Paid (COD)
+                              </button>
+                            )}
+                          </td>
+
+                          {/* Fulfillment Status */}
+                          <td>
+                            <select
+                              value={currentSt}
+                              onChange={(e) => handleUpdateOrderStatus(ord.id, { status: e.target.value })}
+                              disabled={currentSt === 'Delivered' || currentSt === 'Cancelled'}
+                              style={{
+                                padding: '4px 8px',
+                                background: 'rgba(0,0,0,0.4)',
+                                color: currentSt === 'Delivered' ? '#2ecc71' : currentSt === 'Cancelled' ? '#e74c3c' : 'var(--gold)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: '4px',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                cursor: currentSt === 'Delivered' || currentSt === 'Cancelled' ? 'default' : 'pointer',
+                              }}
+                            >
+                              <option value="Processing">Processing</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Out_For_Delivery">Out for Delivery</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+
+                          {/* Breakdown */}
+                          <td>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--beige)' }}>
+                              <div>Subtotal: ₹{ord.subtotal}</div>
+                              {ord.coupon_discount > 0 && (
+                                <div style={{ color: '#2ecc71' }}>
+                                  Coupon ({ord.coupon_code}): -₹{ord.coupon_discount}
+                                </div>
+                              )}
+                              {ord.coin_discount > 0 && (
+                                <div style={{ color: '#2ecc71' }}>
+                                  Coins ({ord.coins_used}): -₹{ord.coin_discount}
+                                </div>
+                              )}
+                              <div>Shipping: {ord.shipping === 0 ? 'Free' : `₹${ord.shipping}`}</div>
+                              <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem', marginTop: '2px' }}>
+                                Final: ₹{ord.total.toLocaleString()}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <a
+                                href={`http://localhost:8000/api/v1/orders/${ord.id}/invoice`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '0.75rem',
+                                  color: 'var(--gold)',
+                                  border: '1px solid var(--gold)',
+                                  borderRadius: '4px',
+                                  textDecoration: 'none',
+                                  textAlign: 'center',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                View Invoice
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* CUSTOMERS TAB */}
         {activeTab === 'customers' && (
           <div>
-            <span className="section-label">Access & Orders</span>
+            <span className="section-label">Access &amp; Orders</span>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Customer directory & Inspector
+              Customer directory &amp; Inspector
             </h1>
 
             {/* Split layout: Customers Directory List & Inspector Panel */}
@@ -2337,7 +2653,7 @@ export const AdminDashboard: React.FC = () => {
 
                 <div style={{ marginBottom: '20px' }}>
                   <Input
-                    placeholder="Search by name, email, or order ID..."
+                    placeholder="Search by name, email..."
                     value={customerSearchQuery}
                     onChange={(e) => setCustomerSearchQuery(e.target.value)}
                   />
@@ -2350,35 +2666,29 @@ export const AdminDashboard: React.FC = () => {
                       if (!query) return true;
                       const nameMatch = cust.name.toLowerCase().includes(query);
                       const emailMatch = cust.email.toLowerCase().includes(query);
-
-                      // Match order ID
-                      const custOrders = orders.filter((o: any) =>
-                        o.shippingAddress.name.toLowerCase() === cust.name.toLowerCase()
-                      );
-                      const orderIdMatch = custOrders.some((o: any) => o.id.toLowerCase().includes(query));
-
-                      return nameMatch || emailMatch || orderIdMatch;
+                      return nameMatch || emailMatch;
                     });
 
                     if (filtered.length === 0) {
                       return (
                         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.9rem' }}>
-                          No matching customers or order numbers found.
+                          No matching customer profiles found.
                         </div>
                       );
                     }
 
                     return filtered.map((cust) => {
-                      // Get this specific customer's orders
-                      const customerOrders = orders.filter((o: any) =>
-                        o.shippingAddress.name.toLowerCase() === cust.name.toLowerCase()
+                      // Match customer orders from adminOrders list for real counters
+                      const custOrders = adminOrders.filter((o: any) =>
+                        o.user_id === cust.id ||
+                        (o.shippingAddress?.name && o.shippingAddress.name.toLowerCase() === cust.name.toLowerCase())
                       );
-                      const totalSpend = customerOrders.reduce((sum: number, o: any) => sum + o.total, 0);
+                      const totalSpend = custOrders.reduce((sum: number, o: any) => sum + o.total, 0);
 
                       return (
                         <div
                           key={cust.id}
-                          onClick={() => setInspectedCustomer(cust)}
+                          onClick={() => handleSelectCustomer(cust)}
                           style={{
                             padding: '16px',
                             background: 'rgba(0,0,0,0.15)',
@@ -2389,16 +2699,6 @@ export const AdminDashboard: React.FC = () => {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (inspectedCustomer?.id !== cust.id) {
-                              e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.4)';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (inspectedCustomer?.id !== cust.id) {
-                              e.currentTarget.style.borderColor = 'var(--glass-border)';
-                            }
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -2428,7 +2728,7 @@ export const AdminDashboard: React.FC = () => {
                               ₹{totalSpend.toLocaleString('en-IN')}
                             </span>
                             <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                              {customerOrders.length} orders total
+                              {custOrders.length} orders total
                             </span>
                           </div>
                         </div>
@@ -2456,7 +2756,10 @@ export const AdminDashboard: React.FC = () => {
                   >
                     {/* Close button */}
                     <button
-                      onClick={() => setInspectedCustomer(null)}
+                      onClick={() => {
+                        setInspectedCustomer(null);
+                        setInspectedCustomerDetails(null);
+                      }}
                       style={{
                         position: 'absolute',
                         top: '20px',
@@ -2494,101 +2797,68 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                      {/* Orders list */}
-                      <div>
-                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
-                          Customer Order History
-                        </h4>
+                    {inspectedCustomerLoading ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--beige)' }}>
+                        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px auto' }} />
+                        Fetching customer account details...
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Summary Metrics */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Total Orders</span>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--cream)' }}>
+                              {inspectedCustomerDetails?.total_orders ?? 0}
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Total Lifetime Spend</span>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--gold)' }}>
+                              ₹{(inspectedCustomerDetails?.total_spent ?? 0).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                        </div>
 
-                        {getCustomerOrders(inspectedCustomer.email).length === 0 ? (
-                          <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', fontStyle: 'italic' }}>No orders found for this customer.</p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
-                            {getCustomerOrders(inspectedCustomer.email).map((ord: any) => (
-                              <div
-                                key={ord.id}
-                                style={{
-                                  padding: '10px 14px',
-                                  background: 'rgba(0,0,0,0.15)',
-                                  borderRadius: '6px',
-                                  borderLeft: '3px solid var(--gold)',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                }}
-                              >
-                                <div>
-                                  <span style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.85rem' }}>{ord.id}</span>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginLeft: '8px' }}>{ord.date}</span>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px' }}>
-                                    Status: <span style={{ color: ord.status === 'Delivered' ? '#2ecc71' : 'var(--gold)', fontWeight: 600 }}>{ord.status}</span>
+                        {/* Orders list */}
+                        <div>
+                          <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                            Customer Order History
+                          </h4>
+
+                          {(!inspectedCustomerDetails?.recent_orders || inspectedCustomerDetails.recent_orders.length === 0) ? (
+                            <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', fontStyle: 'italic' }}>No orders found for this customer.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                              {inspectedCustomerDetails.recent_orders.map((ord: any) => (
+                                <div
+                                  key={ord.id}
+                                  style={{
+                                    padding: '10px 14px',
+                                    background: 'rgba(0,0,0,0.15)',
+                                    borderRadius: '6px',
+                                    borderLeft: '3px solid var(--gold)',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <div>
+                                    <span style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.85rem' }}>{ord.id}</span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginLeft: '8px' }}>{ord.date}</span>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px' }}>
+                                      Fulfillment: <span style={{ color: ord.status === 'Delivered' ? '#2ecc71' : 'var(--gold)', fontWeight: 600 }}>{ord.status}</span>
+                                      {' · '}Payment: <span style={{ color: ord.payment_status === 'PAID' ? '#2ecc71' : '#f39c12', fontWeight: 600 }}>{ord.payment_status || 'PENDING'}</span>
+                                    </div>
                                   </div>
+                                  <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem' }}>₹{ord.total.toLocaleString('en-IN')}</span>
                                 </div>
-                                <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem' }}>₹{ord.total.toLocaleString('en-IN')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-
-                      {/* Purchased products & stock statuses */}
-                      <div>
-                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
-                          Items Bought & Stock Status
-                        </h4>
-
-                        {getCustomerOrders(inspectedCustomer.email).length === 0 ? (
-                          <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', fontStyle: 'italic' }}>No products purchased.</p>
-                        ) : (
-                          <div className="admin-table-wrapper" style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                            <table className="admin-table" style={{ fontSize: '0.8rem' }}>
-                              <thead>
-                                <tr>
-                                  <th>Item</th>
-                                  <th>Qty</th>
-                                  <th>In-Stock</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(() => {
-                                  const itemsBought: { [name: string]: { qty: number; available: number; low: boolean } } = {};
-                                  getCustomerOrders(inspectedCustomer.email).forEach((o: any) => {
-                                    o.items.forEach((it: any) => {
-                                      const m = productMetrics[it.product.id] || { stock: 0 };
-                                      if (itemsBought[it.product.name]) {
-                                        itemsBought[it.product.name].qty += it.quantity;
-                                      } else {
-                                        itemsBought[it.product.name] = {
-                                          qty: it.quantity,
-                                          available: m.stock,
-                                          low: m.stock < 10
-                                        };
-                                      }
-                                    });
-                                  });
-
-                                  return Object.entries(itemsBought).map(([name, data]) => (
-                                    <tr key={name}>
-                                      <td style={{ fontWeight: 600 }}>{name}</td>
-                                      <td>{data.qty}</td>
-                                      <td>
-                                        <span style={{
-                                          color: data.low ? 'var(--rose-gold)' : '#2ecc71',
-                                          fontWeight: 700
-                                        }}>
-                                          {data.available} available
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ));
-                                })()}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </motion.div>
                 ) : (
                   <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center', border: '1px dashed var(--glass-border)', color: 'var(--grey-light)', fontSize: '0.9rem' }}>

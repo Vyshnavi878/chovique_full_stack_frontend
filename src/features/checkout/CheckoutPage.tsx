@@ -84,6 +84,17 @@ export const CheckoutPage: React.FC = () => {
 
   const [deliveryOption, setDeliveryOption] = useState('Standard Delivery');
   const [paymentMethod, setPaymentMethod] = useState('Credit Card');
+  const [paymentError, setPaymentError] = useState('');
+
+  // Shipping form validation errors
+  const [shippingErrors, setShippingErrors] = useState<{
+    name?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    phone?: string;
+  }>({});
 
   // Coupon state: read initial coupon from sessionStorage or allow applying/removing directly
   const [appliedCoupon, setAppliedCoupon] = useState<CheckoutCouponData | null>(() => {
@@ -98,6 +109,14 @@ export const CheckoutPage: React.FC = () => {
   const [couponInputCode, setCouponInputCode] = useState('');
   const [couponError, setCouponError] = useState('');
   const [isCouponLoading, setIsCouponLoading] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+
+  // Fetch available coupons for current user
+  useEffect(() => {
+    if (user && user.role !== 'guest') {
+      cartService.getAvailableCoupons().then((coupons) => setAvailableCoupons(coupons)).catch(() => {});
+    }
+  }, [user]);
 
   // Pricing calculations (display-only; backend recalculates authoritatively)
   const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -131,18 +150,19 @@ export const CheckoutPage: React.FC = () => {
   const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee);
 
   // Coupon handlers
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!couponInputCode.trim()) return;
+  const handleApplyCouponCode = async (codeToApply: string) => {
+    const formattedCode = codeToApply.trim().toUpperCase();
+    if (!formattedCode) return;
+    setCouponInputCode(formattedCode);
     setIsCouponLoading(true);
     setCouponError('');
     try {
-      const res = await cartService.validateCoupon(couponInputCode.trim().toUpperCase());
+      const res = await cartService.validateCoupon(formattedCode);
       if (res.valid) {
         let calculatedDisc = 0;
         if (res.discount_type === 'PERCENTAGE') {
           calculatedDisc = (subtotal * (res.discount_percent || 0)) / 100;
-          if (res.maximum_discount_amount > 0) {
+          if (res.maximum_discount_amount && res.maximum_discount_amount > 0) {
             calculatedDisc = Math.min(calculatedDisc, res.maximum_discount_amount);
           }
         } else if (res.discount_type === 'FIXED_AMOUNT') {
@@ -169,6 +189,11 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
+  const handleApplyCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleApplyCouponCode(couponInputCode);
+  };
+
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     sessionStorage.removeItem('chovique_checkout_coupon');
@@ -176,13 +201,46 @@ export const CheckoutPage: React.FC = () => {
 
   // Validate shipping form before proceeding from step 2
   const validateShipping = (): boolean => {
-    const required = ['name', 'street', 'city', 'state', 'zip', 'phone'] as const;
-    return required.every((field) => shippingForm[field].trim().length > 0);
+    const errors: typeof shippingErrors = {};
+    const name = shippingForm.name.trim();
+    const street = shippingForm.street.trim();
+    const city = shippingForm.city.trim();
+    const state = shippingForm.state.trim();
+    const zip = shippingForm.zip.trim();
+    const phone = shippingForm.phone.trim();
+
+    if (!name) errors.name = 'Full name is required.';
+    if (!street) errors.street = 'Street address is required.';
+    if (!city) errors.city = 'City is required.';
+    if (!state) errors.state = 'State is required.';
+
+    if (!zip) {
+      errors.zip = 'ZIP code is required.';
+    } else if (!/^\d{6}$/.test(zip)) {
+      errors.zip = 'ZIP/PIN code must contain exactly 6 numeric digits.';
+    }
+
+    if (!phone) {
+      errors.phone = 'Phone number is required.';
+    } else if (!/^\d{10}$/.test(phone)) {
+      errors.phone = 'Phone number must contain exactly 10 numeric digits.';
+    }
+
+    setShippingErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const nextStep = async () => {
-    if (activeStep === 2 && !validateShipping()) {
-      return; // Fields are marked required; browser/custom validation handles UI
+    if (activeStep === 2) {
+      if (!validateShipping()) return;
+    }
+
+    if (activeStep === 3) {
+      if (!paymentMethod) {
+        setPaymentError('Please select a payment method before proceeding.');
+        return;
+      }
+      setPaymentError('');
     }
 
     if (activeStep === 4) {
@@ -307,7 +365,7 @@ export const CheckoutPage: React.FC = () => {
         {/* Step Content panels */}
         <div className="checkout-panel">
           <AnimatePresence mode="wait">
-            {/* STEP 1: REVIEW ITEMS */}
+            {/* STEP 1: REVIEW ITEMS & DISCOUNTS */}
             {activeStep === 1 && (
               <motion.div
                 key="step1"
@@ -352,215 +410,8 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button variant="gold" onClick={nextStep} glow>
-                    Proceed to Shipping
-                  </Button>
-                </div>
-              </motion.div>
-            )}
 
-            {/* STEP 2: SHIPPING FORM */}
-            {activeStep === 2 && (
-              <motion.div
-                key="step2"
-                variants={scaleUp}
-                initial="initial"
-                animate="animate"
-                exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
-              >
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  2. Shipping Destination
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '30px' }}>
-                  <Input
-                    label="Full Name"
-                    value={shippingForm.name}
-                    onChange={(e) => setShippingForm({ ...shippingForm, name: e.target.value })}
-                    required
-                    autoComplete="name"
-                  />
-                  <Input
-                    label="Street Address"
-                    value={shippingForm.street}
-                    onChange={(e) => setShippingForm({ ...shippingForm, street: e.target.value })}
-                    required
-                    autoComplete="street-address"
-                  />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input
-                      label="City"
-                      value={shippingForm.city}
-                      onChange={(e) => setShippingForm({ ...shippingForm, city: e.target.value })}
-                      required
-                      autoComplete="address-level2"
-                    />
-                    <Input
-                      label="State"
-                      value={shippingForm.state}
-                      onChange={(e) => setShippingForm({ ...shippingForm, state: e.target.value })}
-                      required
-                      autoComplete="address-level1"
-                    />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input
-                      label="ZIP Code"
-                      value={shippingForm.zip}
-                      onChange={(e) => setShippingForm({ ...shippingForm, zip: e.target.value })}
-                      required
-                      autoComplete="postal-code"
-                    />
-                    <Input
-                      label="Phone Number"
-                      type="tel"
-                      value={shippingForm.phone}
-                      onChange={(e) => setShippingForm({ ...shippingForm, phone: e.target.value })}
-                      required
-                      autoComplete="tel"
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Button variant="secondary" onClick={prevStep}>
-                    Back
-                  </Button>
-                  <Button
-                    variant="gold"
-                    onClick={nextStep}
-                    glow
-                    disabled={!validateShipping()}
-                  >
-                    Proceed to Payment
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 3: PAYMENT OPTIONS */}
-            {activeStep === 3 && (
-              <motion.div
-                key="step3"
-                variants={scaleUp}
-                initial="initial"
-                animate="animate"
-                exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
-              >
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  3. Choose Payment Option
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
-                  {['Credit Card', 'UPI / Google Pay', 'Net Banking', 'Cash on Delivery'].map((method) => (
-                    <div
-                      key={method}
-                      onClick={() => setPaymentMethod(method)}
-                      style={{
-                        padding: '16px 20px',
-                        borderRadius: '4px',
-                        background: paymentMethod === method ? 'rgba(201, 168, 76, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-                        border: paymentMethod === method ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '15px',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s',
-                      }}
-                    >
-                      <CreditCard size={20} style={{ color: paymentMethod === method ? 'var(--gold)' : 'var(--beige)' }} />
-                      <span style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600 }}>{method}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Button variant="secondary" onClick={prevStep}>
-                    Back
-                  </Button>
-                  <Button variant="gold" onClick={nextStep} glow>
-                    Order Summary
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 4: ORDER PREVIEW */}
-            {activeStep === 4 && (
-              <motion.div
-                key="step4"
-                variants={scaleUp}
-                initial="initial"
-                animate="animate"
-                exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
-              >
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  4. Review and Place Order
-                </h2>
-
-                {/* Order error banner */}
-                {orderError && (
-                  <div
-                    role="alert"
-                    style={{
-                      background: 'rgba(231, 76, 60, 0.1)',
-                      border: '1px solid #e74c3c',
-                      color: '#e74c3c',
-                      borderRadius: '4px',
-                      padding: '12px 16px',
-                      fontSize: '0.9rem',
-                      marginBottom: '20px',
-                    }}
-                  >
-                    {orderError}
-                  </div>
-                )}
-
-                {/* Sub panels details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-                  <div
-                    style={{
-                      padding: '16px',
-                      background: 'rgba(0,0,0,0.2)',
-                      borderRadius: '4px',
-                      border: '1px solid var(--glass-border)',
-                    }}
-                  >
-                    <h4 style={{ color: 'var(--gold)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
-                      Deliver To:
-                    </h4>
-                    <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
-                      <strong>{shippingForm.name}</strong>
-                      <br />
-                      {shippingForm.street}
-                      <br />
-                      {shippingForm.city}, {shippingForm.state} - {shippingForm.zip}
-                    </p>
-                  </div>
-
-                  <div
-                    style={{
-                      padding: '16px',
-                      background: 'rgba(0,0,0,0.2)',
-                      borderRadius: '4px',
-                      border: '1px solid var(--glass-border)',
-                    }}
-                  >
-                    <h4 style={{ color: 'var(--gold)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
-                      Payment & Delivery:
-                    </h4>
-                    <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
-                      <strong>Payment Method:</strong> {paymentMethod}
-                      <br />
-                      <strong>Delivery Charge:</strong> {shippingFee === 0 ? 'Free Standard Delivery' : 'Standard Delivery (₹99)'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Promo Code Entry & Applied Coupon Panel */}
+                {/* Promo Code Entry & Available Coupons Section */}
                 <div style={{ marginBottom: '25px' }}>
                   {appliedCoupon ? (
                     <div
@@ -591,6 +442,31 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   ) : (
                     <div>
+                      {/* Available Coupons list */}
+                      {availableCoupons.length > 0 && (
+                        <div style={{ marginBottom: '18px', background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <h4 style={{ color: 'var(--gold)', fontSize: '0.85rem', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Coupons</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {availableCoupons.map((c) => (
+                              <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.88rem' }}>{c.code}</div>
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--beige)' }}>{c.description || (c.discount_percent ? `${c.discount_percent}% OFF` : `₹${c.discount_amount} OFF`)}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyCouponCode(c.code)}
+                                  disabled={isCouponLoading}
+                                  style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                  Use
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <div style={{ flex: 1 }}>
                           <Input
@@ -658,7 +534,7 @@ export const CheckoutPage: React.FC = () => {
                           paddingTop: '10px',
                           borderTop: '1px dashed rgba(212, 175, 55, 0.3)',
                           display: 'flex',
-                          justify: 'space-between',
+                          justifyContent: 'space-between',
                           alignItems: 'center',
                           fontSize: '0.85rem',
                           color: '#2ecc71',
@@ -689,7 +565,276 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Pricing totals */}
+                {/* Step 1 Pricing totals */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '20px', borderBottom: '1px solid var(--glass-border)', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
+                    <span>Items Subtotal:</span>
+                    <span>₹{subtotal.toLocaleString()}</span>
+                  </div>
+
+                  {appliedCoupon && discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Coupon Discount ({appliedCoupon.code}):</span>
+                      <span>-₹{discountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {useCoins && coinDiscountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span>Coins Discount ({coinPreview.allowed_coins} coins):</span>
+                      <span>-₹{coinDiscountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
+                    <span>Delivery Charges:</span>
+                    <span>{shippingFee === 0 ? 'Free (Order over ₹1,500)' : `₹${shippingFee}`}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)', fontSize: '1.25rem', fontWeight: 700, marginTop: '8px', paddingTop: '10px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                    <span>Total:</span>
+                    <span style={{ color: 'var(--gold)' }}>₹{total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button variant="gold" onClick={nextStep} glow>
+                    Proceed to Shipping
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 2: SHIPPING FORM */}
+            {activeStep === 2 && (
+              <motion.div
+                key="step2"
+                variants={scaleUp}
+                initial="initial"
+                animate="animate"
+                exit="initial"
+                className="glass-panel"
+                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+              >
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  2. Shipping Destination
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '30px' }}>
+                  <Input
+                    label="Full Name"
+                    value={shippingForm.name}
+                    onChange={(e) => {
+                      setShippingForm({ ...shippingForm, name: e.target.value });
+                      if (shippingErrors.name) setShippingErrors({ ...shippingErrors, name: undefined });
+                    }}
+                    error={shippingErrors.name}
+                    required
+                    autoComplete="name"
+                  />
+                  <Input
+                    label="Street Address"
+                    value={shippingForm.street}
+                    onChange={(e) => {
+                      setShippingForm({ ...shippingForm, street: e.target.value });
+                      if (shippingErrors.street) setShippingErrors({ ...shippingErrors, street: undefined });
+                    }}
+                    error={shippingErrors.street}
+                    required
+                    autoComplete="street-address"
+                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input
+                      label="City"
+                      value={shippingForm.city}
+                      onChange={(e) => {
+                        setShippingForm({ ...shippingForm, city: e.target.value });
+                        if (shippingErrors.city) setShippingErrors({ ...shippingErrors, city: undefined });
+                      }}
+                      error={shippingErrors.city}
+                      required
+                      autoComplete="address-level2"
+                    />
+                    <Input
+                      label="State"
+                      value={shippingForm.state}
+                      onChange={(e) => {
+                        setShippingForm({ ...shippingForm, state: e.target.value });
+                        if (shippingErrors.state) setShippingErrors({ ...shippingErrors, state: undefined });
+                      }}
+                      error={shippingErrors.state}
+                      required
+                      autoComplete="address-level1"
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <Input
+                      label="ZIP Code"
+                      value={shippingForm.zip}
+                      onChange={(e) => {
+                        setShippingForm({ ...shippingForm, zip: e.target.value });
+                        if (shippingErrors.zip) setShippingErrors({ ...shippingErrors, zip: undefined });
+                      }}
+                      error={shippingErrors.zip}
+                      required
+                      autoComplete="postal-code"
+                    />
+                    <Input
+                      label="Phone Number"
+                      type="tel"
+                      value={shippingForm.phone}
+                      onChange={(e) => {
+                        setShippingForm({ ...shippingForm, phone: e.target.value });
+                        if (shippingErrors.phone) setShippingErrors({ ...shippingErrors, phone: undefined });
+                      }}
+                      error={shippingErrors.phone}
+                      required
+                      autoComplete="tel"
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Button variant="secondary" onClick={prevStep}>
+                    Back
+                  </Button>
+                  <Button
+                    variant="gold"
+                    onClick={nextStep}
+                    glow
+                  >
+                    Proceed to Payment
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 3: PAYMENT OPTIONS */}
+            {activeStep === 3 && (
+              <motion.div
+                key="step3"
+                variants={scaleUp}
+                initial="initial"
+                animate="animate"
+                exit="initial"
+                className="glass-panel"
+                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+              >
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  3. Choose Payment Option
+                </h2>
+                {paymentError && (
+                  <p style={{ color: '#e74c3c', fontSize: '0.85rem', marginBottom: '15px' }}>{paymentError}</p>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
+                  {['Credit Card', 'UPI / Google Pay', 'Net Banking', 'Cash on Delivery'].map((method) => (
+                    <div
+                      key={method}
+                      onClick={() => {
+                        setPaymentMethod(method);
+                        if (paymentError) setPaymentError('');
+                      }}
+                      style={{
+                        padding: '16px 20px',
+                        borderRadius: '4px',
+                        background: paymentMethod === method ? 'rgba(201, 168, 76, 0.05)' : 'rgba(0, 0, 0, 0.2)',
+                        border: paymentMethod === method ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '15px',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s',
+                      }}
+                    >
+                      <CreditCard size={20} style={{ color: paymentMethod === method ? 'var(--gold)' : 'var(--beige)' }} />
+                      <span style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600 }}>{method}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Button variant="secondary" onClick={prevStep}>
+                    Back
+                  </Button>
+                  <Button variant="gold" onClick={nextStep} glow>
+                    Order Summary
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 4: READ-ONLY ORDER PREVIEW & PLACE ORDER */}
+            {activeStep === 4 && (
+              <motion.div
+                key="step4"
+                variants={scaleUp}
+                initial="initial"
+                animate="animate"
+                exit="initial"
+                className="glass-panel"
+                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+              >
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                  4. Review and Place Order
+                </h2>
+
+                {/* Order error banner */}
+                {orderError && (
+                  <div
+                    role="alert"
+                    style={{
+                      background: 'rgba(231, 76, 60, 0.1)',
+                      border: '1px solid #e74c3c',
+                      color: '#e74c3c',
+                      borderRadius: '4px',
+                      padding: '12px 16px',
+                      fontSize: '0.9rem',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    {orderError}
+                  </div>
+                )}
+
+                {/* Sub panels details */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
+                  <div
+                    style={{
+                      padding: '16px',
+                      background: 'rgba(0,0,0,0.2)',
+                      borderRadius: '4px',
+                      border: '1px solid var(--glass-border)',
+                    }}
+                  >
+                    <h4 style={{ color: 'var(--gold)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                      Deliver To:
+                    </h4>
+                    <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
+                      <strong>{shippingForm.name}</strong>
+                      <br />
+                      {shippingForm.street}
+                      <br />
+                      {shippingForm.city}, {shippingForm.state} - {shippingForm.zip}
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '16px',
+                      background: 'rgba(0,0,0,0.2)',
+                      borderRadius: '4px',
+                      border: '1px solid var(--glass-border)',
+                    }}
+                  >
+                    <h4 style={{ color: 'var(--gold)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                      Payment & Delivery:
+                    </h4>
+                    <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
+                      <strong>Payment Method:</strong> {paymentMethod}
+                      <br />
+                      <strong>Delivery Charge:</strong> {shippingFee === 0 ? 'Free Standard Delivery' : 'Standard Delivery (₹99)'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* READ-ONLY Pricing summary displaying Step 1 choices */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '20px', borderBottom: '1px solid var(--glass-border)', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
                     <span>Items Subtotal:</span>

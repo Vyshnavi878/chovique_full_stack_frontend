@@ -15,6 +15,7 @@ import type {
   SystemUser,
   ImportSalesResponse,
   ResolveTicketPayload,
+  CustomerDetailsResponse,
 } from '../types';
 
 /** Payload for /admin/offline-sales POST — matches backend OfflineSalePayload */
@@ -27,7 +28,8 @@ export interface AdminOfflineSalePayload {
 
 /** Payload for /admin/orders/{id}/status PATCH */
 export interface UpdateOrderStatusPayload {
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status?: string;
+  payment_status?: string;
 }
 
 /** Dashboard stats shape from /admin/stats */
@@ -70,6 +72,10 @@ export const adminService = {
   getUsers: (): Promise<SystemUser[]> =>
     apiGet<SystemUser[]>('/admin/users'),
 
+  /** Fetch customer details with real backend order calculation */
+  getCustomerDetails: (userId: string): Promise<CustomerDetailsResponse> =>
+    apiGet<CustomerDetailsResponse>(`/admin/customers/${userId}`),
+
   /** Create a new administrator user (superadmin action). */
   createAdmin: (payload: {
     full_name: string;
@@ -91,9 +97,14 @@ export const adminService = {
   demoteAdmin: (userId: string): Promise<SystemUser> =>
     apiPost<SystemUser>(`/admin/users/${userId}/demote`, {}),
 
-  /** Fetch all orders site-wide. */
-  getAllOrders: (): Promise<Order[]> =>
-    apiGet<Order[]>('/admin/orders'),
+  /** Fetch all orders site-wide (supports optional status and payment_status query params). */
+  getAllOrders: (params?: { status?: string; payment_status?: string }): Promise<Order[]> => {
+    const query = new URLSearchParams();
+    if (params?.status && params.status !== 'ALL') query.append('status', params.status);
+    if (params?.payment_status && params.payment_status !== 'ALL') query.append('payment_status', params.payment_status);
+    const queryString = query.toString();
+    return apiGet<Order[]>(`/admin/orders${queryString ? `?${queryString}` : ''}`);
+  },
 
   /** Update an order's status. */
   updateOrderStatus: (orderId: string, payload: UpdateOrderStatusPayload): Promise<Order> =>

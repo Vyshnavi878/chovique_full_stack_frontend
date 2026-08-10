@@ -88,6 +88,7 @@ export interface CartItem {
 
 export interface Order {
   id: string;
+  user_id?: string;
   items: CartItem[];
   total: number;
   subtotal: number;
@@ -99,7 +100,8 @@ export interface Order {
   coins_earned?: number;
   shipping: number;
   date: string;
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status: 'Processing' | 'Confirmed' | 'Shipped' | 'Out_For_Delivery' | 'Delivered' | 'Cancelled' | string;
+  payment_status?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | string;
   shippingAddress: {
     name: string;
     street: string;
@@ -450,10 +452,13 @@ export interface PaginatedResponse<T> {
 export interface CouponValidationResponse {
   valid: boolean;
   code: string;
+  discount_type?: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING' | string;
   /** Percentage discount, e.g. 40 for 40% off */
-  discount_percent: number;
+  discount_percent?: number;
   /** Flat amount discount (₹), if applicable */
   discount_amount?: number;
+  maximum_discount_amount?: number;
+  calculated_discount?: number;
   message: string;
 }
 
@@ -467,6 +472,15 @@ export interface ImportSalesResponse {
   imported: number;
   skipped: number;
   message: string;
+}
+
+/** Customer details response for admin inspection */
+export interface CustomerDetailsResponse {
+  user: User;
+  total_spent: number;
+  total_orders: number;
+  recent_orders: Order[];
+  support_tickets: SupportTicket[];
 }
 
 /** Contact form submission response */

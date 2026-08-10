@@ -30,6 +30,7 @@ export const CartPage: React.FC = () => {
 
   // Discount comes from backend coupon validation response
   const discountAmount = couponData?.calculated_discount ?? 0;
+  const discountPercent = couponData?.discount_percent ?? 0;
 
   const shippingAmount = subtotal > 1500 || subtotal === 0 ? 0 : 150;
   const totalAmount = subtotal - discountAmount + shippingAmount;
@@ -62,10 +63,34 @@ export const CartPage: React.FC = () => {
     }
   };
 
+  const handleUseAvailableCoupon = async (code: string) => {
+    const formatted = code.trim().toUpperCase();
+    setCouponCode(formatted);
+    setCouponError('');
+    setIsCouponLoading(true);
+    try {
+      const result = await cartService.validateCoupon(formatted);
+      if (result.valid) {
+        setCouponData(result);
+      } else {
+        setCouponData(null);
+        setCouponError(result.message || 'Invalid coupon code.');
+      }
+    } catch {
+      setCouponData(null);
+      setCouponError('Could not validate coupon. Please try again.');
+    } finally {
+      setIsCouponLoading(false);
+    }
+  };
+
   const handleCheckout = () => {
     if (role === 'guest') {
       navigate('/login', { state: { from: '/checkout' } });
     } else {
+      // Always clear any stale Buy Now item so checkout uses the full cart
+      sessionStorage.removeItem('chovique_buy_now_item');
+
       // Pass discount data to checkout via sessionStorage
       // so CheckoutPage can include it in the order payload
       if (couponData) {
@@ -259,7 +284,7 @@ export const CartPage: React.FC = () => {
               </div>
               {couponData && discountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: '#2ecc71' }}>
-                  <span>Promo Discount ({discountPercent}%)</span>
+                  <span>Promo Discount{discountPercent > 0 ? ` (${discountPercent}%)` : ''}</span>
                   <span>-₹{discountAmount.toLocaleString()}</span>
                 </div>
               )}
@@ -299,7 +324,12 @@ export const CartPage: React.FC = () => {
                         <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.9rem' }}>{c.code}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{c.description}</div>
                       </div>
-                      <button type="button" onClick={() => setCouponCode(c.code)} style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleUseAvailableCoupon(c.code)}
+                        disabled={isCouponLoading}
+                        style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
+                      >
                         Use
                       </button>
                     </div>
