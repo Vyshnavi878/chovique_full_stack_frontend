@@ -74,7 +74,7 @@ export const Stats: React.FC = () => {
   return (
     <section
       style={{
-        padding: '60px 0',
+        padding: '32px 0',
         background: 'var(--gradient-section-1)',
         borderTop: '1px solid var(--glass-border)',
         borderBottom: '1px solid var(--glass-border)',

@@ -94,7 +94,7 @@ export const InstagramReels: React.FC = () => {
       }}
     >
       <div className="container">
-        <div style={{ textAlign: 'center', marginBottom: '50px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <span className="section-label" style={{ justifyContent: 'center' }}>Social Buzz</span>
           <h2 className="section-title">
             Trending on <span className="gold">Instagram</span>

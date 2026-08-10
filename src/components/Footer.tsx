@@ -1,9 +1,29 @@
 import React from 'react';
 import '../styles/footer.css';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 
 export const Footer: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  /**
+   * Reusable smooth scroll navigation handler for footer section links.
+   * - If user is on home page ('/'): scrolls directly to target section element with smooth animation.
+   * - If user is on another page: navigates to '/' with location state containing target scrollTo element ID.
+   */
+  const handleSectionNav = (sectionId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location.pathname === '/') {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      navigate('/', { state: { scrollTo: sectionId } });
+    }
+  };
+
   return (
     <footer className="chovique-footer">
       <div className="chovique-footer-container">
@@ -96,10 +116,20 @@ export const Footer: React.FC = () => {
                 <Link to="/shop">Shop All <ChevronRight size={13} className="nav-chevron" /></Link>
               </li>
               <li>
-                <Link to="/shop?filter=best-sellers">Best Sellers <ChevronRight size={13} className="nav-chevron" /></Link>
+                <a
+                  href="/#best-sellers"
+                  onClick={(e) => handleSectionNav('best-sellers', e)}
+                >
+                  Best Sellers <ChevronRight size={13} className="nav-chevron" />
+                </a>
               </li>
               <li>
-                <Link to="/shop?filter=new-arrivals">New Arrivals <ChevronRight size={13} className="nav-chevron" /></Link>
+                <a
+                  href="/#new-arrivals"
+                  onClick={(e) => handleSectionNav('new-arrivals', e)}
+                >
+                  New Arrivals <ChevronRight size={13} className="nav-chevron" />
+                </a>
               </li>
               <li>
                 <Link to="/shop?category=gift">Gift Boxes <ChevronRight size={13} className="nav-chevron" /></Link>

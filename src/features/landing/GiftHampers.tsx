@@ -24,7 +24,7 @@ export const GiftHampers: React.FC = () => {
 
   return (
     <section
-      id="gift-hampers"
+      id="luxury-gift-hampers"
       style={{
         padding: 'var(--section-padding) 0',
         background: 'linear-gradient(135deg, #1C1C1E 0%, #2A2A2D 40%, #020100ff 100%)',
@@ -32,6 +32,7 @@ export const GiftHampers: React.FC = () => {
         overflow: 'hidden',
       }}
     >
+      <div id="gift-hampers" style={{ position: 'absolute', top: 0 }} />
       <div id="gift-collections" style={{ position: 'absolute', top: 0 }} />
       {/* Background radial highlight */}
       <div
@@ -60,7 +61,7 @@ export const GiftHampers: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '60px',
+            marginBottom: '28px',
           }}
         >
           <span className="section-label" style={{ justifyContent: 'center' }}>
@@ -75,15 +76,7 @@ export const GiftHampers: React.FC = () => {
         </motion.div>
 
         {/* Layout: Bespoke card on the left, products grid on the right */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr',
-            gap: '40px',
-            alignItems: 'stretch',
-          }}
-          className="dual-collections-container"
-        >
+        <div className="dual-collections-container">
           {/* Bespoke Gifting Left Panel */}
           <motion.div
             initial="initial"
@@ -92,52 +85,49 @@ export const GiftHampers: React.FC = () => {
             variants={fadeInUp}
             className="collection-column"
             style={{
-              justifyContent: 'space-between',
               background: 'rgba(10, 10, 10, 0.55)',
             }}
           >
-            <div>
-              <div className="collection-header-group">
-                <span className="collection-tag gold">Premium Service</span>
-                <h3 className="collection-title">Bespoke Chocolate Hampers</h3>
-                <p className="collection-desc">
-                  Tailored collections designed to make a statement. Perfect for corporate events, anniversaries, weddings, or festive occasions.
-                </p>
-              </div>
+            <div className="collection-header-group">
+              <span className="collection-tag gold">Premium Service</span>
+              <h3 className="collection-title">Bespoke Chocolate Hampers</h3>
+              <p className="collection-desc">
+                Tailored collections designed to make a statement. Perfect for corporate events, anniversaries, weddings, or festive occasions.
+              </p>
+            </div>
 
-              <ul style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
-                {benefits.map((benefit, index) => (
-                  <li
-                    key={index}
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
+              {benefits.map((benefit, index) => (
+                <li
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    fontSize: '0.95rem',
+                    color: 'var(--cream)',
+                  }}
+                >
+                  <span
                     style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      background: 'rgba(201, 168, 76, 0.15)',
+                      border: '1px solid var(--gold)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '12px',
-                      fontSize: '0.95rem',
-                      color: 'var(--cream)',
+                      justifyContent: 'center',
+                      color: 'var(--gold)',
+                      flexShrink: 0,
                     }}
                   >
-                    <span
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        background: 'rgba(201, 168, 76, 0.15)',
-                        border: '1px solid var(--gold)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--gold)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Check size={12} strokeWidth={3} />
-                    </span>
-                    <span>{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                  <span>{benefit}</span>
+                </li>
+              ))}
+            </ul>
 
             <Button
               variant="gold"

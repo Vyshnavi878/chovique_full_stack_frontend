@@ -55,7 +55,6 @@ export const Reviews: React.FC = () => {
 
   const handleOpenModal = () => {
     if (!user || role === 'guest') {
-      alert('Please sign in to share your experience with Chovique chocolates.');
       navigate('/login');
       return;
     }
@@ -120,7 +119,7 @@ export const Reviews: React.FC = () => {
     >
       <div className="container">
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <span className="section-label" style={{ justifyContent: 'center' }}>
             Customer Love
           </span>

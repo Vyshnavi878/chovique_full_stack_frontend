@@ -50,13 +50,15 @@ export const Hero: React.FC = () => {
       return;
     }
 
-    // 2. View Gift Sets / Gift Collections → scroll to "gift-collections" / "gift-hampers" on homepage
-    if (textLower.includes('gift') || linkLower.includes('gift-collections') || linkLower.includes('gift-hampers')) {
+    // 2. View Gift Sets / Gift Collections → scroll to "luxury-gift-hampers" on homepage
+    if (textLower.includes('gift') || linkLower.includes('gift-collections') || linkLower.includes('gift-hampers') || linkLower.includes('luxury-gift-hampers')) {
       if (location.pathname === '/') {
-        const el = document.getElementById('gift-collections') || document.getElementById('gift-hampers');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const el = document.getElementById('luxury-gift-hampers') || document.getElementById('gift-hampers') || document.getElementById('gift-collections');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } else {
-        navigate('/', { state: { scrollTo: 'gift-collections' } });
+        navigate('/', { state: { scrollTo: 'luxury-gift-hampers' } });
       }
       return;
     }
@@ -101,7 +103,9 @@ export const Hero: React.FC = () => {
       id="hero"
       style={{
         position: 'relative',
-        height: '100vh',
+        height: '92vh',
+        minHeight: '680px',
+        maxHeight: '880px',
         width: '100vw',
         overflow: 'hidden',
         background: 'var(--gradient-hero)',

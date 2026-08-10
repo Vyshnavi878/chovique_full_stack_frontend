@@ -18,8 +18,8 @@ export const WishlistPage: React.FC = () => {
         animate="animate"
         exit="exit"
         style={{
-          paddingTop: '120px',
-          minHeight: '80vh',
+          paddingTop: '85px',
+          minHeight: '70vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -52,8 +52,8 @@ export const WishlistPage: React.FC = () => {
         animate="animate"
         exit="exit"
         style={{
-          paddingTop: '120px',
-          minHeight: '80vh',
+          paddingTop: '85px',
+          minHeight: '70vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -85,10 +85,10 @@ export const WishlistPage: React.FC = () => {
       animate="animate"
       exit="exit"
       style={{
-        paddingTop: '120px',
-        minHeight: '100vh',
+        paddingTop: '85px',
+        minHeight: 'fit-content',
         background: 'var(--gradient-hero)',
-        paddingBottom: '60px',
+        paddingBottom: '36px',
       }}
     >
       <div className="container">

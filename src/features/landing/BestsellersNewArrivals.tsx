@@ -54,7 +54,7 @@ export const BestsellersNewArrivals: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '60px',
+            marginBottom: '28px',
           }}
         >
           <span className="section-label" style={{ justifyContent: 'center' }}>
@@ -73,6 +73,7 @@ export const BestsellersNewArrivals: React.FC = () => {
           
           {/* Bestsellers Section */}
           <motion.div
+            id="best-sellers"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -107,6 +108,7 @@ export const BestsellersNewArrivals: React.FC = () => {
 
           {/* New Arrivals Section */}
           <motion.div
+            id="new-arrivals"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}

@@ -1,23 +1,23 @@
 /* === DASHBOARDS STYLES === */
 .dashboard-page {
-  padding-top: 100px;
-  min-height: 100vh;
+  padding-top: 85px;
+  min-height: fit-content;
   background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('/assets/dashboard-bg.jpg') no-repeat center 80%/450px 450px fixed;
   background-color: #000000;
-  padding-bottom: 60px;
+  padding-bottom: 36px;
 }
 
 @media (max-width: 768px) {
   .dashboard-page {
-    padding-top: 90px;
-    padding-bottom: 40px;
+    padding-top: 80px;
+    padding-bottom: 24px;
     background-attachment: scroll;
     background-size: cover;
   }
 
   .dashboard-container {
     gap: 16px;
-    padding: 20px 0 0;
+    padding: 16px 0 0;
   }
 
   .dashboard-card {
@@ -47,8 +47,8 @@
 .dashboard-container {
   display: grid;
   grid-template-columns: 280px 1fr;
-  gap: 30px;
-  padding: 40px 0;
+  gap: 24px;
+  padding: 20px 0;
 }
 
 @media (max-width: 992px) {

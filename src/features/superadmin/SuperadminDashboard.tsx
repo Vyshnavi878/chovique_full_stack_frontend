@@ -474,38 +474,49 @@ export const SuperadminDashboard: React.FC = () => {
   const handleApplyPreset = async (preset: ThemePreset) => {
     setActivePresetId(preset.id);
     setThemeInput(preset.colors);
-    updateThemeColors(preset.colors);
-    addLogEntry(`Applied Theme Preset: "${preset.name}"`, 'setting');
-    
-    // Attempt to set it as active on backend if it's a backend custom theme
-    const isBuiltIn = builtInPresets.find(p => p.id === preset.id);
-    if (!isBuiltIn) {
-      try {
+    try {
+      await updateThemeColors(preset.colors);
+      addLogEntry(`Applied Theme Preset: "${preset.name}"`, 'setting');
+      
+      const isBuiltIn = builtInPresets.find(p => p.id === preset.id);
+      if (!isBuiltIn) {
         await adminService.setActiveTheme(preset.id);
-      } catch (err) {
-        console.error('Failed to set active theme on backend', err);
       }
+    } catch (err: any) {
+      console.error('Failed to set active theme on backend', err);
+      alert('Failed to save theme setting to database: ' + (err?.message || 'Network error'));
     }
   };
 
-  const handleApplyTheme = () => {
+  const handleApplyTheme = async () => {
     setActivePresetId(null);
-    updateThemeColors({
+    const customColors = {
       primary: themeInput.primary,
       darkChocolate: themeInput.darkChocolate,
       gold: themeInput.gold,
       roseGold: themeInput.roseGold,
       black: themeInput.black,
-    });
-    addLogEntry('Configured custom theme color values manually', 'setting');
+    };
+    try {
+      await updateThemeColors(customColors);
+      addLogEntry('Configured custom theme color values manually', 'setting');
+    } catch (err: any) {
+      console.error('Failed to save custom theme to backend', err);
+      alert('Failed to save custom theme colors to database: ' + (err?.message || 'Network error'));
+    }
   };
 
-  const handleResetTheme = () => {
+  const handleResetTheme = async () => {
     const defaults = builtInPresets[0].colors;
     setThemeInput(defaults);
     setActivePresetId('classic');
-    updateThemeColors(defaults);
-    addLogEntry('Reset theme color tokens to defaults', 'setting');
+    try {
+      await updateThemeColors(defaults);
+      addLogEntry('Reset theme color tokens to defaults', 'setting');
+    } catch (err: any) {
+      console.error('Failed to reset theme on backend', err);
+      alert('Failed to reset theme on database: ' + (err?.message || 'Network error'));
+    }
   };
 
   const handleAddCustomTheme = async () => {

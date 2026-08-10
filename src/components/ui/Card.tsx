@@ -90,7 +90,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
       }}
     >
       {/* Product Image Container */}
-      <div style={{ position: 'relative', overflow: 'hidden', aspectRatio: '1.25/1' }}>
+      <div style={{ position: 'relative', overflow: 'hidden', aspectRatio: '1.05/1', background: 'rgba(0,0,0,0.2)' }}>
         <img
           src={imgSrc}
           alt={product.name}
@@ -99,6 +99,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            objectPosition: 'center center',
             transition: 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease',
             opacity: isHovered && hasHover ? 0 : 1,
             transform: isHovered ? 'scale(1.06)' : 'scale(1)',

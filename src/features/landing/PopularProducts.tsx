@@ -57,7 +57,7 @@ export const PopularProducts: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '60px',
+            marginBottom: '28px',
           }}
         >
           <span className="section-label" style={{ justifyContent: 'center' }}>

@@ -81,7 +81,7 @@ export const Boutique: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '40px',
+            marginBottom: '24px',
           }}
         >
           <span className="section-label" style={{ justifyContent: 'center' }}>
@@ -102,7 +102,7 @@ export const Boutique: React.FC = () => {
             flexWrap: 'wrap',
             justifyContent: 'center',
             gap: '12px',
-            marginBottom: '45px',
+            marginBottom: '24px',
           }}
         >
           {filterButtons.map((btn) => (

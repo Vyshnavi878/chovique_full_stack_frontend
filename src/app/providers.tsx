@@ -186,7 +186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Theme State
+  // Theme State & Persistence (Backend PostgreSQL as Source of Truth)
   // ---------------------------------------------------------------------------
 
   const [theme, setTheme] = useState(() => {
@@ -201,11 +201,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     homeService.getTheme()
       .then((data) => {
-        if (data && Object.keys(data).length > 0) {
-          setTheme(data);
+        if (data && typeof data === 'object' && Object.keys(data).length > 0 && data.primary) {
+          setTheme((prev) => {
+            const merged = { ...prev, ...data };
+            try {
+              localStorage.setItem('chovique_theme', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       })
-      .catch((err) => console.error('Failed to load theme from backend', err));
+      .catch((err) => console.error('Failed to load active theme from backend', err));
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -837,18 +843,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     roseGold?: string;
     black?: string;
   }) => {
+    let updatedTheme = defaultTheme;
     setTheme((prev: typeof defaultTheme) => {
-      const newTheme = { ...prev, ...colors };
-      // Sync with backend if admin
-      if (role === 'admin' || role === 'superadmin') {
-        import('../services/adminService').then((m) => {
-          m.adminService.updateTheme(newTheme).catch(err => {
-            console.error('Failed to sync theme to backend', err);
-          });
-        });
-      }
-      return newTheme;
+      updatedTheme = { ...prev, ...colors };
+      try {
+        localStorage.setItem('chovique_theme', JSON.stringify(updatedTheme));
+      } catch {}
+      return updatedTheme;
     });
+
+    if (role === 'admin' || role === 'superadmin') {
+      try {
+        const { adminService } = await import('../services/adminService');
+        await adminService.updateTheme(updatedTheme);
+      } catch (err) {
+        console.error('Failed to sync theme to backend database', err);
+        throw err;
+      }
+    }
   }, [role]);
 
   // ---------------------------------------------------------------------------

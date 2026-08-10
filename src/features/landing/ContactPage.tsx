@@ -146,7 +146,7 @@ export const ContactPage: React.FC = () => {
       <section
         style={{
           position: 'relative',
-          padding: '140px 0 80px 0',
+          padding: '95px 0 36px 0',
           background: 'linear-gradient(to bottom, rgba(20, 10, 5, 0.95), rgba(10, 10, 10, 1))',
         }}
       >
@@ -283,9 +283,9 @@ export const ContactPage: React.FC = () => {
       </section>
 
       {/* HOW CAN WE HELP YOU GRID */}
-      <section style={{ padding: '60px 0', background: 'var(--black)' }}>
+      <section style={{ padding: '36px 0', background: 'var(--black)' }}>
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <span
               style={{
                 fontSize: '0.85rem',
@@ -349,7 +349,7 @@ export const ContactPage: React.FC = () => {
       </section>
 
       {/* MAIN 2-COLUMN SPLIT: FORM & SUPPORT CHANNELS */}
-      <section style={{ padding: '60px 0 100px 0', background: 'var(--black)' }}>
+      <section style={{ padding: '36px 0 50px 0', background: 'var(--black)' }}>
         <div className="container">
           <div
             style={{

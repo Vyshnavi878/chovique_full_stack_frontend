@@ -69,7 +69,7 @@ export const OurStoryPage: React.FC = () => {
       <section
         style={{
           position: 'relative',
-          padding: '160px 0 100px 0',
+          padding: '105px 0 45px 0',
           background: 'linear-gradient(rgba(var(--dark-chocolate-rgb), 0.75), rgba(10, 10, 10, 1)), url("https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=1600&q=80")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -94,7 +94,7 @@ export const OurStoryPage: React.FC = () => {
       </section>
 
       {/* Our Story Content */}
-      <section style={{ padding: '80px 0', background: 'var(--gradient-section-1)' }}>
+      <section style={{ padding: '40px 0', background: 'var(--gradient-section-1)' }}>
         <div className="container">
           <div
             style={{
@@ -311,9 +311,9 @@ export const OurStoryPage: React.FC = () => {
       </section>
 
       {/* The Artisanal Process */}
-      <section style={{ padding: '80px 0', background: 'var(--gradient-section-5)' }}>
+      <section style={{ padding: '40px 0', background: 'var(--gradient-section-5)' }}>
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <span className="section-label" style={{ justifyContent: 'center' }}>Step-By-Step</span>
             <h2 className="section-title">The Bean-To-Bar <span className="gold">Process</span></h2>
             <div className="gold-divider" style={{ margin: '15px auto', width: '80px', height: '2px', background: 'var(--gradient-gold)' }} />
