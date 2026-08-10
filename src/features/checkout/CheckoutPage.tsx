@@ -56,14 +56,8 @@ export const CheckoutPage: React.FC = () => {
     message: string;
   }>({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
 
-  // Check if this is a Buy Now flow or Cart flow
-  const buyNowItemRaw = sessionStorage.getItem('chovique_buy_now_item');
-  const buyNowItem = buyNowItemRaw ? (JSON.parse(buyNowItemRaw) as { product: any; quantity: number }) : null;
-
-  // The checkout items to display and place order for
-  const checkoutItems = buyNowItem
-    ? [{ product: buyNowItem.product, quantity: buyNowItem.quantity }]
-    : cart;
+  // The checkout items to display and place order for (uses full cart infrastructure)
+  const checkoutItems = cart;
 
   // Redirect if checkout items list is empty (only on steps 1–5, not success screen)
   useEffect(() => {

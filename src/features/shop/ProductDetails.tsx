@@ -9,7 +9,7 @@ import { pageTransition } from '../../lib/framer';
 
 import { getImageUrl } from '../../utils/imageUrl';
 
-type TabType = 'description' | 'ingredients' | 'nutrition' | 'reviews';
+type TabType = 'description' | 'ingredients' | 'nutrition';
 
 export const ProductDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,12 +78,12 @@ export const ProductDetails: React.FC = () => {
     }
   };
 
-  // Buy now trigger
-  const handleBuyNow = () => {
+  // Buy now trigger — adds product with selected quantity to cart and navigates to existing checkout flow
+  const handleBuyNow = async () => {
     if (role === 'guest') {
       navigate('/login');
     } else {
-      sessionStorage.setItem('chovique_buy_now_item', JSON.stringify({ product, quantity }));
+      await addToCart(product, quantity);
       navigate('/checkout');
     }
   };
@@ -105,31 +105,11 @@ export const ProductDetails: React.FC = () => {
   };
 
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
-  const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
 
   useEffect(() => {
     if (product) {
       import('../../services/productService').then(({ productService }) => {
-        productService.getRelatedProducts(product.id, 3).then(setRelatedProducts);
-        
-        // Track recently viewed
-        const rvStr = localStorage.getItem('chovique_recently_viewed') || '[]';
-        let rv: string[] = [];
-        try { rv = JSON.parse(rvStr); } catch (e) {}
-        
-        // Remove current if exists, then unshift, limit to 5
-        rv = rv.filter(id => id !== product.id);
-        rv.unshift(product.id);
-        rv = rv.slice(0, 5);
-        localStorage.setItem('chovique_recently_viewed', JSON.stringify(rv));
-        
-        // Fetch recently viewed products (excluding current)
-        const fetchIds = rv.filter(id => id !== product.id).slice(0, 2);
-        if (fetchIds.length > 0) {
-          productService.getBulkProducts(fetchIds.join(',')).then(setRecentlyViewed);
-        } else {
-          setRecentlyViewed([]);
-        }
+        productService.getRelatedProducts(product.id, 4).then(setRelatedProducts);
       });
     }
   }, [product]);
@@ -389,7 +369,7 @@ export const ProductDetails: React.FC = () => {
         {/* Collapsible Tabs details */}
         <div>
           <div className="details-tabs-header">
-            {(['description', 'ingredients', 'nutrition', 'reviews'] as TabType[]).map((tab) => (
+            {(['description', 'ingredients', 'nutrition'] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -414,36 +394,43 @@ export const ProductDetails: React.FC = () => {
             )}
 
             {activeTab === 'nutrition' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '20px' }}>
-                {Object.entries(product.nutrition).map(([key, val]) => (
-                  <div
-                    key={key}
-                    className="glass-panel"
-                    style={{ padding: '16px', textAlign: 'center', border: '1px solid var(--glass-border)' }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--gold)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '1px',
-                        display: 'block',
-                        marginBottom: '4px',
-                      }}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '20px' }}>
+                {product.nutrition && Object.entries(product.nutrition).map(([key, val]) => (
+                  val ? (
+                    <div
+                      key={key}
+                      className="glass-panel"
+                      style={{ padding: '16px', textAlign: 'center', border: '1px solid var(--glass-border)' }}
                     >
-                      {key.replace(/([A-Z])/g, ' $1')}
-                    </span>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--cream)' }}>{val}</span>
-                  </div>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--gold)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px',
+                          display: 'block',
+                          marginBottom: '4px',
+                        }}
+                      >
+                        {key === 'servingSize' ? 'Serving Size' :
+                         key === 'totalFat' ? 'Total Fat' :
+                         key === 'saturatedFat' ? 'Saturated Fat' :
+                         key === 'transFat' ? 'Trans Fat' :
+                         key === 'cholesterol' ? 'Cholesterol' :
+                         key === 'sodium' ? 'Sodium' :
+                         key === 'totalCarb' ? 'Total Carbohydrates' :
+                         key === 'dietaryFiber' ? 'Dietary Fiber' :
+                         key === 'totalSugars' ? 'Total Sugars' :
+                         key === 'addedSugars' ? 'Added Sugars' :
+                         key === 'calories' ? 'Calories' :
+                         key === 'protein' ? 'Protein' :
+                         key.replace(/([A-Z])/g, ' $1')}
+                      </span>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--cream)' }}>{val}</span>
+                    </div>
+                  ) : null
                 ))}
               </div>
-            )}
-
-            {activeTab === 'reviews' && (
-              <ReviewsTabSection productId={product.id} user={user} role={role} onReviewAdded={() => {
-                // Refresh product rating
-                productService.getProduct(product.id).then(setProduct);
-              }} />
             )}
           </div>
         </div>
@@ -459,7 +446,7 @@ export const ProductDetails: React.FC = () => {
                 marginBottom: '30px',
               }}
             >
-              Related Creations
+              Related Products
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
               {relatedProducts.map((prod) => (
@@ -468,47 +455,6 @@ export const ProductDetails: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* Recently viewed products */}
-        <div style={{ marginTop: '60px' }}>
-          <h3
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.4rem',
-              color: 'var(--beige)',
-              marginBottom: '20px',
-            }}
-          >
-            Recently Viewed
-          </h3>
-          <div style={{ display: 'flex', gap: '20px' }}>
-            {recentlyViewed.map((prod) => (
-              <Link
-                key={prod.id}
-                to={`/product/${prod.id}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--glass-border)',
-                  padding: '10px 20px',
-                  borderRadius: '4px',
-                }}
-              >
-                <img
-                  src={prod.image}
-                  alt={prod.name}
-                  style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '2px' }}
-                />
-                <div>
-                  <h5 style={{ color: 'var(--cream)', margin: 0, fontSize: '0.9rem' }}>{prod.name}</h5>
-                  <span style={{ color: 'var(--gold)', fontSize: '0.8rem' }}>₹{prod.price}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
       </div>
     </motion.div>
   );

@@ -70,10 +70,27 @@ export const AdminDashboard: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch categories list when categories tab becomes active
+  // Fetch initial extra admin data on mount (users, contact messages, coupons, stats, orders)
+  useEffect(() => {
+    fetchExtraAdminData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch data when tabs become active
   useEffect(() => {
     if (activeTab === 'categories' && categoriesList.length === 0) {
       fetchCategories();
+    }
+    if (activeTab === 'orders') {
+      fetchAdminOrders(orderFulfillmentFilter, orderPaymentFilter);
+    }
+    if (activeTab === 'customers') {
+      adminService.getUsers().then((users) => {
+        if (Array.isArray(users)) setSystemUsers(users);
+      }).catch((err) => console.error('Failed to fetch customers:', err));
+    }
+    if (activeTab === 'coupons') {
+      adminService.getCoupons().then((coupons) => setCouponsList(coupons)).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -93,12 +110,17 @@ export const AdminDashboard: React.FC = () => {
     imageFiles: [] as File[],
     imagePreviewUrls: [] as string[],
     stock: 10,
+    servingSize: '100g',
     calories: '550 kcal',
     totalFat: '35g',
     saturatedFat: '20g',
+    transFat: '0g',
     cholesterol: '0mg',
     sodium: '15mg',
     totalCarb: '50g',
+    dietaryFiber: '8g',
+    totalSugars: '40g',
+    addedSugars: '35g',
     protein: '7g',
   });
   const [productAddedSuccess, setProductAddedSuccess] = useState(false);
@@ -180,12 +202,17 @@ export const AdminDashboard: React.FC = () => {
       newProd.imageFiles.forEach(file => formData.append('gallery_images', file));
     }
     // Nutrition fields
+    formData.append('nutrition_serving_size', newProd.servingSize);
     formData.append('nutrition_calories', newProd.calories);
     formData.append('nutrition_total_fat', newProd.totalFat);
     formData.append('nutrition_saturated_fat', newProd.saturatedFat);
+    formData.append('nutrition_trans_fat', newProd.transFat);
     formData.append('nutrition_cholesterol', newProd.cholesterol);
     formData.append('nutrition_sodium', newProd.sodium);
     formData.append('nutrition_total_carb', newProd.totalCarb);
+    formData.append('nutrition_dietary_fiber', newProd.dietaryFiber);
+    formData.append('nutrition_total_sugars', newProd.totalSugars);
+    formData.append('nutrition_added_sugars', newProd.addedSugars);
     formData.append('nutrition_protein', newProd.protein);
 
     try {
@@ -194,7 +221,7 @@ export const AdminDashboard: React.FC = () => {
       setProductAddedSuccess(true);
       setNewProd({
         name: '',
-        category: dynamicCategoryOptions[0]?.value || 'dark-chocolate',
+        category: (dynamicCategoryOptions[0]?.value as Product['category']) || 'dark',
         price: 0,
         weight: '100g',
         description: '',
@@ -203,12 +230,17 @@ export const AdminDashboard: React.FC = () => {
         imageFiles: [],
         imagePreviewUrls: [],
         stock: 10,
+        servingSize: '100g',
         calories: '550 kcal',
         totalFat: '35g',
         saturatedFat: '20g',
+        transFat: '0g',
         cholesterol: '0mg',
         sodium: '15mg',
         totalCarb: '50g',
+        dietaryFiber: '8g',
+        totalSugars: '40g',
+        addedSugars: '35g',
         protein: '7g',
       });
       setTimeout(() => {
@@ -234,8 +266,13 @@ export const AdminDashboard: React.FC = () => {
       await productService.updateProduct(editingProduct.id, {
         name: editingProduct.name,
         price: editingProduct.price,
+        weight: editingProduct.weight,
         stock: editingProduct.stock,
         category: editingProduct.category,
+        badge: editingProduct.badge,
+        description: editingProduct.description,
+        ingredients: editingProduct.ingredients,
+        nutrition: editingProduct.nutrition,
       });
       if (editingProductImageFiles.length > 0) {
         const formData = new FormData();
@@ -1375,6 +1412,27 @@ export const AdminDashboard: React.FC = () => {
                         />
                       </div>
 
+                      {/* Structured Nutrition Information Section */}
+                      <div style={{ marginTop: '20px', marginBottom: '20px', padding: '16px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'rgba(0,0,0,0.2)' }}>
+                        <h4 style={{ color: 'var(--gold)', fontSize: '0.95rem', fontFamily: 'var(--font-display)', marginBottom: '14px' }}>
+                          Nutrition Information (Optional)
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                          <Input label="Serving Size" placeholder="e.g. 100g or 30g" value={newProd.servingSize} onChange={(e) => setNewProd({ ...newProd, servingSize: e.target.value })} />
+                          <Input label="Calories" placeholder="e.g. 550 kcal" value={newProd.calories} onChange={(e) => setNewProd({ ...newProd, calories: e.target.value })} />
+                          <Input label="Total Fat" placeholder="e.g. 35g" value={newProd.totalFat} onChange={(e) => setNewProd({ ...newProd, totalFat: e.target.value })} />
+                          <Input label="Saturated Fat" placeholder="e.g. 20g" value={newProd.saturatedFat} onChange={(e) => setNewProd({ ...newProd, saturatedFat: e.target.value })} />
+                          <Input label="Trans Fat" placeholder="e.g. 0g" value={newProd.transFat} onChange={(e) => setNewProd({ ...newProd, transFat: e.target.value })} />
+                          <Input label="Cholesterol" placeholder="e.g. 0mg" value={newProd.cholesterol} onChange={(e) => setNewProd({ ...newProd, cholesterol: e.target.value })} />
+                          <Input label="Sodium" placeholder="e.g. 15mg" value={newProd.sodium} onChange={(e) => setNewProd({ ...newProd, sodium: e.target.value })} />
+                          <Input label="Total Carbohydrates" placeholder="e.g. 50g" value={newProd.totalCarb} onChange={(e) => setNewProd({ ...newProd, totalCarb: e.target.value })} />
+                          <Input label="Dietary Fiber" placeholder="e.g. 8g" value={newProd.dietaryFiber} onChange={(e) => setNewProd({ ...newProd, dietaryFiber: e.target.value })} />
+                          <Input label="Total Sugars" placeholder="e.g. 40g" value={newProd.totalSugars} onChange={(e) => setNewProd({ ...newProd, totalSugars: e.target.value })} />
+                          <Input label="Added Sugars" placeholder="e.g. 35g" value={newProd.addedSugars} onChange={(e) => setNewProd({ ...newProd, addedSugars: e.target.value })} />
+                          <Input label="Protein" placeholder="e.g. 7g" value={newProd.protein} onChange={(e) => setNewProd({ ...newProd, protein: e.target.value })} />
+                        </div>
+                      </div>
+
                       {productAddedSuccess && (
                         <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', marginBottom: '15px', fontSize: '0.85rem' }}>
                           ✓ Chocolate catalog item created successfully!
@@ -1396,6 +1454,69 @@ export const AdminDashboard: React.FC = () => {
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Edit Product Modal */}
+            {editingProduct && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', margin: 0 }}>
+                      Edit Product: {editingProduct.name}
+                    </h3>
+                    <button type="button" onClick={() => setEditingProduct(null)} style={{ background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}>
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleEditProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <Input label="Product Name" value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} required />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <Input label="Price (₹)" type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })} required />
+                      <Input label="Weight" value={editingProduct.weight || ''} onChange={(e) => setEditingProduct({ ...editingProduct, weight: e.target.value })} required />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <Input label="Stock Units" type="number" value={editingProduct.stock ?? 10} onChange={(e) => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })} required />
+                      <Select label="Category" options={dynamicCategoryOptions} value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value as any })} />
+                    </div>
+                    <Input label="Ingredients" value={editingProduct.ingredients || ''} onChange={(e) => setEditingProduct({ ...editingProduct, ingredients: e.target.value })} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Description</label>
+                      <textarea rows={3} value={editingProduct.description || ''} onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })} style={{ padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', color: 'var(--cream)', borderRadius: '4px', resize: 'none' }} />
+                    </div>
+
+                    {/* Structured Nutrition Form inside Edit Modal */}
+                    <div style={{ padding: '16px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'rgba(0,0,0,0.2)' }}>
+                      <h4 style={{ color: 'var(--gold)', fontSize: '0.95rem', fontFamily: 'var(--font-display)', marginBottom: '14px' }}>
+                        Nutrition Information
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <Input label="Serving Size" value={editingProduct.nutrition?.servingSize || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, servingSize: e.target.value } })} />
+                        <Input label="Calories" value={editingProduct.nutrition?.calories || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, calories: e.target.value } })} />
+                        <Input label="Total Fat" value={editingProduct.nutrition?.totalFat || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, totalFat: e.target.value } })} />
+                        <Input label="Saturated Fat" value={editingProduct.nutrition?.saturatedFat || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, saturatedFat: e.target.value } })} />
+                        <Input label="Trans Fat" value={editingProduct.nutrition?.transFat || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, transFat: e.target.value } })} />
+                        <Input label="Cholesterol" value={editingProduct.nutrition?.cholesterol || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, cholesterol: e.target.value } })} />
+                        <Input label="Sodium" value={editingProduct.nutrition?.sodium || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, sodium: e.target.value } })} />
+                        <Input label="Total Carbohydrates" value={editingProduct.nutrition?.totalCarb || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, totalCarb: e.target.value } })} />
+                        <Input label="Dietary Fiber" value={editingProduct.nutrition?.dietaryFiber || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, dietaryFiber: e.target.value } })} />
+                        <Input label="Total Sugars" value={editingProduct.nutrition?.totalSugars || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, totalSugars: e.target.value } })} />
+                        <Input label="Added Sugars" value={editingProduct.nutrition?.addedSugars || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, addedSugars: e.target.value } })} />
+                        <Input label="Protein" value={editingProduct.nutrition?.protein || ''} onChange={(e) => setEditingProduct({ ...editingProduct, nutrition: { ...editingProduct.nutrition, protein: e.target.value } })} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                      <Button variant="gold" type="submit" disabled={isUpdatingProduct} glow style={{ flex: 1 }}>
+                        {isUpdatingProduct ? 'Saving Changes...' : 'Save Product Details'}
+                      </Button>
+                      <button type="button" onClick={() => setEditingProduct(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--grey-mid)', color: 'var(--cream)', borderRadius: '4px', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

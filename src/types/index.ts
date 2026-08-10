@@ -51,13 +51,19 @@ export interface ProductRatingSummary {
 }
 
 export interface NutritionInfo {
-  calories: string;
-  totalFat: string;
-  saturatedFat: string;
-  cholesterol: string;
-  sodium: string;
-  totalCarb: string;
-  protein: string;
+  servingSize?: string;
+  calories?: string;
+  totalFat?: string;
+  saturatedFat?: string;
+  transFat?: string;
+  cholesterol?: string;
+  sodium?: string;
+  totalCarb?: string;
+  dietaryFiber?: string;
+  totalSugars?: string;
+  addedSugars?: string;
+  protein?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Product {
@@ -385,6 +391,7 @@ export interface ProductUpdatePayload {
   badge?: Product['badge'];
   description?: string;
   ingredients?: string;
+  nutrition?: NutritionInfo;
 }
 
 export interface ProfileUpdatePayload {
