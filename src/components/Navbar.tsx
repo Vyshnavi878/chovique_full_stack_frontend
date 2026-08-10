@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, User, LogOut, ChevronDown, Menu, X, Bell } from 'lucide-react';
@@ -13,6 +13,24 @@ export const Navbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  // Close notifications and mobile menu on page/section navigation
+  useEffect(() => {
+    setShowNotifications(false);
+    setMobileMenuOpen(false);
+  }, [location.pathname, location.search, location.state, location.key]);
+
+  // Close notification panel on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Navbar background change on scroll
   useEffect(() => {
@@ -143,9 +161,9 @@ export const Navbar: React.FC = () => {
                   </Link>
 
                   {/* Notifications Bell */}
-                  <div style={{ position: 'relative' }}>
+                  <div ref={notificationRef} style={{ position: 'relative' }}>
                     <button
-                      onClick={() => setShowNotifications(!showNotifications)}
+                      onClick={() => setShowNotifications((prev) => !prev)}
                       className="nav-icon-btn"
                       aria-label="Notifications"
                       title="Notifications"
@@ -192,7 +210,6 @@ export const Navbar: React.FC = () => {
                                   key={n.id}
                                   onClick={() => {
                                     removeNotification(n.id);
-                                    setShowNotifications(false);
                                     if (n.type === 'support') {
                                       navigate('/dashboard', { state: { tab: 'help' } });
                                     } else if (n.type === 'order') {

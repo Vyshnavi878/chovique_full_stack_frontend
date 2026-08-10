@@ -20,7 +20,8 @@ import {
   X,
   Menu,
   Loader2,
-  Coins
+  Coins,
+  Download
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
@@ -51,6 +52,7 @@ export const CustomerDashboard: React.FC = () => {
     role,
     wallet,
     orders,
+    setOrders,
     wishlist,
     logout,
     tickets,
@@ -108,6 +110,11 @@ export const CustomerDashboard: React.FC = () => {
   const handleViewInvoice = async (orderId: string, e: React.MouseEvent) => {
     e.preventDefault();
     try {
+      const ord = orders.find(o => o.id === orderId);
+      if (ord && ord.invoice_url && ord.invoice_url.startsWith('http')) {
+        window.open(ord.invoice_url, '_blank');
+        return;
+      }
       const html = await orderService.getInvoiceHtml(orderId);
       const win = window.open('', '_blank');
       if (win) {
@@ -123,6 +130,17 @@ export const CustomerDashboard: React.FC = () => {
   const handleDownloadInvoice = async (orderId: string, e: React.MouseEvent) => {
     e.preventDefault();
     try {
+      const ord = orders.find(o => o.id === orderId);
+      if (ord && ord.invoice_url && ord.invoice_url.startsWith('http')) {
+        const a = document.createElement('a');
+        a.href = ord.invoice_url;
+        a.target = '_blank';
+        a.download = `Invoice-${orderId}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
       const html = await orderService.getInvoiceHtml(orderId);
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
@@ -216,6 +234,34 @@ export const CustomerDashboard: React.FC = () => {
     };
   }, [activeTab]);
 
+  // --- Orders: fetched from backend when orders or overview tab is active ---
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'orders' && activeTab !== 'overview') return;
+    let cancelled = false;
+    setIsOrdersLoading(true);
+    setOrdersError('');
+    orderService
+      .getOrders()
+      .then((data) => {
+        if (!cancelled) setOrders(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to load order history.';
+          setOrdersError(msg);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsOrdersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, setOrders]);
+
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
@@ -253,7 +299,8 @@ export const CustomerDashboard: React.FC = () => {
     const form = e.currentTarget;
     const dob = (form.elements.namedItem('dob') as HTMLInputElement).value;
     const gender = (form.elements.namedItem('gender') as HTMLSelectElement).value;
-    const preferences = (form.elements.namedItem('preferences') as HTMLTextAreaElement).value;
+    const prefEl = form.elements.namedItem('preferences') as HTMLTextAreaElement | null;
+    const preferences = prefEl ? prefEl.value : (user?.profile?.preferences || '');
     setPreferencesError('');
     setIsPreferencesSaving(true);
     try {
@@ -261,7 +308,7 @@ export const CustomerDashboard: React.FC = () => {
       setPreferencesSaved(true);
       setTimeout(() => setPreferencesSaved(false), 3000);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save preferences.';
+      const msg = err instanceof Error ? err.message : 'Failed to save settings.';
       setPreferencesError(msg);
     } finally {
       setIsPreferencesSaving(false);
@@ -862,8 +909,44 @@ export const CustomerDashboard: React.FC = () => {
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '24px' }}>
                   My Order Ledger
                 </h2>
-                {orders.length === 0 ? (
-                  <p style={{ color: 'var(--grey-light)' }}>No orders logged yet.</p>
+
+                {isOrdersLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--gold)', padding: '20px 0' }}>
+                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span>Loading order history...</span>
+                  </div>
+                ) : ordersError ? (
+                  <div
+                    style={{
+                      padding: '16px',
+                      background: 'rgba(231, 76, 60, 0.1)',
+                      border: '1px solid #e74c3c',
+                      color: '#e74c3c',
+                      borderRadius: '6px',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    {ordersError}
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '30px',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px dashed var(--glass-border)',
+                      borderRadius: '8px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <ShoppingBag size={36} style={{ color: 'var(--gold)', marginBottom: '12px', opacity: 0.8 }} />
+                    <h3 style={{ color: 'var(--cream)', margin: '0 0 8px 0', fontSize: '1.1rem' }}>No orders found</h3>
+                    <p style={{ color: 'var(--grey-light)', margin: '0 0 20px 0', fontSize: '0.9rem' }}>
+                      You haven't placed any orders yet. Discover our artisanal chocolates and place your first order.
+                    </p>
+                    <Button variant="gold" onClick={() => navigate('/shop')} glow size="sm">
+                      Explore Shop
+                    </Button>
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {orders.map((ord) => (
@@ -883,28 +966,35 @@ export const CustomerDashboard: React.FC = () => {
                               Placed: {ord.date}
                             </span>
                           </div>
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              padding: '4px 10px',
-                              borderRadius: '2px',
-                              background: ord.status === 'Delivered' ? 'rgba(46, 204, 113, 0.2)' : 'rgba(241, 196, 15, 0.2)',
-                              color: ord.status === 'Delivered' ? '#2ecc71' : '#f1c40f',
-                            }}
-                          >
-                            {ord.status}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {ord.paymentMethod && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                                {ord.paymentMethod}
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                padding: '4px 10px',
+                                borderRadius: '2px',
+                                background: ord.status === 'Delivered' ? 'rgba(46, 204, 113, 0.2)' : ord.status === 'Cancelled' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(241, 196, 15, 0.2)',
+                                color: ord.status === 'Delivered' ? '#2ecc71' : ord.status === 'Cancelled' ? '#e74c3c' : '#f1c40f',
+                              }}
+                            >
+                              {ord.status}
+                            </span>
+                          </div>
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {ord.items.map((item) => (
-                            <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                          {ord.items.map((item, idx) => (
+                            <div key={item.product?.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                               <span style={{ color: 'var(--beige)' }}>
-                                {item.product.name} (x{item.quantity})
+                                {item.product?.name || 'Chovique Product'} (x{item.quantity})
                               </span>
-                              <span>₹{(item.product.price * item.quantity).toLocaleString()}</span>
+                              <span>₹{((item.product?.price || 0) * item.quantity).toLocaleString()}</span>
                             </div>
                           ))}
                         </div>
@@ -1142,42 +1232,106 @@ export const CustomerDashboard: React.FC = () => {
                     No coupons available on your account right now.
                   </p>
                 ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {coupons.map((c) => (
-                    <div
-                      key={c.code}
-                      style={{
-                        padding: '20px',
-                        borderRadius: '6px',
-                        border: '1px dashed var(--gold)',
-                        background: 'rgba(201, 168, 76, 0.03)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div>
-                        <span
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {coupons.map((c) => {
+                      const discountStr =
+                        c.discount_type === 'PERCENTAGE' || (c.discount_percent && c.discount_percent > 0)
+                          ? `${c.discount_percent || c.discountPercent}% OFF`
+                          : c.discount_type === 'FIXED_AMOUNT' || (c.discount_amount && c.discount_amount > 0)
+                          ? `₹${c.discount_amount} OFF`
+                          : c.discount_type === 'FREE_SHIPPING'
+                          ? 'Free Shipping'
+                          : c.desc || 'Special Offer';
+
+                      const isExpired = c.expires_at ? new Date(c.expires_at).getTime() < Date.now() : false;
+                      const isActive = (c.status === 'ACTIVE' || (c.is_active !== false && c.status !== 'INACTIVE')) && !isExpired;
+                      const statusLabel = isActive ? 'ACTIVE' : 'INACTIVE';
+
+                      let expiryStr = 'No Expiry';
+                      if (c.expires_at) {
+                        try {
+                          const d = new Date(c.expires_at);
+                          expiryStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                        } catch {
+                          expiryStr = c.expires_at;
+                        }
+                      } else if (c.exp) {
+                        expiryStr = c.exp;
+                      }
+
+                      return (
+                        <div
+                          key={c.code}
                           style={{
-                            fontSize: '1.1rem',
-                            fontWeight: 700,
-                            color: 'var(--gold)',
-                            background: 'var(--dark-chocolate)',
-                            padding: '4px 12px',
-                            border: '1px solid var(--gold)',
-                            borderRadius: '4px',
-                            display: 'inline-block',
-                            marginBottom: '8px',
+                            padding: '20px',
+                            borderRadius: '8px',
+                            border: isActive ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                            background: isActive ? 'rgba(201, 168, 76, 0.04)' : 'rgba(0, 0, 0, 0.25)',
+                            opacity: isActive ? 1 : 0.75,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
                           }}
                         >
-                          {c.code}
-                        </span>
-                        <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0 }}>{c.desc}</p>
-                      </div>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--rose-gold)', fontWeight: 600 }}>{c.exp}</span>
-                    </div>
-                  ))}
-                </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: 'var(--cream)', margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                {c.name || c.code}
+                              </h3>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                <span
+                                  style={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    color: 'var(--gold)',
+                                    background: 'var(--dark-chocolate)',
+                                    padding: '3px 10px',
+                                    border: '1px dashed var(--gold)',
+                                    borderRadius: '4px',
+                                    letterSpacing: '0.5px',
+                                  }}
+                                >
+                                  Code: {c.code}
+                                </span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--cream)' }}>
+                                  Discount: {discountStr}
+                                </span>
+                              </div>
+                            </div>
+
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                letterSpacing: '1px',
+                                padding: '4px 12px',
+                                borderRadius: '4px',
+                                background: isActive ? 'rgba(46, 204, 113, 0.2)' : 'rgba(231, 76, 60, 0.2)',
+                                color: isActive ? '#2ecc71' : '#e74c3c',
+                                border: isActive ? '1px solid #2ecc71' : '1px solid #e74c3c',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              Status: {statusLabel}
+                            </span>
+                          </div>
+
+                          {c.description && (
+                            <p style={{ color: 'var(--grey-light)', fontSize: '0.85rem', margin: 0 }}>
+                              {c.description}
+                            </p>
+                          )}
+
+                          <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--rose-gold)' }}>
+                            <span>Expires: {expiryStr}</span>
+                            {c.minimum_order_amount ? (
+                              <span>Min Order: ₹{c.minimum_order_amount}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
@@ -1266,16 +1420,21 @@ export const CustomerDashboard: React.FC = () => {
                         <h4 style={{ color: 'var(--cream)', fontSize: '0.95rem', margin: 0 }}>Invoice for {ord.id}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)' }}>Placed on {ord.date}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--cream)' }}>₹{ord.total.toLocaleString()}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--cream)', marginRight: '8px' }}>₹{ord.total.toLocaleString()}</span>
                         <Button
                           variant="glass"
                           size="sm"
-                          onClick={() => {
-                            alert(`Initiating simulated secure download for PDF invoice ${ord.id}.pdf`);
-                          }}
+                          onClick={(e) => handleViewInvoice(ord.id, e)}
                         >
                           <FileText size={14} />
+                          View
+                        </Button>
+                        <Button
+                          variant="gold"
+                          size="sm"
+                          onClick={(e) => handleDownloadInvoice(ord.id, e)}
+                        >
                           Download
                         </Button>
                       </div>
@@ -1333,30 +1492,7 @@ export const CustomerDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', margin: 0 }}>
-                      Taste & Chocolate Preferences
-                    </h3>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--grey-light)', marginBottom: '4px' }}>
-                      Mention your favorite single-origins, sweeteners, or customization requests:
-                    </label>
-                    <textarea
-                      name="preferences"
-                      defaultValue={user.profile.preferences || 'Dark Chocolate, Gift Boxes'}
-                      rows={3}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '4px',
-                        color: 'var(--cream)',
-                        fontSize: '0.9rem',
-                        outline: 'none',
-                        resize: 'none',
-                      }}
-                    />
-                  </div>
+
 
                   {preferencesError && (
                     <div
@@ -1470,10 +1606,10 @@ export const CustomerDashboard: React.FC = () => {
                     <Button variant="gold" type="submit" glow disabled={isPreferencesSaving}>
                       {isPreferencesSaving ? (
                         <>
-                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving Preferences...
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving Settings...
                         </>
                       ) : (
-                        'Save Preferences'
+                        'Save Settings'
                       )}
                     </Button>
                   </div>

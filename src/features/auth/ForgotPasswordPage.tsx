@@ -6,6 +6,7 @@ import { useApp } from '../../app/providers';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/authService';
+import { ApiError } from '../../lib/api';
 
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,10 @@ export const ForgotPasswordPage: React.FC = () => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Lock States for Attempt/Resend limits
+  const [isVerificationLocked, setIsVerificationLocked] = useState(false);
+  const [isResendLocked, setIsResendLocked] = useState(false);
 
   // UI / Feedback states
   const [isLoading, setIsLoading] = useState(false);
@@ -98,7 +103,18 @@ export const ForgotPasswordPage: React.FC = () => {
       setStep('RESET');
       setTimeLeft(30);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send password reset OTP.';
+      let msg = 'Failed to send password reset OTP.';
+      if (err instanceof ApiError) {
+        msg = err.detail;
+        if (err.status === 429 || err.detail.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+        if (msg.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      }
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -107,7 +123,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
   // Step 2: Resend OTP
   const handleResendOtp = async () => {
-    if (timeLeft > 0 || isResending) return;
+    if (timeLeft > 0 || isResending || isResendLocked) return;
     setError('');
     setIsResending(true);
     try {
@@ -115,7 +131,18 @@ export const ForgotPasswordPage: React.FC = () => {
       setSuccessInfo(res.message || 'A new 6-digit OTP code has been sent to your email.');
       setTimeLeft(30);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to resend OTP.';
+      let msg = 'Failed to resend OTP.';
+      if (err instanceof ApiError) {
+        msg = err.detail;
+        if (err.status === 429 || err.detail.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+        if (msg.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      }
       setError(msg);
     } finally {
       setIsResending(false);
@@ -127,6 +154,10 @@ export const ForgotPasswordPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
+    if (isVerificationLocked) {
+      setError('You have reached the maximum number of OTP verification attempts. Please try again later.');
+      return;
+    }
     if (!otp.trim() || otp.trim().length < 4) {
       setError('Please enter the verification code sent to your email.');
       return;
@@ -145,7 +176,18 @@ export const ForgotPasswordPage: React.FC = () => {
       await authService.resetPassword(email, otp.trim(), newPassword, confirmPassword);
       setStep('SUCCESS');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Password reset failed. Please check your OTP.';
+      let msg = 'Password reset failed. Please check your OTP.';
+      if (err instanceof ApiError) {
+        msg = err.detail;
+        if (err.status === 429 || err.detail.includes('maximum number of OTP verification attempts')) {
+          setIsVerificationLocked(true);
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+        if (msg.includes('maximum number of OTP verification attempts')) {
+          setIsVerificationLocked(true);
+        }
+      }
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -333,6 +375,7 @@ export const ForgotPasswordPage: React.FC = () => {
               placeholder="123456"
               maxLength={6}
               value={otp}
+              disabled={isVerificationLocked}
               onChange={(e) => {
                 setOtp(e.target.value.trim());
                 if (error) setError('');
@@ -356,18 +399,19 @@ export const ForgotPasswordPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={timeLeft > 0 || isResending}
+                disabled={timeLeft > 0 || isResending || isResendLocked}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: timeLeft > 0 || isResending ? 'rgba(255,255,255,0.3)' : 'var(--gold)',
+                  color: timeLeft > 0 || isResending || isResendLocked ? 'rgba(255,255,255,0.3)' : 'var(--gold)',
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  cursor: timeLeft > 0 || isResending ? 'not-allowed' : 'pointer',
+                  cursor: timeLeft > 0 || isResending || isResendLocked ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  textDecoration: timeLeft === 0 ? 'underline' : 'none',
+                  textDecoration: timeLeft === 0 && !isResendLocked ? 'underline' : 'none',
+                  opacity: isResendLocked ? 0.5 : 1,
                 }}
               >
                 {isResending ? (
@@ -384,6 +428,7 @@ export const ForgotPasswordPage: React.FC = () => {
               type="password"
               placeholder="At least 6 characters"
               value={newPassword}
+              disabled={isVerificationLocked}
               onChange={(e) => {
                 setNewPassword(e.target.value);
                 if (error) setError('');
@@ -423,6 +468,7 @@ export const ForgotPasswordPage: React.FC = () => {
               type="password"
               placeholder="Re-enter your new password"
               value={confirmPassword}
+              disabled={isVerificationLocked}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
                 if (error) setError('');
@@ -437,7 +483,7 @@ export const ForgotPasswordPage: React.FC = () => {
               size="lg"
               type="submit"
               glow
-              disabled={isLoading}
+              disabled={isLoading || isVerificationLocked}
               style={{ gap: '10px', marginTop: '4px' }}
             >
               {isLoading ? (

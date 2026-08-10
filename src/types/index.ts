@@ -110,6 +110,7 @@ export interface Order {
   };
   deliveryOption: string;
   paymentMethod: string;
+  invoice_url?: string;
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
 }
@@ -175,10 +176,21 @@ export interface SupportNotification {
 }
 
 export interface UserCoupon {
+  id?: string;
   code: string;
-  desc: string;
-  exp: string;
+  name?: string;
+  description?: string;
+  desc?: string;
+  discount_type?: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING' | string;
+  discount_percent?: number;
+  discount_amount?: number;
   discountPercent?: number;
+  maximum_discount_amount?: number;
+  minimum_order_amount?: number;
+  expires_at?: string;
+  exp?: string;
+  is_active?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 // =============================================================================

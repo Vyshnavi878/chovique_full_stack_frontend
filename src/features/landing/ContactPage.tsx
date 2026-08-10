@@ -270,8 +270,11 @@ export const ContactPage: React.FC = () => {
               }}
             >
               <img
-                src="https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=1200&q=80"
+                src="/assets/contact-hero.png"
                 alt="Chovique Luxury Chocolates Gift Box"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/assets/popular-bg.jpg';
+                }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </motion.div>

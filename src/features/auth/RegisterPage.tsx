@@ -5,6 +5,7 @@ import { useApp } from '../../app/providers';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/authService';
+import { ApiError } from '../../lib/api';
 
 export const RegisterPage: React.FC = () => {
   const { verifyOtp } = useApp();
@@ -25,6 +26,10 @@ export const RegisterPage: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [isResending, setIsResending] = useState(false);
   const [successInfo, setSuccessInfo] = useState('');
+
+  // Lock States for Attempt/Resend limits
+  const [isVerificationLocked, setIsVerificationLocked] = useState(false);
+  const [isResendLocked, setIsResendLocked] = useState(false);
 
   // UI State
   const [error, setError] = useState('');
@@ -57,22 +62,22 @@ export const RegisterPage: React.FC = () => {
       setStrengthText('');
       return;
     }
-    if (password.length < 5) {
-      setStrengthScore(1);
-      setStrengthText('Weak');
-      return;
-    }
 
-    let score = 1;
+    let score = 0;
+    if (password.length >= 8) score++;
     if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    setStrengthScore(score);
+    // Map 0-5 score to 1-4 display segments
+    const displayScore = score === 0 ? 0 : score <= 2 ? 1 : score === 3 ? 2 : score === 4 ? 3 : 4;
+    setStrengthScore(displayScore);
 
-    if (score === 2) setStrengthText('Fair');
-    else if (score === 3) setStrengthText('Good');
-    else if (score === 4) setStrengthText('Strong & Luxurious');
+    if (displayScore === 1) setStrengthText('Weak');
+    else if (displayScore === 2) setStrengthText('Fair');
+    else if (displayScore === 3) setStrengthText('Good');
+    else if (displayScore === 4) setStrengthText('Strong & Luxurious');
   }, [password]);
 
   const getStrengthColor = () => {
@@ -97,8 +102,18 @@ export const RegisterPage: React.FC = () => {
       setError('Please enter a valid email address.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    const PASSWORD_REGEX = {
+      minLength: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      digit: /[0-9]/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
+    };
+    const isPasswordValid = Object.values(PASSWORD_REGEX).every(Boolean);
+    if (!isPasswordValid) {
+      setError(
+        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one number, and one special character.'
+      );
       return;
     }
     if (confirmPassword !== password) {
@@ -135,12 +150,17 @@ export const RegisterPage: React.FC = () => {
     setError('');
     setSuccessInfo('');
 
+    if (isVerificationLocked) {
+      setError('You have reached the maximum number of OTP verification attempts. Please try again later.');
+      return;
+    }
+
     if (!/^\d{6}$/.test(otp.trim())) {
       setError('Please enter a valid 6-digit numerical OTP code.');
       return;
     }
     if (timeLeft === 0) {
-      setError('OTP has expired (30s duration). Please click "Resend OTP" below.');
+      setError('OTP has expired. Please click "Resend OTP" below.');
       return;
     }
 
@@ -149,7 +169,11 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(false);
 
     if (!result.success) {
-      setError(result.error || 'Invalid or expired OTP. Please try again.');
+      const errorMsg = result.error || 'Invalid or expired OTP. Please try again.';
+      if (result.status === 429 || errorMsg.includes('maximum number of OTP verification attempts')) {
+        setIsVerificationLocked(true);
+      }
+      setError(errorMsg);
       return;
     }
 
@@ -158,6 +182,7 @@ export const RegisterPage: React.FC = () => {
 
   // Resend OTP Action
   const handleResendOtp = async () => {
+    if (timeLeft > 0 || isResending || isResendLocked) return;
     setError('');
     setSuccessInfo('');
     setIsResending(true);
@@ -167,7 +192,18 @@ export const RegisterPage: React.FC = () => {
       setOtp('');
       setSuccessInfo(`Fresh OTP code sent to ${email.trim()}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to resend OTP.';
+      let msg = 'Failed to resend OTP.';
+      if (err instanceof ApiError) {
+        msg = err.detail;
+        if (err.status === 429 || err.detail.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+        if (msg.includes('maximum OTP resend limit')) {
+          setIsResendLocked(true);
+        }
+      }
       setError(msg);
     } finally {
       setIsResending(false);
@@ -432,6 +468,7 @@ export const RegisterPage: React.FC = () => {
                   type="text"
                   maxLength={6}
                   value={otp}
+                  disabled={isVerificationLocked}
                   onChange={(e) => {
                     const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
                     setOtp(cleaned);
@@ -452,6 +489,7 @@ export const RegisterPage: React.FC = () => {
                     color: 'var(--gold)',
                     outline: 'none',
                     boxShadow: '0 0 10px rgba(201, 168, 76, 0.15)',
+                    opacity: isVerificationLocked ? 0.5 : 1,
                   }}
                 />
               </div>
@@ -481,18 +519,18 @@ export const RegisterPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={timeLeft > 0 || isResending}
+                disabled={timeLeft > 0 || isResending || isResendLocked}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: timeLeft === 0 ? 'var(--gold)' : 'var(--grey-light)',
-                  cursor: timeLeft === 0 && !isResending ? 'pointer' : 'not-allowed',
+                  color: timeLeft === 0 && !isResendLocked ? 'var(--gold)' : 'var(--grey-light)',
+                  cursor: timeLeft === 0 && !isResending && !isResendLocked ? 'pointer' : 'not-allowed',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  opacity: timeLeft > 0 ? 0.5 : 1,
-                  textDecoration: timeLeft === 0 ? 'underline' : 'none',
+                  opacity: timeLeft > 0 || isResendLocked ? 0.5 : 1,
+                  textDecoration: timeLeft === 0 && !isResendLocked ? 'underline' : 'none',
                 }}
               >
                 {isResending ? (
@@ -515,7 +553,7 @@ export const RegisterPage: React.FC = () => {
               size="lg"
               type="submit"
               glow
-              disabled={isLoading || otp.length < 6 || timeLeft === 0}
+              disabled={isLoading || otp.length < 6 || timeLeft === 0 || isVerificationLocked}
               style={{ gap: '10px' }}
             >
               {isLoading ? (

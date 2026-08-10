@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, ShoppingBag, Eye, Minus, Plus } from 'lucide-react';
+import { Heart, ShoppingBag, Minus, Plus } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../app/providers';
 import { hoverLift } from '../../lib/framer';
@@ -9,10 +9,9 @@ import { getImageUrl } from '../../utils/imageUrl';
 
 interface CardProps {
   product: Product;
-  onQuickView?: (product: Product) => void;
 }
 
-export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
+export const Card: React.FC<CardProps> = ({ product }) => {
   const { role, addToCart, updateCartQuantity, removeFromCart, toggleWishlist, wishlist, cart } = useApp();
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
@@ -68,15 +67,6 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
       navigate('/cart');
     } else {
       addToCart(product, 1);
-    }
-  };
-
-  const handleQuickViewClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (role === 'guest') {
-      navigate('/login');
-    } else if (onQuickView) {
-      onQuickView(product);
     }
   };
 
@@ -165,25 +155,6 @@ export const Card: React.FC<CardProps> = ({ product, onQuickView }) => {
             }}
           >
             <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
-          </button>
-          
-          <button
-            onClick={handleQuickViewClick}
-            aria-label="Quick View"
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--glass-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--cream)',
-              transition: 'background 0.3s, color 0.3s',
-            }}
-          >
-            <Eye size={16} />
           </button>
         </div>
 

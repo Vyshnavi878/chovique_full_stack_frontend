@@ -1383,9 +1383,7 @@ export const AdminDashboard: React.FC = () => {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Image</th>
                         <th>Name</th>
-                        <th>Slug</th>
                         <th>Sort Order</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -1394,22 +1392,7 @@ export const AdminDashboard: React.FC = () => {
                     <tbody>
                       {categoriesList.map((cat) => (
                         <tr key={cat.id}>
-                          <td>
-                            {cat.image_url ? (
-                              <img
-                                src={cat.image_url}
-                                alt={cat.name}
-                                style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--glass-border)' }}
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <FolderTree size={20} style={{ color: 'var(--gold)', opacity: 0.5 }} />
-                              </div>
-                            )}
-                          </td>
                           <td style={{ color: 'var(--cream)', fontWeight: 600 }}>{cat.name}</td>
-                          <td style={{ color: 'var(--beige)', fontFamily: 'monospace', fontSize: '0.82rem' }}>{cat.slug}</td>
                           <td style={{ color: 'var(--beige)', textAlign: 'center' }}>{cat.sort_order}</td>
                           <td>
                             <button
@@ -2152,7 +2135,7 @@ export const AdminDashboard: React.FC = () => {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <Input label="Start Date (Optional)" type="date" value={newCoupon.start_at || ''} onChange={e => setNewCoupon({...newCoupon, start_at: e.target.value})} />
-                    <Input label="Expiry Date (Optional)" type="date" value={newCoupon.expires_at || ''} onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})} />
+                    <Input label="Expiry Date (Required)" type="date" value={newCoupon.expires_at || ''} onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})} required />
                   </div>
                   
                   <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: '-5px 0 5px 0' }}>
@@ -2246,10 +2229,11 @@ export const AdminDashboard: React.FC = () => {
                       required
                     />
                     <Input 
-                      label="Expiry Date (Optional)" 
+                      label="Expiry Date (Required)" 
                       type="date"
                       value={editingCoupon.expires_at ? editingCoupon.expires_at.slice(0, 10) : ''} 
                       onChange={e => setEditingCoupon({...editingCoupon, expires_at: e.target.value})}
+                      required
                     />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
                       <input 

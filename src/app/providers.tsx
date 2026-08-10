@@ -35,7 +35,7 @@ interface AppContextType {
   googleLogin: (idToken: string) => Promise<{ success: boolean; error?: string; role?: UserRole; user?: User }>;
   setPassword: (password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
-  verifyOtp: (email: string, otp: string, fullName: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (email: string, otp: string, fullName: string, password: string) => Promise<{ success: boolean; error?: string; status?: number }>;
   logout: () => Promise<void>;
 
   // Products
@@ -423,7 +423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const verifyOtp = useCallback(
-    async (email: string, otp: string, fullName: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    async (email: string, otp: string, fullName: string, password: string): Promise<{ success: boolean; error?: string; status?: number }> => {
       try {
         const response = await authService.verifyOtp({ email, otp, fullName, password });
         const newUser = response.user as User;
@@ -435,9 +435,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return { success: true };
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : 'OTP verification failed. Please try again.';
-        return { success: false, error: message };
+        let message = 'OTP verification failed. Please try again.';
+        let status = 0;
+        if (err instanceof ApiError) {
+          message = err.detail;
+          status = err.status;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+        return { success: false, error: message, status };
       }
     },
     [syncCartFromBackend]
