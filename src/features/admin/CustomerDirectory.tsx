@@ -34,20 +34,20 @@ interface CustomerDirectoryProps {
 
 // ─── Validation Helpers ───────────────────────────────────────────────────────
 
-export const validateFullName = (name: string): string | null => {
+const validateFullName = (name: string): string | null => {
   if (!name || !name.trim()) return 'Full Name is required and cannot be empty.';
   if (name.trim().length < 2) return 'Full Name must be at least 2 characters long.';
   return null;
 };
 
-export const validateEmail = (email: string): string | null => {
+const validateEmail = (email: string): string | null => {
   if (!email || !email.trim()) return 'Email is required.';
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email.trim())) return 'Please enter a valid email address.';
   return null;
 };
 
-export const validatePhone = (phone: string): string | null => {
+const validatePhone = (phone: string): string | null => {
   if (!phone || !phone.trim()) return 'Phone number is required.';
   // Supports Indian (+91 9876543210, 9876543210, 09876543210) & International formats
   const phoneRegex = /^(\+91[\-\s]?)?[0]?[6-9]\d{9}$|^\+?[0-9\s\-()]{7,15}$/;
@@ -57,7 +57,7 @@ export const validatePhone = (phone: string): string | null => {
   return null;
 };
 
-export const validateAddress = (address: string): string | null => {
+const validateAddress = (address: string): string | null => {
   if (!address || !address.trim()) return 'Address is required.';
   if (address.trim().length < 5) return 'Address must be at least 5 characters long.';
   return null;

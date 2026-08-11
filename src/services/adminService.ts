@@ -4,7 +4,7 @@
  * All calls go directly to the FastAPI backend.
  */
 
-import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut } from '../lib/api';
+import { BASE_URL, apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut } from '../lib/api';
 import type {
   Banner,
   Testimonial,
@@ -31,6 +31,65 @@ export interface AdminOfflineSalePayload {
 export interface UpdateOrderStatusPayload {
   status?: string;
   payment_status?: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  admin_id?: string | null;
+  type: string;
+  title: string;
+  message: string;
+  related_entity_type?: string | null;
+  related_entity_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface AdminNotificationListResponse {
+  items: AdminNotification[];
+  total: number;
+  page: number;
+  limit: number;
+  unread_count: number;
+}
+
+export interface AdminProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  role: string;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface UpdateAdminProfilePayload {
+  full_name: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+
+export interface ActivityLogItem {
+  id: string;
+  admin_id?: string | null;
+  admin_name?: string | null;
+  admin_email?: string | null;
+  action: string;
+  module: string;
+  description: string;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface ActivityLogListResponse {
+  items: ActivityLogItem[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 /** Dashboard stats shape from /admin/stats */
@@ -103,9 +162,172 @@ export const adminService = {
   getUsers: (): Promise<SystemUser[]> =>
     apiGet<SystemUser[]>('/admin/users'),
 
+  /** Fetch paginated customers with optional search */
+  getCustomers: (params?: { page?: number; limit?: number; search?: string }): Promise<{ customers: any[]; total: number }> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString();
+    return apiGet<{ customers: any[]; total: number }>(`/admin/customers${qs ? `?${qs}` : ''}`);
+  },
+
   /** Fetch customer details with real backend order calculation */
   getCustomerDetails: (userId: string): Promise<CustomerDetailsResponse> =>
     apiGet<CustomerDetailsResponse>(`/admin/customers/${userId}`),
+
+  /** Generate business reports (sales, orders, products, customers, coupons, reward_coins) */
+  getReport: (params: {
+    report_type: string;
+    start_date: string;
+    end_date: string;
+    page?: number;
+    limit?: number;
+  }): Promise<any> => {
+    const query = new URLSearchParams();
+    query.append('report_type', params.report_type);
+    query.append('start_date', params.start_date);
+    query.append('end_date', params.end_date);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    return apiGet<any>(`/admin/reports?${query.toString()}`);
+  },
+
+  /** Download report Excel file */
+  downloadExcelReport: async (params: { report_type: string; start_date: string; end_date: string }): Promise<void> => {
+    const url = `${BASE_URL}/admin/reports/${params.report_type}/export/excel?start_date=${params.start_date}&end_date=${params.end_date}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download report Excel.');
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${params.report_type}_report_${params.start_date}_to_${params.end_date}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  },
+
+  /** Download report PDF file */
+  downloadPdfReport: async (params: { report_type: string; start_date: string; end_date: string }): Promise<void> => {
+    const url = `${BASE_URL}/admin/reports/${params.report_type}/export/pdf?start_date=${params.start_date}&end_date=${params.end_date}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download report PDF.');
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${params.report_type}_report_${params.start_date}_to_${params.end_date}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  },
+
+  /** Download report CSV file */
+  downloadCsvReport: async (params: { report_type: string; start_date: string; end_date: string }): Promise<void> => {
+    const url = `${BASE_URL}/admin/reports/${params.report_type}/export/csv?start_date=${params.start_date}&end_date=${params.end_date}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download report CSV.');
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${params.report_type}_report_${params.start_date}_to_${params.end_date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+
+  /** Get admin notifications */
+  getAdminNotifications: (params?: { type?: string; is_read?: boolean; page?: number; limit?: number }): Promise<AdminNotificationListResponse> => {
+    const q = new URLSearchParams();
+    if (params?.type && params.type !== 'all') q.set('type', params.type);
+    if (params?.is_read !== undefined) q.set('is_read', String(params.is_read));
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<AdminNotificationListResponse>(`/admin/notifications?${q.toString()}`);
+  },
+
+  /** Get unread notification count */
+  getAdminUnreadCount: (): Promise<{ unread_count: number }> =>
+    apiGet<{ unread_count: number }>('/admin/notifications/unread-count'),
+
+  /** Mark single notification as read */
+  markNotificationAsRead: (id: string): Promise<AdminNotification> =>
+    apiPatch<AdminNotification>(`/admin/notifications/${id}/read`, {}),
+
+  /** Mark all notifications as read */
+  markAllNotificationsAsRead: (): Promise<{ message: string; updated_count: number }> =>
+    apiPost<{ message: string; updated_count: number }>('/admin/notifications/read-all', {}),
+
+  /** Get current admin profile */
+  getAdminProfile: (): Promise<AdminProfile> =>
+    apiGet<AdminProfile>('/admin/profile'),
+
+  /** Update current admin profile */
+  updateAdminProfile: (payload: UpdateAdminProfilePayload): Promise<AdminProfile> =>
+    apiPut<AdminProfile>('/admin/profile', payload),
+
+  /** Change admin password */
+  changeAdminPassword: (payload: {
+    current_password: string;
+    new_password: string;
+    confirm_password: string;
+  }): Promise<{ message: string }> =>
+    apiPost<{ message: string }>('/admin/change-password', payload),
+
+  /** Get immutable admin activity logs */
+  getActivityLogs: (params?: {
+    page?: number;
+    limit?: number;
+    start_date?: string;
+    end_date?: string;
+    module?: string;
+    action?: string;
+    status?: string;
+    search?: string;
+  }): Promise<ActivityLogListResponse> => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.start_date) q.set('start_date', params.start_date);
+    if (params?.end_date) q.set('end_date', params.end_date);
+    if (params?.module && params.module !== 'all') q.set('module', params.module);
+    if (params?.action && params.action !== 'all') q.set('action', params.action);
+    if (params?.status && params.status !== 'all') q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    return apiGet<ActivityLogListResponse>(`/admin/activity-logs?${q.toString()}`);
+  },
+
+  /** Secure admin logout */
+  adminLogout: (): Promise<{ message: string }> =>
+    apiPost<{ message: string }>('/admin/logout', {}),
 
   /** Update customer profile details */
   updateCustomer: (userId: string, payload: any): Promise<CustomerDetailsResponse> =>

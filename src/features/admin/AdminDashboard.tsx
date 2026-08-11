@@ -48,6 +48,12 @@ import { ToastContainer, ToastMessage } from '../../components/ui/Toast';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
+import { NotificationHeaderDropdown } from '../../components/NotificationHeaderDropdown';
+import { AdminUserDropdown } from '../../components/AdminUserDropdown';
+import { NotificationsView } from './NotificationsView';
+import { AdminProfileView } from './AdminProfileView';
+import { ChangePasswordView } from './ChangePasswordView';
+import { ActivityLogsView } from './ActivityLogsView';
 import { DashboardKpiSkeleton, DashboardCardSkeleton } from '../../components/ui/DashboardSkeleton';
 import { walletService, RewardSettings } from '../../services/walletService';
 import { adminService } from '../../services/adminService';
@@ -55,6 +61,7 @@ import { productService } from '../../services/productService';
 import { categoryService, AdminCategory } from '../../services/categoryService';
 import { OrderManagement } from './OrderManagement';
 import { CustomerDirectory } from './CustomerDirectory';
+import { CreateCouponView } from './CreateCouponView';
 import { Product, OfflineSale, SystemUser, Banner } from '../../types';
 import { getImageUrl } from '../../utils/imageUrl';
 import {
@@ -67,7 +74,8 @@ import {
   isDuplicate
 } from '../../utils/adminFormValidation';
 
-// SystemUser is imported from types/index.ts
+import { RewardCoinsView } from './RewardCoinsView';
+import { ReportsAnalyticsView } from './ReportsAnalyticsView';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -86,12 +94,40 @@ export const AdminDashboard: React.FC = () => {
     updateBanner,
     addBanner,
     deleteBannerState,
-    refreshBanners
+    refreshBanners,
+    user,
+    role,
+    logout
   } = useApp();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+
+  // --- Logout Modal State ---
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await adminService.adminLogout();
+    } catch (err) {
+      console.error('Failed to log out from server:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirmModal(false);
+      logout();
+    }
+  };
+
+  const handleTabNavigation = (tab: string) => {
+    if (tab === 'logout') {
+      setShowLogoutConfirmModal(true);
+    } else {
+      setActiveTab(tab);
+    }
+  };
 
   // --- Date Range Selector State ---
   const [dateRangePreset, setDateRangePreset] = useState<'today' | '7days' | '30days' | 'thisMonth' | 'custom'>('7days');
@@ -1433,10 +1469,39 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--black)' }}>
       {/* Sidebar navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabNavigation} onRequestLogout={() => setShowLogoutConfirmModal(true)} />
 
       {/* Main Admin Content box */}
       <div className="admin-workspace">
+        {/* Top-Right Admin Header Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px' }}>
+          {/* Notification Bell Dropdown */}
+          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} />
+
+          {/* Admin User Profile Dropdown Menu */}
+          <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+        </div>
+
+        {/* PROFILE TAB */}
+        {activeTab === 'profile' && (
+          <AdminProfileView />
+        )}
+
+        {/* CHANGE PASSWORD TAB */}
+        {activeTab === 'change-password' && (
+          <ChangePasswordView />
+        )}
+
+        {/* AUDIT / ACTIVITY LOGS TAB */}
+        {(activeTab === 'audit-logs' || activeTab === 'activity-logs') && (
+          <ActivityLogsView />
+        )}
+
+        {/* NOTIFICATIONS TAB */}
+        {activeTab === 'notifications' && (
+          <NotificationsView onNavigateTab={(tab) => setActiveTab(tab)} />
+        )}
+
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div>
@@ -3685,150 +3750,10 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* REWARD SETTINGS TAB */}
-        {activeTab === 'reward-settings' && (
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Customer Rewards & Coins System
-            </h1>
+        {activeTab === 'reward-settings' && <RewardCoinsView />}
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              {/* Rules Configuration Form */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', marginBottom: '20px' }}>
-                  System Earning & Redemption Rules
-                </h3>
-
-                <form onSubmit={handleSaveRewardSettings} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>Enable Reward System</span>
-                    <input
-                      type="checkbox"
-                      checked={rewardSettingsForm.reward_system_enabled}
-                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, reward_system_enabled: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: 'var(--gold)', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      ₹ Spent per 1 Coin Earned
-                    </label>
-                    <Input
-                      type="number"
-                      value={rewardSettingsForm.spend_per_coin}
-                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, spend_per_coin: Number(e.target.value) })}
-                      required
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                      Example: 10 means customer earns 1 coin for every ₹10 spent.
-                    </span>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      Coins Needed for ₹1 Discount
-                    </label>
-                    <Input
-                      type="number"
-                      value={rewardSettingsForm.coins_per_rupee}
-                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, coins_per_rupee: Number(e.target.value) })}
-                      required
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                      Example: 10 means 10 coins = ₹1 discount value.
-                    </span>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      Maximum Order Redemption Limit (%)
-                    </label>
-                    <Input
-                      type="number"
-                      value={rewardSettingsForm.max_redemption_percentage}
-                      onChange={(e) => setRewardSettingsForm({ ...rewardSettingsForm, max_redemption_percentage: Number(e.target.value) })}
-                      required
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                      Example: 20 means coins can pay up to max 20% of order value.
-                    </span>
-                  </div>
-
-                  {rewardSettingsSaved && (
-                    <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', fontSize: '0.85rem' }}>
-                      ✓ Reward system parameters updated successfully!
-                    </div>
-                  )}
-
-                  <Button variant="gold" type="submit" disabled={isSavingRewardSettings} glow style={{ marginTop: '10px' }}>
-                    {isSavingRewardSettings ? 'Saving Settings...' : 'Save Reward Rules'}
-                  </Button>
-                </form>
-              </div>
-
-              {/* Manual Customer Coin Adjustment Tool */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', marginBottom: '20px' }}>
-                  Manual Customer Coin Adjustment
-                </h3>
-
-                <form onSubmit={handleAdjustCoinsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      Customer User ID
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. 303e18e4-3915-4e0e-8e4f-872769238882"
-                      value={adjustCoinForm.user_id}
-                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, user_id: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      Coins Adjustment (+ or -)
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 100 or -50"
-                      value={adjustCoinForm.coins}
-                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, coins: Number(e.target.value) })}
-                      required
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                      Enter positive value to credit coins (+100) or negative to deduct (-50).
-                    </span>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: '6px' }}>
-                      Reason / Audit Log Note
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Customer goodwill / refund resolution"
-                      value={adjustCoinForm.reason}
-                      onChange={(e) => setAdjustCoinForm({ ...adjustCoinForm, reason: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  {adjustCoinsSuccess && (
-                    <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', fontSize: '0.85rem' }}>
-                      ✓ Manual coin adjustment recorded successfully!
-                    </div>
-                  )}
-
-                  <Button variant="gold" type="submit" disabled={isAdjustingCoins} glow style={{ marginTop: '10px' }}>
-                    {isAdjustingCoins ? 'Processing Adjustment...' : 'Submit Coin Adjustment'}
-                  </Button>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* REPORTS & ANALYTICS TAB */}
+        {activeTab === 'reports' && <ReportsAnalyticsView />}
 
         {/* OFFLINE SALES TAB */}
         {activeTab === 'offline-sales' && (
@@ -3999,92 +3924,14 @@ export const AdminDashboard: React.FC = () => {
 
         {/* COUPONS TAB */}
         {activeTab === 'coupons' && (
-          <div>
-            <span className="section-label">Promotions</span>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Coupons & Discounts
-            </h1>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', alignItems: 'stretch' }}>
-              {/* Create Coupon Form */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Create New Coupon</h3>
-                <form onSubmit={handleAddCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input label="Coupon Code (e.g. SUMMER10)" value={newCoupon.code} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} required />
-                    <Input label="Coupon Name" value={newCoupon.name} onChange={e => setNewCoupon({...newCoupon, name: e.target.value})} required />
-                  </div>
-                  <Input label="Description" value={newCoupon.description} onChange={e => setNewCoupon({...newCoupon, description: e.target.value})} required />
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Discount Type</label>
-                    <select value={newCoupon.discount_type} onChange={e => setNewCoupon({...newCoupon, discount_type: e.target.value})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
-                      <option value="PERCENTAGE">Percentage (%)</option>
-                      <option value="FIXED_AMOUNT">Fixed Amount (₹)</option>
-                      <option value="FREE_SHIPPING">Free Shipping</option>
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    {newCoupon.discount_type === 'PERCENTAGE' && (
-                      <Input label="Discount Percent (%)" type="number" min={1} max={100} value={newCoupon.discount_percent} onChange={e => setNewCoupon({...newCoupon, discount_percent: parseFloat(e.target.value) || 0})} required />
-                    )}
-                    {newCoupon.discount_type === 'FIXED_AMOUNT' && (
-                      <Input label="Discount Amount (₹)" type="number" min={1} value={newCoupon.discount_amount} onChange={e => setNewCoupon({...newCoupon, discount_amount: parseFloat(e.target.value) || 0})} required />
-                    )}
-                    {newCoupon.discount_type !== 'FREE_SHIPPING' && (
-                      <Input label="Maximum Discount (Optional)" type="number" min={0} value={newCoupon.maximum_discount_amount} onChange={e => setNewCoupon({...newCoupon, maximum_discount_amount: parseFloat(e.target.value) || 0})} />
-                    )}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input label="Minimum Order Value" type="number" min={0} value={newCoupon.minimum_order_amount} onChange={e => setNewCoupon({...newCoupon, minimum_order_amount: parseFloat(e.target.value) || 0})} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Eligibility Rule</label>
-                      <select value={newCoupon.eligibility_rule} onChange={e => setNewCoupon({...newCoupon, eligibility_rule: e.target.value, eligibility_value: ''})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
-                        <option value="ALL_USERS">All Users</option>
-                        <option value="FIRST_ORDER">First Order Only</option>
-                        <option value="INACTIVE_CUSTOMER">Inactive Customers (180+ days)</option>
-                        <option value="MIN_LIFETIME_SPEND">Min Lifetime Spend</option>
-                        <option value="SPECIFIC_USERS">Specific Users</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {(newCoupon.eligibility_rule === 'MIN_LIFETIME_SPEND' || newCoupon.eligibility_rule === 'SPECIFIC_USERS') && (
-                     <Input label={newCoupon.eligibility_rule === 'MIN_LIFETIME_SPEND' ? "Minimum Spend Amount (₹)" : "User IDs (comma separated)"} value={newCoupon.eligibility_value} onChange={e => setNewCoupon({...newCoupon, eligibility_value: e.target.value})} required />
-                  )}
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Applicability</label>
-                      <select value={newCoupon.applicability} onChange={e => setNewCoupon({...newCoupon, applicability: e.target.value, applicable_ids: ''})} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>
-                        <option value="ENTIRE_STORE">Entire Store</option>
-                        <option value="SPECIFIC_PRODUCTS">Specific Products</option>
-                        <option value="SPECIFIC_CATEGORIES">Specific Categories</option>
-                      </select>
-                    </div>
-                    {newCoupon.applicability !== 'ENTIRE_STORE' && (
-                       <Input label="Applicable IDs (comma separated)" value={newCoupon.applicable_ids} onChange={e => setNewCoupon({...newCoupon, applicable_ids: e.target.value})} required />
-                    )}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input label="Usage Limit (Total)" type="number" min={0} value={newCoupon.usage_limit} onChange={e => setNewCoupon({...newCoupon, usage_limit: parseInt(e.target.value) || 0})} />
-                    <Input label="Limit Per User" type="number" min={1} value={newCoupon.per_user_usage_limit} onChange={e => setNewCoupon({...newCoupon, per_user_usage_limit: parseInt(e.target.value) || 1})} />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <Input label="Start Date (Optional)" type="date" value={newCoupon.start_at || ''} onChange={e => setNewCoupon({...newCoupon, start_at: e.target.value})} />
-                    <Input label="Expiry Date (Required)" type="date" value={newCoupon.expires_at || ''} onChange={e => setNewCoupon({...newCoupon, expires_at: e.target.value})} required />
-                  </div>
-                  
-                  <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: '-5px 0 5px 0' }}>
-                    Discount is dynamically computed during checkout.
-                  </p>
-                  <Button variant="gold" fullWidth type="submit" glow>Create Coupon</Button>
-                </form>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '35px' }}>
+            <CreateCouponView
+              addToast={addToast}
+              onAddCoupon={async (payload) => {
+                const created = await adminService.createCoupon(payload);
+                setCouponsList([created, ...couponsList]);
+              }}
+            />
 
               {/* Coupons List */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
@@ -4144,7 +3991,6 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
 
             {/* Edit Coupon Modal */}
             {editingCoupon && (
@@ -5192,6 +5038,19 @@ export const AdminDashboard: React.FC = () => {
           isConfirming={confirmModal.isConfirming}
           onConfirm={confirmModal.onConfirm}
           onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        />
+
+        {/* Logout Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showLogoutConfirmModal}
+          title="Confirm Logout"
+          message="Are you sure you want to logout?"
+          confirmText={isLoggingOut ? 'Logging out...' : 'Logout'}
+          cancelText="Cancel"
+          isConfirming={isLoggingOut}
+          variant="danger"
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutConfirmModal(false)}
         />
       </div>
     </div>

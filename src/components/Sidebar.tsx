@@ -22,16 +22,19 @@ import {
   Menu,
   X,
   Mail,
-  Video
+  Video,
+  BarChart3,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../app/providers';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onRequestLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onRequestLogout }) => {
   const { role, logout } = useApp();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
@@ -57,9 +60,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'categories', label: 'Categories', icon: FolderTree },
     { id: 'orders', label: 'Order Management', icon: ListOrdered },
     { id: 'customers', label: 'Customer Directory', icon: Users },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'offline-sales', label: 'Offline Sales', icon: Coins },
     { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
     { id: 'reward-settings', label: 'Reward Coins System', icon: Coins },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
     { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
     { id: 'testimonials', label: 'Atelier Testimonials', icon: Star },
     { id: 'contact-messages', label: 'Contact Messages', icon: Mail },
@@ -279,8 +284,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           <button
             onClick={() => {
               if (isMobile) setIsOpen(false);
-              logout();
-              navigate('/');
+              if (onRequestLogout) {
+                onRequestLogout();
+              } else {
+                logout();
+                navigate('/');
+              }
             }}
             style={{
               display: 'flex',

@@ -1,0 +1,379 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Bell,
+  Check,
+  ShoppingBag,
+  AlertTriangle,
+  Users,
+  Tag,
+  MessageSquare,
+  Coins,
+  AlertCircle,
+  ExternalLink,
+  ChevronRight,
+} from 'lucide-react';
+import { adminService, AdminNotification } from '../services/adminService';
+
+interface NotificationHeaderDropdownProps {
+  onNavigateTab: (tab: string, entityId?: string) => void;
+}
+
+export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProps> = ({
+  onNavigateTab,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await adminService.getAdminNotifications({ limit: 6 });
+      setNotifications(res.items);
+      setUnreadCount(res.unread_count);
+    } catch (err) {
+      console.error('Failed to fetch notifications header dropdown:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000); // Polling every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleMarkAllRead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await adminService.markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleNotificationClick = async (notif: AdminNotification) => {
+    if (!notif.is_read) {
+      try {
+        await adminService.markNotificationAsRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (err) {
+        console.error('Failed to mark notification read:', err);
+      }
+    }
+    setIsOpen(false);
+
+    // Route navigation mapping
+    switch (notif.type) {
+      case 'new_order':
+      case 'payment_failure':
+        onNavigateTab('orders', notif.related_entity_id || undefined);
+        break;
+      case 'low_stock':
+        onNavigateTab('products', notif.related_entity_id || undefined);
+        break;
+      case 'new_customer':
+        onNavigateTab('customers', notif.related_entity_id || undefined);
+        break;
+      case 'coupon_usage':
+        onNavigateTab('coupons', notif.related_entity_id || undefined);
+        break;
+      case 'support_message':
+        onNavigateTab('contact-messages', notif.related_entity_id || undefined);
+        break;
+      case 'reward_adjustment':
+        onNavigateTab('reward-settings', notif.related_entity_id || undefined);
+        break;
+      default:
+        onNavigateTab('notifications');
+        break;
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'new_order':
+        return <ShoppingBag size={16} color="#c9a84c" />;
+      case 'low_stock':
+        return <AlertTriangle size={16} color="#e5c875" />;
+      case 'new_customer':
+        return <Users size={16} color="#c9a84c" />;
+      case 'payment_failure':
+        return <AlertCircle size={16} color="#e74c3c" />;
+      case 'coupon_usage':
+        return <Tag size={16} color="#c9a84c" />;
+      case 'support_message':
+        return <MessageSquare size={16} color="#c9a84c" />;
+      case 'reward_adjustment':
+        return <Coins size={16} color="#c9a84c" />;
+      default:
+        return <Bell size={16} color="#c9a84c" />;
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffSec < 60) return 'Just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    if (diffSec < 172800) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+      {/* Bell Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '42px',
+          height: '42px',
+          borderRadius: '10px',
+          background: 'rgba(20, 16, 13, 0.9)',
+          border: '1px solid rgba(201, 168, 76, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: '#f5efe6',
+          position: 'relative',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+        }}
+        aria-label="Notifications"
+      >
+        <Bell size={20} color="#c9a84c" />
+
+        {/* Unread Count Badge */}
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              background: '#e74c3c',
+              color: '#ffffff',
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              width: '18px',
+              height: '18px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 8px rgba(231, 76, 60, 0.6)',
+              border: '2px solid #0f0c0a',
+            }}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 12px)',
+            width: '360px',
+            background: 'linear-gradient(135deg, rgba(20, 16, 13, 0.98) 0%, rgba(12, 9, 7, 0.98) 100%)',
+            border: '1px solid rgba(201, 168, 76, 0.35)',
+            borderRadius: '14px',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(16px)',
+            zIndex: 1000,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Dropdown Header */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(201, 168, 76, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h4
+                style={{
+                  fontFamily: 'var(--font-display, serif)',
+                  fontSize: '1.05rem',
+                  fontWeight: 700,
+                  color: '#f5efe6',
+                  margin: 0,
+                }}
+              >
+                Notifications
+              </h4>
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    background: 'rgba(201, 168, 76, 0.15)',
+                    color: '#c9a84c',
+                    fontSize: '0.72rem',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#c9a84c',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {/* Notifications List */}
+          <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
+                No notifications right now.
+              </div>
+            ) : (
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  onClick={() => handleNotificationClick(notif)}
+                  style={{
+                    padding: '14px 20px',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    background: notif.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.05)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    transition: 'background 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(201, 168, 76, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = notif.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.05)';
+                  }}
+                >
+                  {/* Icon Circle */}
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'rgba(201, 168, 76, 0.12)',
+                      border: '1px solid rgba(201, 168, 76, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      marginTop: '2px',
+                    }}
+                  >
+                    {getNotificationIcon(notif.type)}
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: notif.is_read ? 600 : 700, color: '#f5efe6' }}>
+                        {notif.title}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>
+                        {formatTimeAgo(notif.created_at)}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.4 }}>
+                      {notif.message}
+                    </p>
+                  </div>
+
+                  {/* Unread Indicator Dot */}
+                  {!notif.is_read && (
+                    <div
+                      style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#c9a84c',
+                        marginTop: '6px',
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer Link */}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: '1px solid rgba(201, 168, 76, 0.15)',
+              textAlign: 'center',
+              background: 'rgba(10, 8, 6, 0.6)',
+            }}
+          >
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onNavigateTab('notifications');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#c9a84c',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              View All Notifications <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NotificationHeaderDropdown;
