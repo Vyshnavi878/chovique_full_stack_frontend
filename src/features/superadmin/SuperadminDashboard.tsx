@@ -51,9 +51,21 @@ import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { ToastContainer, ToastMessage } from '../../components/ui/Toast';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Pagination } from '../../components/ui/Pagination';
 import { adminService, type DashboardStats, type AuditLogEntry } from '../../services/adminService';
 import { homeService } from '../../services/homeService';
 import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
+import {
+  trimValue,
+  isValidEmail,
+  isValidPhone,
+  isNonEmpty,
+  isValidNumber,
+  isDuplicate
+} from '../../utils/adminFormValidation';
 
 
 // Theme Presets interface
@@ -130,13 +142,52 @@ export const SuperadminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('enterprise');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobileGrid(window.innerWidth <= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // --- Toast Notifications State ---
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = (type: 'success' | 'error' | 'info', message: string, title?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message, title }]);
+  };
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // --- Confirmation Modal State ---
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+    isConfirming?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Delete',
+    onConfirm: () => {},
+    isConfirming: false,
+  });
+
+  const openConfirmation = (title: string, message: string, onConfirm: () => void | Promise<void>, confirmText = 'Delete') => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isConfirming: true }));
+        try {
+          await onConfirm();
+        } finally {
+          setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {}, isConfirming: false });
+        }
+      },
+      isConfirming: false,
+    });
+  };
+
+  const [adminFormErrors, setAdminFormErrors] = useState<Record<string, string>>({});
   const [analyticsSubTab, setAnalyticsSubTab] = useState<'total' | 'online' | 'offline'>('total');
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
@@ -589,17 +640,35 @@ export const SuperadminDashboard: React.FC = () => {
       }
     }
     if (bannerFileRef.current) bannerFileRef.current.value = '';
-  };
-
-  // Create real admin user in database via FastAPI backend
+  };  // Create real admin user in database via FastAPI backend
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdmin.name.trim() || !newAdmin.email.trim() || !newAdmin.password.trim()) {
-      setAdminCreateError('Please fill out Name, Email Address, and Password.');
-      return;
+    const errors: Record<string, string> = {};
+    const nameTrimmed = trimValue(newAdmin.name);
+    const emailTrimmed = trimValue(newAdmin.email).toLowerCase();
+    const passwordTrimmed = trimValue(newAdmin.password);
+
+    if (!isNonEmpty(nameTrimmed)) {
+      errors.name = 'Full name is required and cannot be empty.';
     }
-    if (newAdmin.password.length < 6) {
-      setAdminCreateError('Password must be at least 6 characters.');
+
+    if (!isNonEmpty(emailTrimmed)) {
+      errors.email = 'Email address is required.';
+    } else if (!isValidEmail(emailTrimmed)) {
+      errors.email = 'Must be a valid email format (e.g. admin@chovique.com).';
+    } else if (isDuplicate(systemUsers, 'email', emailTrimmed)) {
+      errors.email = 'An account with this email address already exists.';
+    }
+
+    if (!isNonEmpty(passwordTrimmed)) {
+      errors.password = 'Password is required.';
+    } else if (passwordTrimmed.length < 6) {
+      errors.password = 'Password must be at least 6 characters long.';
+    }
+
+    setAdminFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      addToast('error', 'Please fix form validation errors before creating admin.', 'Validation Error');
       return;
     }
 
@@ -608,59 +677,82 @@ export const SuperadminDashboard: React.FC = () => {
 
     try {
       const created = await adminService.createAdmin({
-        full_name: newAdmin.name,
-        email: newAdmin.email,
-        password: newAdmin.password,
+        full_name: nameTrimmed,
+        email: emailTrimmed,
+        password: passwordTrimmed,
         role: newAdmin.role,
       });
 
       setSystemUsers((prev) => [created, ...prev]);
       addLogEntry(`Registered new administrator account: ${created.name} (${created.email})`, 'security');
+      addToast('success', `Admin user ${created.name} created successfully!`, 'Admin Registered');
 
       setNewAdmin({ name: '', email: '', password: '', role: 'admin' });
+      setAdminFormErrors({});
       setShowAddAdminForm(false);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to register admin account.';
-      setAdminCreateError(msg);
+    } catch (err: any) {
+      console.error('Failed to create admin account:', err);
+      const detail = err?.detail || err?.message || 'Failed to create administrator user.';
+      setAdminCreateError(detail);
+      addToast('error', detail, 'Error Creating Admin');
     } finally {
       setIsCreatingAdmin(false);
     }
   };
 
-  const handlePromoteAdmin = async (id: string, name: string) => {
-    if (!window.confirm(`Promote ${name} to Superadmin?`)) return;
-    try {
-      const updatedUser = await adminService.promoteAdmin(id);
-      setSystemUsers((prev) => prev.map((u) => u.id === id ? updatedUser : u));
-      addLogEntry(`Promoted administrator account: ${name} to superadmin`, 'security');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to promote administrator.';
-      alert(msg);
-    }
+  const handlePromoteAdmin = (id: string, name: string) => {
+    openConfirmation(
+      'Promote User',
+      `Are you sure you want to promote ${name} to Superadmin?`,
+      async () => {
+        try {
+          const updatedUser = await adminService.promoteAdmin(id);
+          setSystemUsers((prev) => prev.map((u) => (u.id === id ? updatedUser : u)));
+          addLogEntry(`Promoted administrator account: ${name} to superadmin`, 'security');
+          addToast('success', `User ${name} promoted to Superadmin.`, 'Role Updated');
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to promote administrator.', 'Error');
+        }
+      },
+      'Promote'
+    );
   };
 
-  const handleDemoteAdmin = async (id: string, name: string) => {
-    if (!window.confirm(`Demote ${name} back to regular Admin?`)) return;
-    try {
-      const updatedUser = await adminService.demoteAdmin(id);
-      setSystemUsers((prev) => prev.map((u) => u.id === id ? updatedUser : u));
-      addLogEntry(`Demoted superadmin account: ${name} back to admin`, 'security');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to demote superadmin.';
-      alert(msg);
-    }
+  const handleDemoteAdmin = (id: string, name: string) => {
+    openConfirmation(
+      'Demote User',
+      `Are you sure you want to demote ${name} back to regular Admin?`,
+      async () => {
+        try {
+          const updatedUser = await adminService.demoteAdmin(id);
+          setSystemUsers((prev) => prev.map((u) => (u.id === id ? updatedUser : u)));
+          addLogEntry(`Demoted superadmin account: ${name} back to admin`, 'security');
+          addToast('success', `User ${name} demoted to Admin.`, 'Role Updated');
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to demote superadmin.', 'Error');
+        }
+      },
+      'Demote'
+    );
   };
 
   // Delete admin user from database via FastAPI backend
-  const handleRemoveAdmin = async (id: string, name: string, email: string) => {
-    try {
-      await adminService.deleteUser(id);
-      setSystemUsers((prev) => prev.filter((u) => u.id !== id));
-      addLogEntry(`Revoked administrator account: ${name} (${email})`, 'security');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to revoke administrator account.';
-      alert(msg);
-    }
+  const handleRemoveAdmin = (id: string, name: string, email: string) => {
+    openConfirmation(
+      'Revoke Admin Access',
+      `Are you sure you want to delete administrator account ${name} (${email})?`,
+      async () => {
+        try {
+          await adminService.deleteUser(id);
+          setSystemUsers((prev) => prev.filter((u) => u.id !== id));
+          addLogEntry(`Revoked administrator account: ${name} (${email})`, 'security');
+          addToast('success', `Revoked access for admin ${name}.`, 'Admin Removed');
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to revoke administrator account.', 'Error');
+        }
+      },
+      'Revoke Access'
+    );
   };
 
   // Create brand new banner hero slide
@@ -1075,11 +1167,11 @@ export const SuperadminDashboard: React.FC = () => {
                 className="dashboard-stat-card glass-panel interactive-card" 
                 style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
                 onClick={() => { setActiveTab('sales-comparison'); setAnalyticsSubTab('total'); }}
-                title="View Inventory Stock"
+                title="View Total Stock"
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                    Inventory Stock
+                    Total Stock
                   </span>
                   <ArrowRight size={14} color="var(--gold)" />
                 </div>
@@ -2858,6 +2950,9 @@ export const SuperadminDashboard: React.FC = () => {
                         minOrderFreeShipping: 1500,
                         allowRegistrations: true,
                         idleTimeout: 30,
+                        taxRate: 5,
+                        platformFee: 0,
+                        currency: 'INR (₹)',
                       });
                     }
                   }}
@@ -2887,6 +2982,20 @@ export const SuperadminDashboard: React.FC = () => {
             </p>
           </div>
         )}
+
+        {/* Global Toast Container */}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+        {/* Destructive Action Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          isConfirming={confirmModal.isConfirming}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     </div>
   );

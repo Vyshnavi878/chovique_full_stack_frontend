@@ -68,6 +68,7 @@ export interface NutritionInfo {
 
 export interface Product {
   id: string;
+  sku?: string;
   name: string;
   category: 'dark' | 'milk' | 'white' | 'gift' | 'beverage';
   price: number;
@@ -301,10 +302,11 @@ export interface SystemUser {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  is_active?: boolean;
   role: 'customer' | 'admin' | 'superadmin';
   /** Permissions object — derived from role on the backend */
   permissions: {
-    manageInventory: boolean;
     viewAnalytics: boolean;
     manageUsers: boolean;
     configureThemes: boolean;

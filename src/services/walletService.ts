@@ -1,7 +1,7 @@
 import { apiGet, apiPost, apiPut } from '../lib/api';
 
 export interface CoinTransaction {
-  id: str;
+  id: string;
   user_id: string;
   order_id?: string;
   type: 'EARN' | 'REDEEM' | 'REFUND' | 'EXPIRE' | 'ADJUSTMENT';

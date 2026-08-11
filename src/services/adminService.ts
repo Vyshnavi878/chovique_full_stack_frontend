@@ -16,6 +16,7 @@ import type {
   ImportSalesResponse,
   ResolveTicketPayload,
   CustomerDetailsResponse,
+  Review,
 } from '../types';
 
 /** Payload for /admin/offline-sales POST — matches backend OfflineSalePayload */
@@ -45,6 +46,7 @@ export interface DashboardStats {
   total_online_revenue: number;
   total_offline_revenue: number;
   admin_count: number;
+  reward_coins_issued?: number;
   monthly_revenue: { month: string; online_revenue: number; offline_revenue: number; total: number }[];
   top_products: { name: string; units_sold: number; stock: number; revenue: number }[];
 }
@@ -60,9 +62,38 @@ export interface AuditLogEntry {
 }
 
 export const adminService = {
-  /** Fetch admin dashboard analytics stats. */
-  getStats: (): Promise<DashboardStats> =>
-    apiGet<DashboardStats>('/admin/stats'),
+  /** Fetch admin dashboard analytics stats with optional date range parameters. */
+  getStats: (params?: { preset?: string; start_date?: string; end_date?: string }): Promise<DashboardStats> => {
+    const query = new URLSearchParams();
+    if (params?.preset) query.append('preset', params.preset);
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    const qs = query.toString();
+    return apiGet<DashboardStats>(`/admin/stats${qs ? `?${qs}` : ''}`);
+  },
+
+  /** Specific dashboard endpoints using PostgreSQL aggregations */
+  getDashboardSummary: (params?: { preset?: string; start_date?: string; end_date?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.preset) query.append('preset', params.preset);
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    const qs = query.toString();
+    return apiGet<any>(`/admin/dashboard/summary${qs ? `?${qs}` : ''}`);
+  },
+
+  getSalesChart: (params?: { preset?: string; start_date?: string; end_date?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.preset) query.append('preset', params.preset);
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    const qs = query.toString();
+    return apiGet<{ timeframe: string; points: { date: string; sales: number; orders_count: number }[] }>(`/admin/dashboard/sales-chart${qs ? `?${qs}` : ''}`);
+  },
+
+  getTopProducts: (limit: number = 5) => apiGet<any>(`/admin/dashboard/top-products?limit=${limit}`),
+  getRecentOrders: (limit: number = 5) => apiGet<any>(`/admin/dashboard/recent-orders?limit=${limit}`),
+  getLowStockProducts: (threshold: number = 10, limit: number = 10) => apiGet<any>(`/admin/dashboard/low-stock-products?threshold=${threshold}&limit=${limit}`),
 
   /** Fetch recent audit logs. */
   getAuditLogs: (limit: number = 50): Promise<AuditLogEntry[]> =>
@@ -75,6 +106,14 @@ export const adminService = {
   /** Fetch customer details with real backend order calculation */
   getCustomerDetails: (userId: string): Promise<CustomerDetailsResponse> =>
     apiGet<CustomerDetailsResponse>(`/admin/customers/${userId}`),
+
+  /** Update customer profile details */
+  updateCustomer: (userId: string, payload: any): Promise<CustomerDetailsResponse> =>
+    apiPatch<CustomerDetailsResponse>(`/admin/customers/${userId}`, payload),
+
+  /** Delete a customer account */
+  deleteCustomer: (userId: string): Promise<void> =>
+    apiDelete<void>(`/admin/customers/${userId}`),
 
   /** Create a new administrator user (superadmin action). */
   createAdmin: (payload: {

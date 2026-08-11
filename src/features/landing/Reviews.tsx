@@ -60,7 +60,7 @@ export const Reviews: React.FC = () => {
     }
     setFormData((prev) => ({
       ...prev,
-      author: user.full_name || user.name || prev.author,
+      author: (user as any).full_name || user.name || prev.author,
     }));
     setShowModal(true);
   };

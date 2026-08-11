@@ -261,11 +261,11 @@ export const Card: React.FC<CardProps> = ({ product }) => {
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-              {product.ratings_count && product.ratings_count > 0 ? (
+              {(product.ratingsCount || (product as any).ratings_count) ? (
                 <>
                   <span style={{ color: 'var(--gold)' }}>★</span>
                   <span style={{ color: 'var(--cream)', fontWeight: 600 }}>{product.rating}</span>
-                  <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem' }}>({product.ratings_count})</span>
+                  <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem' }}>({product.ratingsCount || (product as any).ratings_count})</span>
                 </>
               ) : (
                 <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem', fontStyle: 'italic' }}>

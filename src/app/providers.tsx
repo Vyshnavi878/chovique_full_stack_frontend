@@ -21,6 +21,7 @@ import { ticketService } from '../services/ticketService';
 import { userService } from '../services/userService';
 import { notificationService } from '../services/notificationService';
 import { walletService, UserWallet } from '../services/walletService';
+import { ApiError } from '../lib/api';
 
 // =============================================================================
 // CONTEXT INTERFACE
@@ -202,7 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     homeService.getTheme()
       .then((data) => {
         if (data && typeof data === 'object' && Object.keys(data).length > 0 && data.primary) {
-          setTheme((prev) => {
+          setTheme((prev: any) => {
             const merged = { ...prev, ...data };
             try {
               localStorage.setItem('chovique_theme', JSON.stringify(merged));
