@@ -141,165 +141,156 @@ export const Navbar: React.FC = () => {
                 Register
               </Button>
             </>
+          ) : role === 'customer' ? (
+            <>
+              {/* Customer icons (Wishlist, Cart, Notifications, Account) */}
+              <Link to="/wishlist" className="nav-icon-btn" aria-label="Wishlist">
+                <Heart size={20} />
+                {wishlist.length > 0 && <span className="nav-badge">{wishlist.length}</span>}
+              </Link>
+              <Link to="/cart" className="nav-icon-btn" aria-label="Cart">
+                <ShoppingBag size={20} />
+                {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
+              </Link>
+
+              {/* Notifications Bell */}
+              <div ref={notificationRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowNotifications((prev) => !prev)}
+                  className="nav-icon-btn"
+                  aria-label="Notifications"
+                  title="Notifications"
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <Bell size={20} />
+                  {notifications.length > 0 && (
+                    <span className="nav-badge" style={{ backgroundColor: '#ff3b30', color: '#ffffff' }}>{notifications.length}</span>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      style={{
+                        position: 'absolute',
+                        top: '35px',
+                        right: '-10px',
+                        width: '320px',
+                        background: 'var(--dark-chocolate)',
+                        border: '1px solid var(--gold)',
+                        borderRadius: '8px',
+                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+                        padding: '16px',
+                        zIndex: 100,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '8px' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gold)' }}>Notifications</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{notifications.length} Active</span>
+                      </div>
+
+                      <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {notifications.length === 0 ? (
+                          <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', textAlign: 'center', margin: '20px 0', fontStyle: 'italic' }}>
+                            No new notifications.
+                          </p>
+                        ) : (
+                          notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                removeNotification(n.id);
+                                if (n.type === 'support') {
+                                  navigate('/dashboard', { state: { tab: 'help' } });
+                                } else if (n.type === 'order') {
+                                  navigate('/dashboard', { state: { tab: 'orders' } });
+                                } else {
+                                  navigate('/dashboard', { state: { tab: 'notifications' } });
+                                }
+                              }}
+                              style={{
+                                padding: '10px',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                color: 'var(--cream)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <div style={{ flex: 1, marginRight: '10px' }}>
+                                <p style={{ margin: 0, lineHeight: '1.4' }}>{n.text}</p>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>{n.date}</span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeNotification(n.id);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--grey-light)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  padding: '2px 4px',
+                                }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <Link to="/dashboard" className="nav-icon-btn" aria-label="Dashboard" title="Account Dashboard">
+                <User size={20} />
+              </Link>
+
+              <button onClick={logout} className="nav-icon-btn" aria-label="Log out" title="Log Out">
+                <LogOut size={20} />
+              </button>
+            </>
           ) : (
             <>
-              {/* Customer specific icons */}
-              {role === 'customer' && (
-                <>
-                  <Link to="/wishlist" className="nav-icon-btn" aria-label="Wishlist">
-                    <Heart size={20} />
-                    {wishlist.length > 0 && <span className="nav-badge">{wishlist.length}</span>}
-                  </Link>
-                  <Link to="/cart" className="nav-icon-btn" aria-label="Cart">
-                    <ShoppingBag size={20} />
-                    {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
-                  </Link>
-
-                  {/* Notifications Bell */}
-                  <div ref={notificationRef} style={{ position: 'relative' }}>
-                    <button
-                      onClick={() => setShowNotifications((prev) => !prev)}
-                      className="nav-icon-btn"
-                      aria-label="Notifications"
-                      title="Notifications"
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
-                      <Bell size={20} />
-                      {notifications.length > 0 && (
-                        <span className="nav-badge" style={{ backgroundColor: '#ff3b30', color: '#ffffff' }}>{notifications.length}</span>
-                      )}
-                    </button>
-
-                    <AnimatePresence>
-                      {showNotifications && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          style={{
-                            position: 'absolute',
-                            top: '35px',
-                            right: '-10px',
-                            width: '320px',
-                            background: 'var(--dark-chocolate)',
-                            border: '1px solid var(--gold)',
-                            borderRadius: '8px',
-                            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
-                            padding: '16px',
-                            zIndex: 100,
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '8px' }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gold)' }}>Notifications</span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{notifications.length} Active</span>
-                          </div>
-
-                          <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {notifications.length === 0 ? (
-                              <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', textAlign: 'center', margin: '20px 0', fontStyle: 'italic' }}>
-                                No new notifications.
-                              </p>
-                            ) : (
-                              notifications.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    removeNotification(n.id);
-                                    if (n.type === 'support') {
-                                      navigate('/dashboard', { state: { tab: 'help' } });
-                                    } else if (n.type === 'order') {
-                                      navigate('/dashboard', { state: { tab: 'orders' } });
-                                    } else {
-                                      navigate('/dashboard', { state: { tab: 'notifications' } });
-                                    }
-                                  }}
-                                  style={{
-                                    padding: '10px',
-                                    background: 'rgba(255, 255, 255, 0.03)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: '6px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--cream)',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'flex-start',
-                                    textAlign: 'left',
-                                  }}
-                                >
-                                  <div style={{ flex: 1, marginRight: '10px' }}>
-                                    <p style={{ margin: 0, lineHeight: '1.4' }}>{n.text}</p>
-                                    <span style={{ fontSize: '0.65rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>{n.date}</span>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeNotification(n.id);
-                                    }}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      color: 'var(--grey-light)',
-                                      cursor: 'pointer',
-                                      fontSize: '0.75rem',
-                                      padding: '2px 4px',
-                                    }}
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <Link to="/dashboard" className="nav-icon-btn" aria-label="Dashboard" title="Dashboard">
-                    <User size={20} />
-                  </Link>
-                </>
-              )}
-
               {/* Admin or Superadmin — Back to Dashboard button */}
-              {(role === 'admin' || role === 'superadmin') && (
-                <button
-                  onClick={() => navigate(role === 'admin' ? '/admin' : '/superadmin')}
-                  className="nav-back-to-dashboard-btn"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    color: 'var(--dark-chocolate)',
-                    background: 'var(--gradient-gold)',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 2px 12px rgba(201, 168, 76, 0.3)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(201, 168, 76, 0.5)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = '0 2px 12px rgba(201, 168, 76, 0.3)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}
-                >
-                  <span className="hide-on-mobile">← Back to {role === 'admin' ? 'Admin' : 'Superadmin'} Dashboard</span>
-                  <span className="show-on-mobile">← Dashboard</span>
-                </button>
-              )}
+              <button
+                onClick={() => navigate(role === 'admin' ? '/admin' : '/superadmin')}
+                className="nav-back-to-dashboard-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: 'var(--dark-chocolate)',
+                  background: 'var(--gradient-gold)',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 2px 12px rgba(201, 168, 76, 0.3)',
+                }}
+              >
+                <span className="hide-on-mobile">← Back to {role === 'admin' ? 'Admin' : 'Superadmin'} Dashboard</span>
+                <span className="show-on-mobile">← Dashboard</span>
+              </button>
 
-              {/* Log Out */}
               <button onClick={logout} className="nav-icon-btn" aria-label="Log out" title="Log Out">
                 <LogOut size={20} />
               </button>
