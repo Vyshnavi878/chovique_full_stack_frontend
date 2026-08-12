@@ -38,4 +38,8 @@ export const wishlistService = {
   /** Remove a product from the wishlist */
   removeFromWishlist: (productId: string): Promise<void> =>
     apiDelete<void>(`/wishlist/${productId}`),
+
+  /** Check whether a product is wishlisted */
+  checkWishlistStatus: (productId: string): Promise<{ is_wishlisted: boolean }> =>
+    apiGet<{ is_wishlisted: boolean }>(`/wishlist/check/${productId}`),
 };

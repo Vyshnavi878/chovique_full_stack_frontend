@@ -8,7 +8,7 @@
  *   GET  /orders/{id}  → Order
  */
 
-import { apiGet, apiPost, apiGetHtml } from '../lib/api';
+import { apiGet, apiPost, apiGetHtml, apiGetBlob } from '../lib/api';
 import type { Order, OrderPayload } from '../types';
 
 export const orderService = {
@@ -31,6 +31,19 @@ export const orderService = {
   /** Get Invoice HTML */
   getInvoiceHtml: (id: string): Promise<string> =>
     apiGetHtml(`/orders/${id}/invoice`),
+
+  /** Download Invoice PDF */
+  downloadInvoicePdf: async (id: string): Promise<void> => {
+    const blob = await apiGetBlob(`/orders/${id}/pdf`);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Invoice-${id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
 
   /** Cancel an order */
   cancelOrder: (id: string): Promise<Order> =>

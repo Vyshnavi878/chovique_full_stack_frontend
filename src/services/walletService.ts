@@ -42,12 +42,25 @@ export interface CalculateRedemptionResponse {
   message: string;
 }
 
+export interface PaginatedTransactions {
+  items: CoinTransaction[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
+}
+
 export const walletService = {
   getWallet: (): Promise<UserWallet> =>
     apiGet<UserWallet>('/wallet'),
 
-  getTransactions: (limit = 50, offset = 0): Promise<CoinTransaction[]> =>
-    apiGet<CoinTransaction[]>(`/wallet/transactions?limit=${limit}&offset=${offset}`),
+  getPaginatedTransactions: (type = 'ALL', page = 1, limit = 10): Promise<PaginatedTransactions> =>
+    apiGet<PaginatedTransactions>(`/wallet/transactions?type=${type}&page=${page}&limit=${limit}`),
+
+  getTransactions: async (limit = 50, offset = 0): Promise<CoinTransaction[]> => {
+    const res = await apiGet<any>(`/wallet/transactions?limit=${limit}&offset=${offset}`);
+    return Array.isArray(res) ? res : res.items || [];
+  },
 
   calculateRedemption: (payload: CalculateRedemptionRequest): Promise<CalculateRedemptionResponse> =>
     apiPost<CalculateRedemptionResponse>('/wallet/calculate-redemption', payload),

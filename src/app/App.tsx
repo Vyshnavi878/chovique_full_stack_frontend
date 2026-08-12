@@ -59,15 +59,18 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const { role } = useApp();
 
-  // Hide Customer Navbar & Footer on Login/Register/SetPassword/ForgotPassword and Admin/Superadmin dashboard views
+  // Route conditionals for Navbar and Footer
   const isAuthRoute = ['/login', '/register', '/set-password', '/forgot-password'].includes(location.pathname);
-  const isDashboardRoute = ['/admin', '/superadmin'].includes(location.pathname);
-  const showNavAndFooter = !isAuthRoute && !isDashboardRoute;
+  const isAdminDashboard = ['/admin', '/superadmin'].includes(location.pathname);
+  const isCustomerDashboard = location.pathname === '/dashboard';
+
+  const showNavbar = !isAuthRoute && !isAdminDashboard;
+  const showFooter = !isAuthRoute && !isAdminDashboard && !isCustomerDashboard && location.pathname !== '/checkout';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
       <ScrollToTop />
-      {showNavAndFooter && <Navbar />}
+      {showNavbar && <Navbar />}
 
       <main style={{ flexGrow: 1 }}>
         <Routes>
@@ -143,7 +146,7 @@ const AppContent: React.FC = () => {
 
       </main>
 
-      {showNavAndFooter && location.pathname !== '/checkout' && <Footer />}
+      {showFooter && <Footer />}
     </div>
   );
 };

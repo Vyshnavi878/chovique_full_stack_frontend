@@ -264,3 +264,13 @@ export const apiDelete = async <T>(path: string): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
+/** Get response as Blob (for PDF downloads) */
+export const apiGetBlob = async (path: string): Promise<Blob> => {
+  const response = await fetchWithAuth(path, {
+    method: 'GET',
+    headers: buildHeaders(),
+    credentials: 'include',
+  });
+  return response.blob();
+};
+

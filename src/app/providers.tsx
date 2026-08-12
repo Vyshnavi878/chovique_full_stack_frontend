@@ -119,6 +119,7 @@ interface AppContextType {
   // Addresses
   addresses: CustomerAddress[];
   addAddress: (address: Omit<CustomerAddress, 'id'>) => Promise<void>;
+  updateAddress: (id: string, address: Partial<Omit<CustomerAddress, 'id'>>) => Promise<void>;
   deleteAddress: (id: string) => Promise<void>;
   setDefaultAddress: (id: string) => Promise<void>;
 
@@ -969,6 +970,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateAddress = async (id: string, updatedFields: Partial<Omit<CustomerAddress, 'id'>>): Promise<void> => {
+    try {
+      const updated = await userService.updateAddress(id, updatedFields);
+      setAddresses((prev) => {
+        return prev.map((a) => {
+          if (a.id === id) return updated;
+          if (updated.isDefault) return { ...a, isDefault: false };
+          return a;
+        });
+      });
+    } catch (err) {
+      console.error('Failed to update address:', err);
+      throw err;
+    }
+  };
+
   const deleteAddress = async (id: string): Promise<void> => {
     try {
       await userService.deleteAddress(id);
@@ -1067,6 +1084,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserProfile,
         addresses,
         addAddress,
+        updateAddress,
         deleteAddress,
         setDefaultAddress,
         wallet,

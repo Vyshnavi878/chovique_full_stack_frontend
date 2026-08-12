@@ -12,7 +12,7 @@
  *   GET    /users/me/coupons               → UserCoupon[]
  */
 
-import { apiGet, apiPatch, apiPost, apiDelete, apiPostFormData } from '../lib/api';
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete, apiPostFormData } from '../lib/api';
 import type {
   User,
   CustomerAddress,
@@ -41,6 +41,10 @@ export const userService = {
   /** Add a new address */
   addAddress: (payload: Omit<CustomerAddress, 'id'>): Promise<CustomerAddress> =>
     apiPost<CustomerAddress>('/users/me/addresses', payload),
+
+  /** Update an existing address */
+  updateAddress: (id: string, payload: Partial<Omit<CustomerAddress, 'id'>>): Promise<CustomerAddress> =>
+    apiPut<CustomerAddress>(`/users/me/addresses/${id}`, payload),
 
   /** Remove an address by ID */
   deleteAddress: (id: string): Promise<void> =>

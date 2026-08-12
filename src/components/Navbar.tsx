@@ -13,6 +13,7 @@ export const Navbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isProfileHovered, setIsProfileHovered] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   // Close notifications and mobile menu on page/section navigation
@@ -21,15 +22,24 @@ export const Navbar: React.FC = () => {
     setMobileMenuOpen(false);
   }, [location.pathname, location.search, location.state, location.key]);
 
-  // Close notification panel on click outside
+  // Close notification popover on click outside or Escape key
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Navbar background change on scroll
@@ -255,13 +265,111 @@ export const Navbar: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <Link to="/dashboard" className="nav-icon-btn" aria-label="Dashboard" title="Account Dashboard">
-                <User size={20} />
-              </Link>
+              <div
+                style={{ position: 'relative' }}
+                onMouseEnter={() => setIsProfileHovered(true)}
+                onMouseLeave={() => setIsProfileHovered(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard')}
+                  className="nav-icon-btn nav-profile-avatar-btn"
+                  aria-label="Customer Dashboard"
+                  title={`${user?.name || 'Account'} - Click for Customer Dashboard`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  {user?.profile?.avatarUrl ? (
+                    <img
+                      src={user.profile.avatarUrl}
+                      alt={user.name}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '1.5px solid #c9a84c',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                        color: '#0f0c0a',
+                        fontWeight: 800,
+                        fontSize: '0.82rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 0 10px rgba(201, 168, 76, 0.3)',
+                      }}
+                    >
+                      {user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
+                    </div>
+                  )}
+                </button>
 
-              <button onClick={logout} className="nav-icon-btn" aria-label="Log out" title="Log Out">
-                <LogOut size={20} />
-              </button>
+                {/* Desktop Hover Tooltip — Full Name & Email ONLY */}
+                <AnimatePresence>
+                  {isProfileHovered && user && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.15 }}
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 8px)',
+                        right: 0,
+                        background: 'rgba(18, 14, 11, 0.96)',
+                        border: '1px solid rgba(201, 168, 76, 0.35)',
+                        borderRadius: '8px',
+                        padding: '8px 14px',
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        pointerEvents: 'none',
+                        whiteSpace: 'nowrap',
+                        zIndex: 1000,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {user.name}
+                      </span>
+                      <span
+                        style={{
+                          color: 'rgba(255, 255, 255, 0.6)',
+                          fontSize: '0.75rem',
+                          fontWeight: 400,
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {user.email}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </>
           ) : (
             <>

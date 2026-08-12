@@ -1,96 +1,158 @@
-/* === DASHBOARDS STYLES === */
+/* === CUSTOMER & ADMIN DASHBOARDS STYLES === */
+
 .dashboard-page {
   padding-top: 85px;
-  min-height: fit-content;
-  background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('/assets/dashboard-bg.jpg') no-repeat center 80%/450px 450px fixed;
-  background-color: #000000;
-  padding-bottom: 36px;
+  height: 100vh;
+  overflow: hidden;
+  background: #0f0c0a;
+  box-sizing: border-box;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .dashboard-page {
-    padding-top: 80px;
-    padding-bottom: 24px;
-    background-attachment: scroll;
-    background-size: cover;
-  }
-
-  .dashboard-container {
-    gap: 16px;
-    padding: 16px 0 0;
-  }
-
-  .dashboard-card {
-    padding: 18px;
-  }
-
-  .dashboard-grid-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-stat-card {
-    padding: 16px;
+    height: auto;
+    min-height: calc(100vh - 85px);
+    overflow: visible;
   }
 }
 
-@media (max-width: 560px) {
-  .dashboard-card {
-    padding: 14px;
-  }
-
-  .dashboard-menu-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-}
-
-.dashboard-container {
+/* Customer Workspace Layout (Matches User Reference Design) */
+.customer-workspace-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
-  gap: 24px;
-  padding: 20px 0;
+  gap: 32px;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 20px 32px;
+  width: 100%;
+  box-sizing: border-box;
+  height: calc(100vh - 85px);
+  overflow: hidden;
 }
 
-@media (max-width: 992px) {
-  .dashboard-container {
+@media (max-width: 1024px) {
+  .customer-workspace-layout {
     grid-template-columns: 1fr;
+    padding: 16px 16px 40px 16px;
+    gap: 16px;
+    height: auto;
+    overflow: visible;
   }
 }
 
-.dashboard-menu {
-  background: rgba(var(--dark-chocolate-rgb, 26, 13, 0), 0.4);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  padding: 20px;
-  height: fit-content;
+/* Desktop Stationary Sidebar Card */
+.customer-sidebar {
+  background: rgba(18, 14, 11, 0.95);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 16px;
+  padding: 20px 14px;
+  height: auto;
+  max-height: calc(100vh - 110px);
+  position: sticky;
+  top: 90px;
+  align-self: start;
+  box-sizing: border-box;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+  z-index: 10;
 }
 
-/* Customer Mobile Drawer under 992px */
-@media (max-width: 992px) {
-  .dashboard-menu {
+/* Sidebar User Header Profile Box */
+.customer-sidebar-user-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(201, 168, 76, 0.2);
+}
+
+.customer-avatar-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid #c9a84c;
+  background: linear-gradient(135deg, rgba(201, 168, 76, 0.2) 0%, rgba(18, 14, 11, 0.95) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #c9a84c;
+  box-shadow: 0 0 15px rgba(201, 168, 76, 0.2);
+  flex-shrink: 0;
+}
+
+.customer-sidebar-title {
+  color: #f5efe6;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0 0 2px 0;
+}
+
+.customer-sidebar-badge {
+  color: #c9a84c;
+  font-size: 0.76rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.customer-sidebar-meta {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.72rem;
+  display: block;
+  margin-top: 1px;
+}
+
+/* Sidebar Section Headers (ACCOUNT, ORDERS, SHOPPING, REWARDS, SUPPORT) */
+.sidebar-group-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #c9a84c;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin: 16px 0 6px 12px;
+}
+
+.sidebar-group-title:first-of-type {
+  margin-top: 4px;
+}
+
+/* Hide Close Button on Desktop Sidebar */
+.sidebar-close-btn {
+  display: none;
+}
+
+/* Mobile Sidebar Drawer under 1024px */
+@media (max-width: 1024px) {
+  .customer-sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    width: 280px;
+    width: 300px;
+    max-width: 85vw;
     height: 100vh;
-    z-index: 120;
-    background: var(--dark-chocolate);
-    border-right: 1px solid var(--glass-border);
+    max-height: 100vh;
+    z-index: 999;
+    background: #0f0c0a;
+    border-right: 1px solid rgba(201, 168, 76, 0.35);
     border-radius: 0;
-    padding: 30px 20px;
-    flex-direction: column;
-    gap: 10px;
+    padding: 24px 18px;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6);
-    overflow-y: auto;
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.95);
   }
 
-  .dashboard-menu.open {
+  .customer-sidebar.open {
     transform: translateX(0);
+  }
+
+  .sidebar-close-btn {
+    display: block;
   }
 }
 
@@ -99,50 +161,181 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 16px;
-  border-radius: 4px;
-  color: var(--beige);
-  font-size: 0.9rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #f5efe6;
+  font-size: 0.88rem;
   font-weight: 500;
-  transition: var(--transition-smooth);
+  transition: all 0.25s ease;
   text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .dashboard-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--cream);
+  background: rgba(201, 168, 76, 0.12);
+  color: #c9a84c;
 }
 
 .dashboard-menu-btn.active {
-  background: var(--gradient-gold);
-  color: var(--dark-chocolate);
-  font-weight: 600;
+  background: linear-gradient(135deg, #c9a84c 0%, #e5c875 100%);
+  color: #0f0c0a;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(201, 168, 76, 0.35);
+}
+
+/* Main Content Workspace with Chovique Watermark Background */
+.customer-workspace-main {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  position: relative;
+  background: linear-gradient(rgba(15, 12, 10, 0.92), rgba(15, 12, 10, 0.92)), url('/assets/dashboard-bg.jpg') no-repeat center 50%/480px auto;
+  border-radius: 16px;
+  padding: 24px 32px 40px 32px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .customer-workspace-main {
+    padding: 20px 16px 30px 16px;
+    height: auto;
+    overflow-y: visible;
+  }
 }
 
 .dashboard-card {
-  padding: 24px;
-  border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  background: transparent;
-  color: #ffffff;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+  width: 100%;
 }
 
+/* Overview Summary Cards Grid */
 .dashboard-grid-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-grid-stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-stat-card {
-  padding: 20px;
-  background: transparent;
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
+  padding: 22px 20px;
+  background: rgba(24, 19, 15, 0.9);
+  border: 1px solid rgba(201, 168, 76, 0.25);
+  border-radius: 12px;
+  color: #f5efe6;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 135px;
+}
+
+.dashboard-stat-card:hover {
+  border-color: #c9a84c;
+  box-shadow: 0 8px 24px rgba(201, 168, 76, 0.25);
+  transform: translateY(-3px);
+}
+
+.stat-card-title {
+  font-size: 0.75rem;
+  color: #c9a84c;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  display: block;
+}
+
+.stat-card-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #f5efe6;
+  line-height: 1.1;
+  display: block;
+  margin-top: 4px;
+}
+
+.stat-card-link {
+  font-size: 0.8rem;
+  color: #c9a84c;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-weight: 600;
+}
+
+/* Coupon Ticket Design */
+.coupon-ticket-card {
+  display: flex;
+  border: 1px dashed rgba(201, 168, 76, 0.4);
+  border-radius: 8px;
+  background: rgba(14, 11, 9, 0.95);
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.coupon-ticket-card:hover {
+  border-color: #c9a84c;
+  box-shadow: 0 4px 16px rgba(201, 168, 76, 0.2);
+}
+
+.coupon-ticket-left {
+  width: 105px;
+  background: rgba(201, 168, 76, 0.12);
+  border-right: 1px dashed rgba(201, 168, 76, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  flex-shrink: 0;
+}
+
+.coupon-ticket-code {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #c9a84c;
+  letter-spacing: 1px;
   text-align: center;
-  color: #ffffff;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+}
+
+.coupon-ticket-right {
+  padding: 14px 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.coupon-copy-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  color: #c9a84c;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.coupon-copy-btn:hover {
+  background: rgba(201, 168, 76, 0.15);
+  border-color: #c9a84c;
 }
 
 /* Admin Dashboard Specifics */
@@ -157,11 +350,10 @@
 @media (max-width: 1024px) {
   .admin-workspace {
     margin-left: 0;
-    padding: 85px 15px 30px 15px; /* Added top padding to prevent header overlap */
+    padding: 85px 15px 30px 15px;
   }
 }
 
-/* Mobile Sidebar Drawer overlay and styles for Admin/Superadmin */
 .admin-mobile-header {
   display: none;
   position: fixed;
@@ -225,9 +417,8 @@
   cursor: pointer;
 }
 
-@media (max-width: 992px) {
+@media (max-width: 1024px) {
   .dashboard-mobile-trigger {
     display: flex;
   }
 }
-

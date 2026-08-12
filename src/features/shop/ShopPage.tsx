@@ -37,7 +37,7 @@ export const ShopPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
-  const itemsPerPage = 12;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(12);
 
   // --- Filter states ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +126,7 @@ export const ShopPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, sortOption, currentPage]);
+  }, [searchQuery, selectedCategory, priceRange.min, priceRange.max, minRating, sortOption, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchProducts();
@@ -633,65 +633,129 @@ export const ShopPage: React.FC = () => {
             )}
 
             {/* PAGINATION CONTROLS */}
-            {totalPages > 1 && !isLoading && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '40px' }}>
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(201, 168, 76, 0.25)',
-                    background: 'rgba(20, 16, 13, 0.8)',
-                    color: currentPage === 1 ? 'rgba(255,255,255,0.2)' : '#f5efe6',
-                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                </button>
+            {!isLoading && totalProducts > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '16px',
+                  marginTop: '40px',
+                  paddingTop: '24px',
+                  borderTop: '1px solid rgba(201, 168, 76, 0.2)',
+                }}
+              >
+                {/* Showing Count Info */}
+                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
+                  Showing <strong style={{ color: '#c9a84c' }}>{indexOfFirstItem}</strong> to{' '}
+                  <strong style={{ color: '#c9a84c' }}>{indexOfLastItem}</strong> of{' '}
+                  <strong style={{ color: '#c9a84c' }}>{totalProducts}</strong> products
+                </div>
 
-                {Array.from({ length: totalPages }).map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handlePageChange(idx + 1)}
+                {/* Page Number Buttons */}
+                {totalPages > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(201, 168, 76, 0.3)',
+                        background: currentPage === 1 ? 'rgba(255, 255, 255, 0.02)' : 'rgba(20, 16, 13, 0.9)',
+                        color: currentPage === 1 ? 'rgba(255,255,255,0.25)' : '#f5efe6',
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <ChevronLeft size={16} />
+                      Prev
+                    </button>
+
+                    {Array.from({ length: totalPages }).map((_, idx) => {
+                      const pageNum = idx + 1;
+                      const isActive = currentPage === pageNum;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '6px',
+                            fontSize: '0.88rem',
+                            fontWeight: 700,
+                            background: isActive
+                              ? 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)'
+                              : 'rgba(20, 16, 13, 0.9)',
+                            color: isActive ? '#0f0c0a' : '#f5efe6',
+                            border: isActive ? 'none' : '1px solid rgba(201, 168, 76, 0.3)',
+                            boxShadow: isActive ? '0 4px 12px rgba(201, 168, 76, 0.35)' : 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(201, 168, 76, 0.3)',
+                        background: currentPage === totalPages ? 'rgba(255, 255, 255, 0.02)' : 'rgba(20, 16, 13, 0.9)',
+                        color: currentPage === totalPages ? 'rgba(255,255,255,0.25)' : '#f5efe6',
+                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Per Page Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                  <span>Show per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '4px',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      background: currentPage === idx + 1 ? 'transparent' : 'rgba(20, 16, 13, 0.8)',
-                      color: currentPage === idx + 1 ? '#c9a84c' : '#f5efe6',
-                      border: currentPage === idx + 1 ? '1px solid #c9a84c' : '1px solid rgba(201, 168, 76, 0.25)',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(20, 16, 13, 0.9)',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      color: '#f5efe6',
+                      fontSize: '0.82rem',
+                      outline: 'none',
                       cursor: 'pointer',
                     }}
                   >
-                    {idx + 1}
-                  </button>
-                ))}
-
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(201, 168, 76, 0.25)',
-                    background: 'rgba(20, 16, 13, 0.8)',
-                    color: currentPage === totalPages ? 'rgba(255,255,255,0.2)' : '#f5efe6',
-                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ChevronRight size={16} />
-                </button>
+                    <option value={12}>12</option>
+                    <option value={24}>24</option>
+                    <option value={36}>36</option>
+                    <option value={48}>48</option>
+                  </select>
+                </div>
               </div>
             )}
           </main>
