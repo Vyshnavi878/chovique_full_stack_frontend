@@ -593,7 +593,722 @@ export const adminService = {
 
   updateProductStock: (productId: string, stock: number): Promise<any> =>
     apiPatch<any>(`/admin/products/${productId}/stock`, { stock }),
+
+  // ======================================================
+  // Super Admin Enterprise Overview
+  // ======================================================
+
+  getSuperadminOverview: (
+    timeframe = '7days',
+    startDate?: string,
+    endDate?: string
+  ): Promise<SuperadminOverviewResponse> => {
+    const q = new URLSearchParams();
+    if (timeframe) q.set('timeframe', timeframe);
+    if (startDate) q.set('start_date', startDate);
+    if (endDate) q.set('end_date', endDate);
+    return apiGet<SuperadminOverviewResponse>(`/superadmin/overview?${q.toString()}`);
+  },
+
+  /** Super Admin Revenue Analytics */
+  getRevenueAnalytics: (
+    preset = 'month',
+    dateFrom?: string,
+    dateTo?: string
+  ): Promise<SuperadminRevenueResponse> => {
+    const q = new URLSearchParams();
+    if (preset) q.set('preset', preset);
+    if (dateFrom) q.set('date_from', dateFrom);
+    if (dateTo) q.set('date_to', dateTo);
+    return apiGet<SuperadminRevenueResponse>(`/superadmin/analytics/revenue?${q.toString()}`);
+  },
+
+  exportRevenueAnalyticsCsv: async (
+    preset = 'month',
+    dateFrom?: string,
+    dateTo?: string
+  ): Promise<void> => {
+    const q = new URLSearchParams();
+    if (preset) q.set('preset', preset);
+    if (dateFrom) q.set('date_from', dateFrom);
+    if (dateTo) q.set('date_to', dateTo);
+    
+    const url = `${BASE_URL}/superadmin/analytics/revenue/export?${q.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download revenue analytics CSV.');
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `revenue_analytics_${preset}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+
+  /** Super Admin Sales Analytics & Ledgers */
+  getSalesAnalytics: (params?: {
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ProductSalesPerformanceResponse> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<ProductSalesPerformanceResponse>(`/superadmin/analytics/sales?${q.toString()}`);
+  },
+
+  getOnlineSalesLedger: (params?: {
+    search?: string;
+    status?: string;
+    payment_method?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<OnlineLedgerResponse> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.payment_method) q.set('payment_method', params.payment_method);
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<OnlineLedgerResponse>(`/superadmin/analytics/sales/online?${q.toString()}`);
+  },
+
+  getOfflineSalesLedger: (params?: {
+    search?: string;
+    payment_method?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<OfflineLedgerResponse> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.payment_method) q.set('payment_method', params.payment_method);
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<OfflineLedgerResponse>(`/superadmin/analytics/sales/offline?${q.toString()}`);
+  },
+
+  exportSalesAnalyticsCsv: async (
+    tab: 'products' | 'online' | 'offline' = 'products',
+    search?: string,
+    dateFrom?: string,
+    dateTo?: string
+  ): Promise<void> => {
+    const q = new URLSearchParams();
+    q.set('tab', tab);
+    if (search) q.set('search', search);
+    if (dateFrom) q.set('date_from', dateFrom);
+    if (dateTo) q.set('date_to', dateTo);
+
+    const url = `${BASE_URL}/superadmin/analytics/sales/export?${q.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download sales analytics CSV.');
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `sales_analytics_${tab}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+
+  /** Super Admin Admin Management */
+  getSuperadminAdmins: (params?: {
+    search?: string;
+    role?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<AdminListResponse> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.role) q.set('role', params.role);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<AdminListResponse>(`/superadmin/admins?${q.toString()}`);
+  },
+
+  getSuperadminAdminById: (adminId: string): Promise<AdminUserRecord> =>
+    apiGet<AdminUserRecord>(`/superadmin/admins/${adminId}`),
+
+  createSuperadminAdmin: (payload: {
+    full_name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    password: string;
+    confirm_password: string;
+    status: string;
+  }): Promise<AdminUserRecord> =>
+    apiPost<AdminUserRecord>('/superadmin/admins', payload),
+
+  updateSuperadminAdmin: (
+    adminId: string,
+    payload: {
+      full_name?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+      status?: string;
+    }
+  ): Promise<AdminUserRecord> =>
+    apiPut<AdminUserRecord>(`/superadmin/admins/${adminId}`, payload),
+
+  updateSuperadminAdminStatus: (
+    adminId: string,
+    status: 'active' | 'inactive'
+  ): Promise<AdminUserRecord> =>
+    apiPatch<AdminUserRecord>(`/superadmin/admins/${adminId}/status`, { status }),
+
+  updateSuperadminAdminPassword: (
+    adminId: string,
+    payload: {
+      new_password: string;
+      confirm_password: string;
+    }
+  ): Promise<AdminUserRecord> =>
+    apiPatch<AdminUserRecord>(`/superadmin/admins/${adminId}/password`, payload),
+
+  deleteSuperadminAdmin: (adminId: string): Promise<{ message: string }> =>
+    apiDelete<{ message: string }>(`/superadmin/admins/${adminId}`),
+
+  /** Super Admin Audit Logs */
+  getSuperadminAuditLogs: (params?: {
+    date_from?: string;
+    date_to?: string;
+    user_id?: string;
+    action?: string;
+    module?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<SuperadminAuditLogListResponse> => {
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    if (params?.action) q.set('action', params.action);
+    if (params?.module) q.set('module', params.module);
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiGet<SuperadminAuditLogListResponse>(`/superadmin/audit-logs?${q.toString()}`);
+  },
+
+  getSuperadminAuditLogById: (logId: string): Promise<SuperadminAuditLogRecord> =>
+    apiGet<SuperadminAuditLogRecord>(`/superadmin/audit-logs/${logId}`),
+
+  exportSuperadminAuditLogsCsv: async (params?: {
+    date_from?: string;
+    date_to?: string;
+    user_id?: string;
+    action?: string;
+    module?: string;
+    status?: string;
+    search?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    if (params?.action) q.set('action', params.action);
+    if (params?.module) q.set('module', params.module);
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+
+    const url = `${BASE_URL}/superadmin/audit-logs/export?${q.toString()}`;
+    const response = await fetch(url, { method: 'GET', credentials: 'include' });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to download audit logs CSV.');
+    }
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+
+  /** Superadmin Theme Builder */
+  getSuperadminThemes: (): Promise<SuperadminThemeListResponse> =>
+    apiGet<SuperadminThemeListResponse>('/superadmin/themes'),
+
+  getSuperadminThemeById: (themeId: string): Promise<SuperadminThemeRecord> =>
+    apiGet<SuperadminThemeRecord>(`/superadmin/themes/${themeId}`),
+
+  createSuperadminTheme: (payload: ThemeCreatePayload): Promise<SuperadminThemeRecord> =>
+    apiPost<SuperadminThemeRecord>('/superadmin/themes', payload),
+
+  updateSuperadminTheme: (themeId: string, payload: ThemeUpdatePayload): Promise<SuperadminThemeRecord> =>
+    apiPut<SuperadminThemeRecord>(`/superadmin/themes/${themeId}`, payload),
+
+  previewSuperadminTheme: (themeId: string): Promise<SuperadminThemeRecord> =>
+    apiPost<SuperadminThemeRecord>(`/superadmin/themes/${themeId}/preview`, {}),
+
+  applySuperadminTheme: (themeId: string): Promise<SuperadminThemeRecord> =>
+    apiPost<SuperadminThemeRecord>(`/superadmin/themes/${themeId}/apply`, {}),
+
+  resetSuperadminTheme: (): Promise<SuperadminThemeRecord> =>
+    apiPost<SuperadminThemeRecord>('/superadmin/themes/reset', {}),
+
+  deleteSuperadminTheme: (themeId: string): Promise<{ message: string }> =>
+    apiDelete<{ message: string }>(`/superadmin/themes/${themeId}`),
 };
 
+export interface KPICardData {
+  current_value: number;
+  previous_value: number;
+  percentage_change: number;
+  comparison_label: string;
+}
 
+export interface KPICardWithComparison {
+  current_value: number;
+  previous_value: number;
+  percentage_change: number;
+  comparison_label: string;
+}
+
+export interface RevenueTrendDataPoint {
+  date: string;
+  online_revenue: number;
+  offline_revenue: number;
+  total_revenue: number;
+}
+
+export interface RevenueBySource {
+  online_revenue: number;
+  online_percentage: number;
+  offline_revenue: number;
+  offline_percentage: number;
+}
+
+export interface PaymentMethodRevenue {
+  method: string;
+  amount: number;
+  percentage: number;
+}
+
+export interface RevenueSummaryRow {
+  date: string;
+  online_orders: number;
+  online_revenue: number;
+  offline_sales: number;
+  offline_revenue: number;
+  total_revenue: number;
+  avg_order_value: number;
+}
+
+export interface SuperadminRevenueResponse {
+  preset: string;
+  date_from: string;
+  date_to: string;
+  display_range: string;
+  total_income: KPICardWithComparison;
+  online_revenue: KPICardWithComparison;
+  offline_revenue: KPICardWithComparison;
+  avg_order_value: KPICardWithComparison;
+  revenue_trend: RevenueTrendDataPoint[];
+  revenue_by_source: RevenueBySource;
+  revenue_by_payment_method: PaymentMethodRevenue[];
+  summary_rows: RevenueSummaryRow[];
+}
+
+export interface RevenueTrendPoint {
+  date: string;
+  revenue: number;
+}
+
+export interface SalesSourceData {
+  online_revenue: number;
+  online_percentage: number;
+  offline_revenue: number;
+  offline_percentage: number;
+}
+
+export interface TopSellingProductOverview {
+  id: string;
+  name: string;
+  image_url?: string | null;
+  units_sold: number;
+  revenue: number;
+}
+
+export interface RecentActivityItem {
+  id: string;
+  action: string;
+  description: string;
+  timestamp: string;
+  user_name?: string | null;
+}
+
+export interface SuperadminOverviewResponse {
+  total_revenue: KPICardData;
+  total_orders: KPICardData;
+  total_customers: KPICardData;
+  active_admins: KPICardData;
+  revenue_trend: RevenueTrendPoint[];
+  sales_source: SalesSourceData;
+  top_selling_products: TopSellingProductOverview[];
+  recent_activities: RecentActivityItem[];
+}
+
+export interface SalesKPICard {
+  total_units_sold: number;
+  total_units_prev: number;
+  units_pct_change: number;
+  total_revenue: number;
+  total_revenue_prev: number;
+  revenue_pct_change: number;
+  online_revenue: number;
+  online_revenue_prev: number;
+  online_pct_change: number;
+  offline_revenue: number;
+  offline_revenue_prev: number;
+  offline_pct_change: number;
+  top_selling_chocolate?: string | null;
+  comparison_label: string;
+}
+
+export interface ProductSalesPerformanceItem {
+  id: string;
+  name: string;
+  category_name: string;
+  image_url?: string | null;
+  price: number;
+  online_units: number;
+  offline_units: number;
+  total_units: number;
+  total_revenue: number;
+  stock_available: number;
+}
+
+export interface ProductSalesPerformanceResponse {
+  kpis: SalesKPICard;
+  products: ProductSalesPerformanceItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface OnlineLedgerItem {
+  id: string;
+  order_id: string;
+  created_at: string;
+  customer_name: string;
+  customer_email: string;
+  product_summary: string;
+  quantity: number;
+  payment_method: string;
+  amount: number;
+  order_status: string;
+}
+
+export interface OnlineLedgerResponse {
+  items: OnlineLedgerItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface OfflineLedgerItem {
+  id: string;
+  receipt_id: string;
+  created_at: string;
+  product_name: string;
+  quantity: number;
+  payment_method: string;
+  amount: number;
+}
+
+export interface OfflineLedgerResponse {
+  items: OfflineLedgerItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  is_active: boolean;
+  status: string;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface AdminListResponse {
+  items: AdminUserRecord[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SuperadminAuditLogRecord {
+  id: string;
+  user_id?: string | null;
+  user_name: string;
+  user_email?: string | null;
+  user_role: string;
+  action: string;
+  module: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  ip_address: string;
+  user_agent?: string | null;
+  request_method: string;
+  endpoint: string;
+  status: string;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+}
+
+export interface SuperadminAuditLogListResponse {
+  items: SuperadminAuditLogRecord[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SuperadminThemeRecord {
+  id: string;
+  name: string;
+  description?: string | null;
+  primary_brand_color: string;
+  background_color: string;
+  luxury_gold_color: string;
+  secondary_accent_color: string;
+  text_color: string;
+  surface_color: string;
+  is_active: boolean;
+  is_preset: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by?: string | null;
+}
+
+export interface SuperadminThemeListResponse {
+  items: SuperadminThemeRecord[];
+  active_theme_id?: string | null;
+}
+
+export interface ThemeCreatePayload {
+  name: string;
+  description?: string;
+  primary_brand_color: string;
+  background_color: string;
+  luxury_gold_color: string;
+  secondary_accent_color: string;
+  text_color: string;
+  surface_color: string;
+}
+
+export interface ThemeUpdatePayload {
+  name?: string;
+  description?: string;
+  primary_brand_color: string;
+  background_color: string;
+  luxury_gold_color: string;
+  secondary_accent_color: string;
+  text_color: string;
+  surface_color: string;
+}
+
+
+// ─── Platform Settings ───────────────────────────────────────────────────────
+
+export interface PlatformSettingsRecord {
+  id: string;
+
+  // Store Config
+  store_front_name: string;
+  support_email: string;
+  support_phone: string;
+  store_address: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+  base_currency: string;
+  timezone: string;
+  business_status: string;
+
+  // Payment & Shipping
+  cod_enabled: boolean;
+  gst_rate: number;
+  platform_fee: number;
+  standard_shipping_charge: number;
+  free_shipping_min_order: number;
+  maximum_cod_order_value: number;
+
+  // Customer & Order
+  customer_registration_enabled: boolean;
+  guest_checkout_enabled: boolean;
+  minimum_order_value: number;
+  order_cancellation_enabled: boolean;
+  cancellation_time_limit: number;
+  return_refund_enabled: boolean;
+
+  // System & Security
+  maintenance_mode: boolean;
+  admin_session_timeout: number;
+  max_login_attempts: number;
+  account_lockout_duration: number;
+  require_admin_password_change: boolean;
+
+  updated_at: string;
+  updated_by?: string | null;
+}
+
+export type PlatformSettingsUpdatePayload = Omit<
+  PlatformSettingsRecord,
+  'id' | 'updated_at' | 'updated_by'
+>;
+
+export interface MaintenanceModeResponse {
+  maintenance_mode: boolean;
+  message: string;
+}
+
+// Extend adminService object
+Object.assign(adminService, {
+  getPlatformSettings: (): Promise<PlatformSettingsRecord> =>
+    apiGet<PlatformSettingsRecord>('/superadmin/platform-settings'),
+
+  updatePlatformSettings: (payload: PlatformSettingsUpdatePayload): Promise<PlatformSettingsRecord> =>
+    apiPut<PlatformSettingsRecord>('/superadmin/platform-settings', payload),
+
+  toggleMaintenanceMode: (enable: boolean): Promise<MaintenanceModeResponse> =>
+    apiPost<MaintenanceModeResponse>('/superadmin/platform-settings/maintenance-mode', {
+      enable,
+      confirmed: true,
+    }),
+
+  resetPlatformSettings: (): Promise<PlatformSettingsRecord> =>
+    apiPost<PlatformSettingsRecord>('/superadmin/platform-settings/reset', {}),
+});
+
+
+// ─── Superadmin Notifications ────────────────────────────────────────────────
+
+export interface SuperadminNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  category: 'SECURITY' | 'ADMIN_MANAGEMENT' | 'PLATFORM_SYSTEM' | 'BUSINESS';
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  is_read: boolean;
+  read_at?: string | null;
+  related_entity_type?: string | null;
+  related_entity_id?: string | null;
+  related_user_id?: string | null;
+  related_user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+  created_at: string;
+}
+
+export interface SuperadminNotificationListResponse {
+  items: SuperadminNotificationItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  unread_count: number;
+}
+
+export interface SuperadminNotificationQueryParams {
+  page?: number;
+  limit?: number;
+  category?: string;
+  severity?: string;
+  is_read?: boolean;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+}
+
+Object.assign(adminService, {
+  getSuperadminNotifications: (
+    params?: SuperadminNotificationQueryParams
+  ): Promise<SuperadminNotificationListResponse> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.category) query.append('category', params.category);
+    if (params?.severity) query.append('severity', params.severity);
+    if (params?.is_read !== undefined) query.append('is_read', params.is_read.toString());
+    if (params?.date_from) query.append('date_from', params.date_from);
+    if (params?.date_to) query.append('date_to', params.date_to);
+    if (params?.search) query.append('search', params.search);
+
+    const qStr = query.toString();
+    return apiGet<SuperadminNotificationListResponse>(
+      `/superadmin/notifications${qStr ? `?${qStr}` : ''}`
+    );
+  },
+
+  getSuperadminUnreadCount: (): Promise<{ unread_count: number }> =>
+    apiGet<{ unread_count: number }>('/superadmin/notifications/unread-count'),
+
+  getSuperadminNotificationById: (
+    id: string
+  ): Promise<SuperadminNotificationItem> =>
+    apiGet<SuperadminNotificationItem>(`/superadmin/notifications/${id}`),
+
+  markSuperadminNotificationAsRead: (
+    id: string
+  ): Promise<SuperadminNotificationItem> =>
+    apiPatch<SuperadminNotificationItem>(`/superadmin/notifications/${id}/read`, {}),
+
+  markAllSuperadminNotificationsAsRead: (): Promise<{ unread_count: number }> =>
+    apiPatch<{ unread_count: number }>('/superadmin/notifications/read-all', {}),
+
+  deleteSuperadminNotification: (
+    id: string
+  ): Promise<{ message: string }> =>
+    apiDelete<{ message: string }>(`/superadmin/notifications/${id}`),
+});
 

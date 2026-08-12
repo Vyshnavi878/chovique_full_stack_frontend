@@ -6,6 +6,7 @@ import {
   LogOut,
   ChevronDown,
 } from 'lucide-react';
+
 import { useApp } from '../app/providers';
 
 interface AdminUserDropdownProps {
@@ -150,30 +151,32 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
             <span>Change Password</span>
           </button>
 
-          {/* Activity Log */}
-          <button
-            onClick={() => handleSelect(() => onNavigateTab('audit-logs'))}
-            style={{
-              width: '100%',
-              padding: '12px 20px',
-              background: 'transparent',
-              border: 'none',
-              color: '#f5efe6',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <FileClock size={18} color="#c9a84c" />
-            <span>Activity Log</span>
-          </button>
+          {/* Activity Log — Admin only (Super Admin uses dedicated Audit Logs sidebar page) */}
+          {role !== 'superadmin' && (
+            <button
+              onClick={() => handleSelect(() => onNavigateTab('activity-logs'))}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                background: 'transparent',
+                border: 'none',
+                color: '#f5efe6',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <FileClock size={18} color="#c9a84c" />
+              <span>Activity Log</span>
+            </button>
+          )}
 
           <div style={{ height: '1px', background: 'rgba(201, 168, 76, 0.15)', margin: '6px 0' }} />
 

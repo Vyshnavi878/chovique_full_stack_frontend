@@ -120,20 +120,15 @@ export const Navbar: React.FC = () => {
           <span className="nav-logo-text">CHOVIQUE</span>
         </Link>
 
-        {/* Desktop Menu links - Customer Nav only */}
-        {(role === 'guest' || role === 'customer') && (
-          <ul className="nav-menu">
-            <li className="nav-item" onClick={() => navigate('/')}>Home</li>
-
-            {/* Shop Link (Direct navigation, no dropdown) */}
-            <li className="nav-item" onClick={() => navigate('/shop')}>
-              Shop
-            </li>
-
-            <li className="nav-item" onClick={() => navigate('/our-story')}>Our Story</li>
-            <li className="nav-item" onClick={() => navigate('/contact')}>Contact</li>
-          </ul>
-        )}
+        {/* Desktop Menu links - Public Website Nav */}
+        <ul className="nav-menu">
+          <li className={`nav-item ${location.pathname === '/' ? 'active' : ''}`} onClick={() => navigate('/')}>Home</li>
+          <li className={`nav-item ${location.pathname.startsWith('/shop') || location.pathname.startsWith('/product') ? 'active' : ''}`} onClick={() => navigate('/shop')}>
+            Shop
+          </li>
+          <li className={`nav-item ${location.pathname === '/our-story' ? 'active' : ''}`} onClick={() => navigate('/our-story')}>Our Story</li>
+          <li className={`nav-item ${location.pathname === '/contact' ? 'active' : ''}`} onClick={() => navigate('/contact')}>Contact</li>
+        </ul>
 
         {/* Action Buttons Right */}
         <div className="nav-actions">
@@ -312,15 +307,13 @@ export const Navbar: React.FC = () => {
           )}
 
           {/* Mobile Menu Icon */}
-          {(role === 'guest' || role === 'customer') && (
-            <button
-              className="mobile-menu-toggle"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          )}
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </div>
 

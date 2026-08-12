@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './providers';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
@@ -41,6 +41,19 @@ const ScrollToTop: React.FC = () => {
   }, [pathname]);
   return null;
 };
+
+/**
+ * SuperadminRedirect - If a superadmin lands on /admin, redirect them to /superadmin.
+ * This prevents superadmin from accidentally using the regular admin dashboard.
+ */
+const SuperadminRedirect: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { role } = useApp();
+  if (role === 'superadmin') {
+    return <Navigate to="/superadmin" replace />;
+  }
+  return <>{children}</>;
+};
+
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -98,13 +111,16 @@ const AppContent: React.FC = () => {
             }
           />
 
-          {/* Protected: Admin + Superadmin */}
+          {/* Protected: Admin only (superadmin redirected to /superadmin) */}
           <Route
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
                 <ErrorBoundary>
-                  <AdminDashboard />
+                  {/* If superadmin visits /admin, redirect them to /superadmin */}
+                  <SuperadminRedirect>
+                    <AdminDashboard />
+                  </SuperadminRedirect>
                 </ErrorBoundary>
               </ProtectedRoute>
             }

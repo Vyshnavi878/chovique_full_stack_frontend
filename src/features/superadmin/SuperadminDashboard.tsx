@@ -28,7 +28,20 @@ import {
   UserX,
   Activity,
   AlertTriangle,
-  Key
+  Key,
+  Home,
+  Download,
+  Calendar,
+  Search,
+  Filter,
+  UserPlus,
+  Edit3,
+  Power,
+  KeyRound,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Bell
 } from 'lucide-react';
 import {
   BarChart,
@@ -55,8 +68,29 @@ import { ToastContainer, ToastMessage } from '../../components/ui/Toast';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
-import { adminService, type DashboardStats, type AuditLogEntry } from '../../services/adminService';
+import { DashboardKpiSkeleton, DashboardCardSkeleton } from '../../components/ui/DashboardSkeleton';
+import { NotificationHeaderDropdown } from '../../components/NotificationHeaderDropdown';
+import { AdminUserDropdown } from '../../components/AdminUserDropdown';
+import {
+  adminService,
+  type DashboardStats,
+  type AuditLogEntry,
+  type SuperadminOverviewResponse,
+  type SuperadminRevenueResponse,
+  type ProductSalesPerformanceResponse,
+  type OnlineLedgerResponse,
+  type OfflineLedgerResponse,
+  type AdminUserRecord,
+  type AdminListResponse,
+  type SuperadminAuditLogRecord,
+  type SuperadminAuditLogListResponse,
+  type SuperadminThemeRecord,
+  type SuperadminThemeListResponse,
+  type ThemeCreatePayload,
+  type ThemeUpdatePayload
+} from '../../services/adminService';
 import { homeService } from '../../services/homeService';
+import { getImageUrl } from '../../utils/imageUrl';
 import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
 import {
   trimValue,
@@ -136,11 +170,974 @@ const builtInPresets: ThemePreset[] = [
 
 
 export const SuperadminDashboard: React.FC = () => {
-  const { user, theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners } = useApp();
+  const { user, theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners, logout } = useApp();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('enterprise');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+
+  // --- Logout Modal State ---
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await adminService.adminLogout();
+    } catch (err) {
+      console.error('Failed to log out from server:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirmModal(false);
+      logout();
+    }
+  };
+
+  const handleTabNavigation = (tab: string, entityId?: string) => {
+    if (tab === 'logout') {
+      setShowLogoutConfirmModal(true);
+    } else {
+      setActiveTab(tab);
+      if (tab === 'notifications' && entityId) {
+        (adminService as any).getSuperadminNotificationById(entityId)
+          .then((notif: any) => {
+            if (notif) setSelectedNotif(notif);
+          })
+          .catch((err: any) => console.error('Failed to fetch notification detail:', err));
+      }
+    }
+  };
+
+  // --- Enterprise Overview Default Fallback ---
+  const defaultOverviewData: SuperadminOverviewResponse = {
+    total_revenue: { current_value: 76986, previous_value: 68432, percentage_change: 12.5, comparison_label: 'vs last 7 days' },
+    total_orders: { current_value: 124, previous_value: 114, percentage_change: 8.2, comparison_label: 'vs last 7 days' },
+    total_customers: { current_value: 248, previous_value: 232, percentage_change: 6.7, comparison_label: 'vs last 7 days' },
+    active_admins: { current_value: 3, previous_value: 3, percentage_change: 0.0, comparison_label: 'vs last 7 days' },
+    revenue_trend: [
+      { date: '1 Aug', revenue: 6000 },
+      { date: '6 Aug', revenue: 12000 },
+      { date: '11 Aug', revenue: 28000 },
+      { date: '16 Aug', revenue: 22000 },
+      { date: '21 Aug', revenue: 40000 },
+      { date: '26 Aug', revenue: 32000 },
+      { date: '31 Aug', revenue: 54000 },
+    ],
+    sales_source: {
+      online_revenue: 54326,
+      online_percentage: 70.6,
+      offline_revenue: 22660,
+      offline_percentage: 29.4,
+    },
+    top_selling_products: [
+      {
+        id: 'prod-1',
+        name: 'Belgian Dark Truffle Bar',
+        image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80',
+        units_sold: 45,
+        revenue: 10125,
+      },
+    ],
+    recent_activities: [
+      { id: 'act-1', action: 'NEW_ORDER', description: 'New order #ORD1245', timestamp: '12 Aug 2026, 10:45 AM', user_name: 'Customer' },
+      { id: 'act-2', action: 'PRODUCT_UPDATE', description: 'Admin Vaishnavi updated product', timestamp: '12 Aug 2026, 09:15 AM', user_name: 'Admin Vaishnavi' },
+      { id: 'act-3', action: 'OFFLINE_SALE', description: 'Offline sale recorded', timestamp: '12 Aug 2026, 08:20 AM', user_name: 'System' },
+    ],
+  };
+
+  // --- Enterprise Overview State ---
+  const [overviewData, setOverviewData] = useState<SuperadminOverviewResponse | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewTimeframe, setOverviewTimeframe] = useState<string>('7days');
+
+  const fetchOverview = async (tf = overviewTimeframe) => {
+    setOverviewLoading(true);
+    setOverviewError(null);
+    try {
+      const data = await adminService.getSuperadminOverview(tf);
+      if (data) {
+        setOverviewData(data);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch Superadmin Overview:', err);
+      setOverviewError(err?.detail || err?.message || 'Failed to load enterprise overview. Please check backend connection.');
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'enterprise') {
+      fetchOverview(overviewTimeframe);
+    }
+  }, [activeTab, overviewTimeframe]);
+
+  const displayOverview = overviewData || defaultOverviewData;
+
+  // --- Revenue Analytics Default Fallback ---
+  const defaultRevenueData: SuperadminRevenueResponse = {
+    preset: 'month',
+    date_from: '2026-08-01',
+    date_to: '2026-08-31',
+    display_range: '01 Aug 2026 - 31 Aug 2026',
+    total_income: { current_value: 76986, previous_value: 68432, percentage_change: 12.5, comparison_label: 'vs last month' },
+    online_revenue: { current_value: 54326, previous_value: 47320, percentage_change: 14.8, comparison_label: 'vs last month' },
+    offline_revenue: { current_value: 22660, previous_value: 22192, percentage_change: 2.1, comparison_label: 'vs last month' },
+    avg_order_value: { current_value: 621, previous_value: 602, percentage_change: 3.1, comparison_label: 'vs last month' },
+    revenue_trend: [
+      { date: '1 Aug', online_revenue: 4200, offline_revenue: 1800, total_revenue: 6000 },
+      { date: '6 Aug', online_revenue: 8500, offline_revenue: 3500, total_revenue: 12000 },
+      { date: '11 Aug', online_revenue: 19500, offline_revenue: 8500, total_revenue: 28000 },
+      { date: '16 Aug', online_revenue: 15000, offline_revenue: 7000, total_revenue: 22000 },
+      { date: '21 Aug', online_revenue: 28000, offline_revenue: 12000, total_revenue: 40000 },
+      { date: '26 Aug', online_revenue: 22000, offline_revenue: 10000, total_revenue: 32000 },
+      { date: '31 Aug', online_revenue: 38000, offline_revenue: 16000, total_revenue: 54000 },
+    ],
+    revenue_by_source: {
+      online_revenue: 54326,
+      online_percentage: 70.6,
+      offline_revenue: 22660,
+      offline_percentage: 29.4,
+    },
+    revenue_by_payment_method: [
+      { method: 'UPI', amount: 32450, percentage: 42.1 },
+      { method: 'Credit / Debit Card', amount: 26180, percentage: 34.0 },
+      { method: 'Cash on Delivery', amount: 18356, percentage: 23.9 },
+    ],
+    summary_rows: [
+      { date: '2026-08-31', online_orders: 14, online_revenue: 8200, offline_sales: 6, offline_revenue: 3200, total_revenue: 11400, avg_order_value: 570 },
+      { date: '2026-08-30', online_orders: 12, online_revenue: 7500, offline_sales: 5, offline_revenue: 2800, total_revenue: 10300, avg_order_value: 605 },
+      { date: '2026-08-29', online_orders: 10, online_revenue: 6200, offline_sales: 4, offline_revenue: 2100, total_revenue: 8300, avg_order_value: 592 },
+      { date: '2026-08-28', online_orders: 15, online_revenue: 9400, offline_sales: 7, offline_revenue: 3900, total_revenue: 13300, avg_order_value: 604 },
+    ],
+  };
+
+  // --- Revenue Analytics State ---
+  const [revenueData, setRevenueData] = useState<SuperadminRevenueResponse | null>(null);
+  const [revenueLoading, setRevenueLoading] = useState(true);
+  const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [revenuePreset, setRevenuePreset] = useState<string>('month');
+  const [revenueDateFrom, setRevenueDateFrom] = useState<string>('');
+  const [revenueDateTo, setRevenueDateTo] = useState<string>('');
+  const [revenueExporting, setRevenueExporting] = useState(false);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const summaryRowsPerPage = 5;
+
+  const fetchRevenueAnalytics = async (
+    preset = revenuePreset,
+    dateFrom = revenueDateFrom,
+    dateTo = revenueDateTo
+  ) => {
+    setRevenueLoading(true);
+    setRevenueError(null);
+    try {
+      const data = await adminService.getRevenueAnalytics(
+        preset,
+        preset === 'custom' ? dateFrom : undefined,
+        preset === 'custom' ? dateTo : undefined
+      );
+      if (data) {
+        setRevenueData(data);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch Revenue Analytics:', err);
+      setRevenueError(
+        err?.detail || err?.message || 'Failed to load revenue analytics metrics.'
+      );
+    } finally {
+      setRevenueLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'revenue') {
+      fetchRevenueAnalytics(revenuePreset, revenueDateFrom, revenueDateTo);
+    }
+  }, [activeTab, revenuePreset, revenueDateFrom, revenueDateTo]);
+
+  const handleExportRevenueCsv = async () => {
+    setRevenueExporting(true);
+    try {
+      await adminService.exportRevenueAnalyticsCsv(
+        revenuePreset,
+        revenuePreset === 'custom' ? revenueDateFrom : undefined,
+        revenuePreset === 'custom' ? revenueDateTo : undefined
+      );
+      addToast('success', 'Revenue report CSV exported successfully!', 'Report Exported');
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to export CSV report.', 'Export Error');
+    } finally {
+      setRevenueExporting(false);
+    }
+  };
+
+  const displayRevenue = revenueData || defaultRevenueData;
+
+  // --- Sales Analytics & Ledger Default Fallbacks ---
+  const defaultSalesProducts: ProductSalesPerformanceResponse = {
+    kpis: {
+      total_units_sold: 248,
+      total_units_prev: 225,
+      units_pct_change: 10.2,
+      total_revenue: 76986,
+      total_revenue_prev: 68432,
+      revenue_pct_change: 12.5,
+      online_revenue: 54326,
+      online_revenue_prev: 47320,
+      online_pct_change: 14.8,
+      offline_revenue: 22660,
+      offline_revenue_prev: 22192,
+      offline_pct_change: 2.1,
+      top_selling_chocolate: 'Belgian Dark Truffle Bar',
+      comparison_label: 'vs last month',
+    },
+    products: [
+      { id: 'p1', name: 'Belgian Dark Truffle Bar', category_name: 'Dark Chocolate', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 175, online_units: 45, offline_units: 18, total_units: 63, total_revenue: 10125, stock_available: 37 },
+      { id: 'p2', name: 'Salted Caramel Bonbons', category_name: 'Bonbons', image_url: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=150&q=80', price: 159, online_units: 38, offline_units: 12, total_units: 50, total_revenue: 7950, stock_available: 20 },
+      { id: 'p3', name: 'Gold Leaf Pralines', category_name: 'Luxury Boxes', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 160, online_units: 28, offline_units: 10, total_units: 38, total_revenue: 6080, stock_available: 42 },
+      { id: 'p4', name: 'Milk Chocolate Almonds', category_name: 'Milk Chocolate', image_url: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=150&q=80', price: 150, online_units: 25, offline_units: 8, total_units: 33, total_revenue: 4950, stock_available: 26 },
+      { id: 'p5', name: 'Ruby Cocoa Delight', category_name: 'Ruby Chocolate', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 160, online_units: 20, offline_units: 6, total_units: 26, total_revenue: 4160, stock_available: 35 },
+    ],
+    total: 24,
+    page: 1,
+    limit: 5,
+  };
+
+  const defaultOnlineLedger: OnlineLedgerResponse = {
+    items: [
+      { id: 'ord-1', order_id: 'ORD-1245', created_at: '12 Aug 2026, 10:45 AM', customer_name: 'Aarav Sharma', customer_email: 'aarav@example.com', product_summary: 'Belgian Dark Truffle Bar (x2)', quantity: 2, payment_method: 'UPI', amount: 350, order_status: 'Paid' },
+      { id: 'ord-2', order_id: 'ORD-1244', created_at: '12 Aug 2026, 09:30 AM', customer_name: 'Priya Patel', customer_email: 'priya@example.com', product_summary: 'Salted Caramel Bonbons (x1)', quantity: 1, payment_method: 'Card', amount: 159, order_status: 'Shipped' },
+      { id: 'ord-3', order_id: 'ORD-1243', created_at: '11 Aug 2026, 04:15 PM', customer_name: 'Rohan Mehta', customer_email: 'rohan@example.com', product_summary: 'Gold Leaf Pralines (x3)', quantity: 3, payment_method: 'UPI', amount: 480, order_status: 'Delivered' },
+    ],
+    total: 3,
+    page: 1,
+    limit: 10,
+  };
+
+  const defaultOfflineLedger: OfflineLedgerResponse = {
+    items: [
+      { id: 'pos-1', receipt_id: 'POS-8821', created_at: '12 Aug 2026, 11:20 AM', product_name: 'Belgian Dark Truffle Bar', quantity: 3, payment_method: 'Cash', amount: 525 },
+      { id: 'pos-2', receipt_id: 'POS-8820', created_at: '12 Aug 2026, 10:15 AM', product_name: 'Ruby Cocoa Delight', quantity: 2, payment_method: 'UPI', amount: 320 },
+      { id: 'pos-3', receipt_id: 'POS-8819', created_at: '11 Aug 2026, 06:40 PM', product_name: 'Milk Chocolate Almonds', quantity: 4, payment_method: 'Card', amount: 600 },
+    ],
+    total: 3,
+    page: 1,
+    limit: 10,
+  };
+
+  // --- Sales Analytics State ---
+  const [salesSubTab, setSalesSubTab] = useState<'products' | 'online' | 'offline'>('products');
+  
+  // Data states
+  const [salesProductsData, setSalesProductsData] = useState<ProductSalesPerformanceResponse | null>(null);
+  const [onlineLedgerData, setOnlineLedgerData] = useState<OnlineLedgerResponse | null>(null);
+  const [offlineLedgerData, setOfflineLedgerData] = useState<OfflineLedgerResponse | null>(null);
+  
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [salesError, setSalesError] = useState<string | null>(null);
+  const [salesExporting, setSalesExporting] = useState(false);
+
+  // Search & Filter states
+  const [salesSearch, setSalesSearch] = useState('');
+  const [salesDateFrom, setSalesDateFrom] = useState('');
+  const [salesDateTo, setSalesDateTo] = useState('');
+  const [salesOnlineStatus, setSalesOnlineStatus] = useState('ALL');
+  const [salesPaymentMethod, setSalesPaymentMethod] = useState('ALL');
+  
+  // Pagination states
+  const [salesProductsPage, setSalesProductsPage] = useState(1);
+  const [onlineLedgerPage, setOnlineLedgerPage] = useState(1);
+  const [offlineLedgerPage, setOfflineLedgerPage] = useState(1);
+  const salesPageLimit = 5;
+
+  const fetchSalesData = async () => {
+    setSalesLoading(true);
+    setSalesError(null);
+    try {
+      if (salesSubTab === 'products') {
+        const res = await adminService.getSalesAnalytics({
+          search: salesSearch || undefined,
+          date_from: salesDateFrom || undefined,
+          date_to: salesDateTo || undefined,
+          page: salesProductsPage,
+          limit: salesPageLimit,
+        });
+        if (res) setSalesProductsData(res);
+      } else if (salesSubTab === 'online') {
+        const res = await adminService.getOnlineSalesLedger({
+          search: salesSearch || undefined,
+          status: salesOnlineStatus !== 'ALL' ? salesOnlineStatus : undefined,
+          payment_method: salesPaymentMethod !== 'ALL' ? salesPaymentMethod : undefined,
+          date_from: salesDateFrom || undefined,
+          date_to: salesDateTo || undefined,
+          page: onlineLedgerPage,
+          limit: salesPageLimit,
+        });
+        if (res) setOnlineLedgerData(res);
+      } else if (salesSubTab === 'offline') {
+        const res = await adminService.getOfflineSalesLedger({
+          search: salesSearch || undefined,
+          payment_method: salesPaymentMethod !== 'ALL' ? salesPaymentMethod : undefined,
+          date_from: salesDateFrom || undefined,
+          date_to: salesDateTo || undefined,
+          page: offlineLedgerPage,
+          limit: salesPageLimit,
+        });
+        if (res) setOfflineLedgerData(res);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch Sales Analytics / Ledger data:', err);
+      setSalesError(err?.detail || err?.message || 'Failed to load sales data.');
+    } finally {
+      setSalesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'sales-comparison') {
+      fetchSalesData();
+    }
+  }, [
+    activeTab,
+    salesSubTab,
+    salesSearch,
+    salesDateFrom,
+    salesDateTo,
+    salesOnlineStatus,
+    salesPaymentMethod,
+    salesProductsPage,
+    onlineLedgerPage,
+    offlineLedgerPage,
+  ]);
+
+  const handleExportSalesCsv = async () => {
+    setSalesExporting(true);
+    try {
+      await adminService.exportSalesAnalyticsCsv(
+        salesSubTab,
+        salesSearch || undefined,
+        salesDateFrom || undefined,
+        salesDateTo || undefined
+      );
+      addToast('success', `Exported ${salesSubTab} sales data as CSV successfully!`, 'CSV Exported');
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to export sales CSV.', 'Export Error');
+    } finally {
+      setSalesExporting(false);
+    }
+  };
+
+  const displaySalesProducts = salesProductsData || defaultSalesProducts;
+  const displayOnlineLedger = onlineLedgerData || defaultOnlineLedger;
+  const displayOfflineLedger = offlineLedgerData || defaultOfflineLedger;
+
+  // --- Admin Management Default Fallback ---
+  const defaultAdminsList: AdminListResponse = {
+    items: [
+      { id: 'usr-1', full_name: 'Vyshnavi', email: 'vyshu@gmail.com', phone: '+91 98765 43210', role: 'superadmin', is_active: true, status: 'active', created_at: '01 Jan 2026', last_login_at: '12 Aug 2026, 10:30 AM' },
+      { id: 'usr-2', full_name: 'Ramesh Kumar', email: 'ramesh@gmail.com', phone: '+91 98765 43211', role: 'admin', is_active: true, status: 'active', created_at: '15 Feb 2026', last_login_at: '11 Aug 2026, 04:15 PM' },
+      { id: 'usr-3', full_name: 'Anitha Singh', email: 'anitha@gmail.com', phone: '+91 98765 43212', role: 'admin', is_active: false, status: 'inactive', created_at: '20 Mar 2026', last_login_at: '05 Aug 2026, 02:20 PM' },
+      { id: 'usr-4', full_name: 'Karthik Reddy', email: 'karthik@gmail.com', phone: '+91 98765 43213', role: 'admin', is_active: true, status: 'active', created_at: '10 Apr 2026', last_login_at: '12 Aug 2026, 09:10 AM' },
+    ],
+    total: 4,
+    page: 1,
+    limit: 10,
+  };
+
+  // --- Admin Management State ---
+  const [adminsData, setAdminsData] = useState<AdminListResponse | null>(null);
+  const [adminsLoading, setAdminsLoading] = useState(true);
+  const [adminsError, setAdminsError] = useState<string | null>(null);
+  
+  const [adminsSearch, setAdminsSearch] = useState('');
+  const [adminsRoleFilter, setAdminsRoleFilter] = useState('ALL');
+  const [adminsStatusFilter, setAdminsStatusFilter] = useState('ALL');
+  const [adminsPage, setAdminsPage] = useState(1);
+  const adminsLimit = 10;
+
+  // Register Modal state
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regRole, setRegRole] = useState('admin');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regStatus, setRegStatus] = useState('active');
+  const [regFormError, setRegFormError] = useState<string | null>(null);
+  const [regSubmitting, setRegSubmitting] = useState(false);
+
+  // Edit Modal state
+  const [editingAdmin, setEditingAdmin] = useState<AdminUserRecord | null>(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState('admin');
+  const [editStatus, setEditStatus] = useState('active');
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Password Reset Modal state
+  const [pwdResetAdmin, setPwdResetAdmin] = useState<AdminUserRecord | null>(null);
+  const [pwdNewPassword, setPwdNewPassword] = useState('');
+  const [pwdConfirmPassword, setPwdConfirmPassword] = useState('');
+  const [pwdFormError, setPwdFormError] = useState<string | null>(null);
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+
+  const fetchAdmins = async () => {
+    setAdminsLoading(true);
+    setAdminsError(null);
+    try {
+      const res = await adminService.getSuperadminAdmins({
+        search: adminsSearch || undefined,
+        role: adminsRoleFilter !== 'ALL' ? adminsRoleFilter : undefined,
+        status: adminsStatusFilter !== 'ALL' ? adminsStatusFilter : undefined,
+        page: adminsPage,
+        limit: adminsLimit,
+      });
+      if (res) setAdminsData(res);
+    } catch (err: any) {
+      console.error('Failed to fetch admins list:', err);
+      setAdminsError(err?.detail || err?.message || 'Failed to load administrators.');
+    } finally {
+      setAdminsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'admin-mgmt') {
+      fetchAdmins();
+    }
+  }, [activeTab, adminsSearch, adminsRoleFilter, adminsStatusFilter, adminsPage]);
+
+  // Handlers for Admin Management Actions
+  const handleRegisterAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegFormError(null);
+
+    // Form validations
+    if (!isNonEmpty(regFullName)) {
+      setRegFormError('Full Name is required.');
+      return;
+    }
+    if (!isValidEmail(regEmail)) {
+      setRegFormError('Please enter a valid email address.');
+      return;
+    }
+    if (!regPhone || !isValidPhone(regPhone)) {
+      setRegFormError('Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9.');
+      return;
+    }
+    if (regPassword.length < 8) {
+      setRegFormError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
+      setRegFormError('Password confirmation does not match.');
+      return;
+    }
+
+    setRegSubmitting(true);
+    try {
+      await adminService.createSuperadminAdmin({
+        full_name: regFullName,
+        email: regEmail,
+        phone: regPhone,
+        role: regRole,
+        password: regPassword,
+        confirm_password: regConfirmPassword,
+        status: regStatus,
+      });
+      addToast('success', `Administrator '${regFullName}' registered successfully!`, 'Admin Registered');
+      setIsRegisterOpen(false);
+      // Reset form
+      setRegFullName('');
+      setRegEmail('');
+      setRegPhone('');
+      setRegRole('admin');
+      setRegPassword('');
+      setRegConfirmPassword('');
+      setRegStatus('active');
+      fetchAdmins();
+    } catch (err: any) {
+      setRegFormError(err?.detail || err?.message || 'Failed to register administrator.');
+    } finally {
+      setRegSubmitting(false);
+    }
+  };
+
+  const handleEditAdminOpen = (adm: AdminUserRecord) => {
+    setEditingAdmin(adm);
+    setEditFullName(adm.full_name);
+    setEditEmail(adm.email);
+    setEditPhone(adm.phone || '');
+    setEditRole(adm.role);
+    setEditStatus(adm.status);
+    setEditFormError(null);
+  };
+
+  const handleEditAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdmin) return;
+    setEditFormError(null);
+
+    if (!isNonEmpty(editFullName)) {
+      setEditFormError('Full Name is required.');
+      return;
+    }
+    if (!isValidEmail(editEmail)) {
+      setEditFormError('Please enter a valid email address.');
+      return;
+    }
+    if (editPhone && !isValidPhone(editPhone)) {
+      setEditFormError('Please enter a valid 10-digit Indian phone number.');
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      await adminService.updateSuperadminAdmin(editingAdmin.id, {
+        full_name: editFullName,
+        email: editEmail,
+        phone: editPhone || undefined,
+        role: editRole,
+        status: editStatus,
+      });
+      addToast('success', `Administrator '${editFullName}' updated successfully!`, 'Admin Updated');
+      setEditingAdmin(null);
+      fetchAdmins();
+    } catch (err: any) {
+      setEditFormError(err?.detail || err?.message || 'Failed to update administrator.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleToggleAdminStatus = (adm: AdminUserRecord) => {
+    const nextStatus = adm.is_active ? 'inactive' : 'active';
+    const actionLabel = adm.is_active ? 'Deactivate' : 'Activate';
+
+    setConfirmModal({
+      isOpen: true,
+      title: `${actionLabel} Administrator?`,
+      message: `Are you sure you want to ${actionLabel.toLowerCase()} '${adm.full_name}' (${adm.email})?`,
+      confirmText: actionLabel,
+      onConfirm: async () => {
+        try {
+          await adminService.updateSuperadminAdminStatus(adm.id, nextStatus as 'active' | 'inactive');
+          addToast('success', `Administrator '${adm.full_name}' ${actionLabel.toLowerCase()}d successfully.`, 'Status Updated');
+          fetchAdmins();
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to update admin status.', 'Error');
+        }
+      },
+    });
+  };
+
+  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwdResetAdmin) return;
+    setPwdFormError(null);
+
+    if (pwdNewPassword.length < 8) {
+      setPwdFormError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (pwdNewPassword !== pwdConfirmPassword) {
+      setPwdFormError('Password confirmation does not match.');
+      return;
+    }
+
+    setPwdSubmitting(true);
+    try {
+      await adminService.updateSuperadminAdminPassword(pwdResetAdmin.id, {
+        new_password: pwdNewPassword,
+        confirm_password: pwdConfirmPassword,
+      });
+      addToast('success', `Password updated for '${pwdResetAdmin.full_name}' successfully!`, 'Password Changed');
+      setPwdResetAdmin(null);
+      setPwdNewPassword('');
+      setPwdConfirmPassword('');
+    } catch (err: any) {
+      setPwdFormError(err?.detail || err?.message || 'Failed to update password.');
+    } finally {
+      setPwdSubmitting(false);
+    }
+  };
+
+  const handleDeleteAdmin = (adm: AdminUserRecord) => {
+    if (user?.email === adm.email || user?.id === adm.id) {
+      addToast('error', 'Security Guardrail: Super Admin cannot delete their own active account.', 'Action Blocked');
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete Administrator Account?`,
+      message: `Are you sure you want to permanently delete '${adm.full_name}' (${adm.email})? This action cannot be undone.`,
+      confirmText: 'Delete Account',
+      onConfirm: async () => {
+        try {
+          await adminService.deleteSuperadminAdmin(adm.id);
+          addToast('success', `Administrator '${adm.full_name}' deleted successfully.`, 'Admin Deleted');
+          fetchAdmins();
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to delete administrator.', 'Delete Failed');
+        }
+      },
+    });
+  };
+
+  const displayAdmins = adminsData || defaultAdminsList;
+
+  // --- Audit Logs Default Fallback ---
+  const defaultAuditLogsList: SuperadminAuditLogListResponse = {
+    items: [
+      { id: 'log-101', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Login', module: 'System', ip_address: '192.168.1.10', request_method: 'POST', endpoint: '/api/v1/auth/login', status: 'SUCCESS', created_at: '12 Aug 2026, 10:41 AM' },
+      { id: 'log-102', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Updated Product', module: 'Products', entity_type: 'product', entity_id: 'prod-99', ip_address: '192.168.1.10', request_method: 'PUT', endpoint: '/api/v1/products/prod-99', status: 'SUCCESS', created_at: '12 Aug 2026, 10:30 AM' },
+      { id: 'log-103', user_name: 'Ramesh Kumar', user_email: 'ramesh@gmail.com', user_role: 'admin', action: 'Created Coupon', module: 'Coupons', entity_type: 'coupon', entity_id: 'LUX10', ip_address: '192.168.1.12', request_method: 'POST', endpoint: '/api/v1/coupons', status: 'SUCCESS', created_at: '12 Aug 2026, 10:00 AM' },
+      { id: 'log-104', user_name: 'Anitha Singh', user_email: 'anitha@gmail.com', user_role: 'admin', action: 'Updated Order Status', module: 'Orders', entity_type: 'order', entity_id: 'ORD-8802', ip_address: '192.168.1.11', request_method: 'PATCH', endpoint: '/api/v1/orders/ORD-8802/status', status: 'SUCCESS', created_at: '12 Aug 2026, 09:15 AM' },
+      { id: 'log-105', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Changed Settings', module: 'Platform Settings', entity_type: 'setting', entity_id: 'site-config', ip_address: '192.168.1.10', request_method: 'PUT', endpoint: '/api/v1/superadmin/settings', status: 'SUCCESS', created_at: '12 Aug 2026, 08:40 AM' },
+      { id: 'log-106', user_name: 'Ramesh Kumar', user_email: 'ramesh@gmail.com', user_role: 'admin', action: 'Offline Sale Recorded', module: 'Offline Sales', entity_type: 'offline_sale', entity_id: 'RCP-302', ip_address: '192.168.1.12', request_method: 'POST', endpoint: '/api/v1/offline-sales', status: 'SUCCESS', created_at: '12 Aug 2026, 08:00 AM' },
+      { id: 'log-107', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Logout', module: 'System', ip_address: '192.168.1.10', request_method: 'POST', endpoint: '/api/v1/auth/logout', status: 'SUCCESS', created_at: '11 Aug 2026, 06:10 PM' },
+    ],
+    total: 7,
+    page: 1,
+    limit: 10,
+  };
+
+  // --- Audit Logs State ---
+  const [auditLogsData, setAuditLogsData] = useState<SuperadminAuditLogListResponse | null>(null);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(true);
+  const [auditLogsError, setAuditLogsError] = useState<string | null>(null);
+
+  const [auditDateFrom, setAuditDateFrom] = useState('');
+  const [auditDateTo, setAuditDateTo] = useState('');
+  const [auditUserId, setAuditUserId] = useState('ALL');
+  const [auditActionFilter, setAuditActionFilter] = useState('ALL');
+  const [auditModuleFilter, setAuditModuleFilter] = useState('ALL');
+  const [auditStatusFilter, setAuditStatusFilter] = useState('ALL');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditPage, setAuditPage] = useState(1);
+  const auditLimit = 10;
+
+  const [selectedAuditLog, setSelectedAuditLog] = useState<SuperadminAuditLogRecord | null>(null);
+  const [auditExporting, setAuditExporting] = useState(false);
+
+  const fetchAuditLogs = async () => {
+    setAuditLogsLoading(true);
+    setAuditLogsError(null);
+    try {
+      const res = await adminService.getSuperadminAuditLogs({
+        date_from: auditDateFrom || undefined,
+        date_to: auditDateTo || undefined,
+        user_id: auditUserId !== 'ALL' ? auditUserId : undefined,
+        action: auditActionFilter !== 'ALL' ? auditActionFilter : undefined,
+        module: auditModuleFilter !== 'ALL' ? auditModuleFilter : undefined,
+        status: auditStatusFilter !== 'ALL' ? auditStatusFilter : undefined,
+        search: auditSearch || undefined,
+        page: auditPage,
+        limit: auditLimit,
+      });
+      if (res) setAuditLogsData(res);
+    } catch (err: any) {
+      console.error('Failed to fetch audit logs:', err);
+      setAuditLogsError(err?.detail || err?.message || 'Failed to load audit logs.');
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'audit-logs') {
+      fetchAuditLogs();
+    }
+  }, [activeTab, auditDateFrom, auditDateTo, auditUserId, auditActionFilter, auditModuleFilter, auditStatusFilter, auditSearch, auditPage]);
+
+  const handleClearAuditFilters = () => {
+    setAuditDateFrom('');
+    setAuditDateTo('');
+    setAuditUserId('ALL');
+    setAuditActionFilter('ALL');
+    setAuditModuleFilter('ALL');
+    setAuditStatusFilter('ALL');
+    setAuditSearch('');
+    setAuditPage(1);
+  };
+
+  const handleExportAuditLogsCsv = async () => {
+    setAuditExporting(true);
+    try {
+      await adminService.exportSuperadminAuditLogsCsv({
+        date_from: auditDateFrom || undefined,
+        date_to: auditDateTo || undefined,
+        user_id: auditUserId !== 'ALL' ? auditUserId : undefined,
+        action: auditActionFilter !== 'ALL' ? auditActionFilter : undefined,
+        module: auditModuleFilter !== 'ALL' ? auditModuleFilter : undefined,
+        status: auditStatusFilter !== 'ALL' ? auditStatusFilter : undefined,
+        search: auditSearch || undefined,
+      });
+      addToast('success', 'Exported audit logs as CSV successfully!', 'CSV Exported');
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to export audit logs CSV.', 'Export Error');
+    } finally {
+      setAuditExporting(false);
+    }
+  };
+
+  const displayAuditLogs = auditLogsData || defaultAuditLogsList;
+
+  // --- Theme Builder Default Preset Fallback ---
+  const defaultPresetThemes: SuperadminThemeListResponse = {
+    items: [
+      {
+        id: 'preset-chovique-classic',
+        name: 'Chovique Classic',
+        description: 'Signature chocolate & gold luxury palette',
+        primary_brand_color: '#5A3825',
+        background_color: '#0D090A',
+        luxury_gold_color: '#D4AF37',
+        secondary_accent_color: '#B76E79',
+        text_color: '#F7F7F7',
+        surface_color: '#1A1716',
+        is_active: true,
+        is_preset: true,
+        created_at: '2026-08-12',
+        updated_at: '2026-08-12',
+      },
+      {
+        id: 'preset-slate-noir',
+        name: 'Slate Noir',
+        description: 'Sophisticated gradient from dark slate to charcoal gray',
+        primary_brand_color: '#2C3E50',
+        background_color: '#1A252F',
+        luxury_gold_color: '#BDC3C7',
+        secondary_accent_color: '#7F8C8D',
+        text_color: '#ECF0F1',
+        surface_color: '#2C3E50',
+        is_active: false,
+        is_preset: true,
+        created_at: '2026-08-12',
+        updated_at: '2026-08-12',
+      },
+      {
+        id: 'preset-dark-elegance',
+        name: 'Dark Elegance',
+        description: 'Black-to-gray gradient with warm gold accents',
+        primary_brand_color: '#111111',
+        background_color: '#050505',
+        luxury_gold_color: '#E6C687',
+        secondary_accent_color: '#8A734C',
+        text_color: '#F0E6D2',
+        surface_color: '#1A1A1A',
+        is_active: false,
+        is_preset: true,
+        created_at: '2026-08-12',
+        updated_at: '2026-08-12',
+      },
+      {
+        id: 'preset-midnight-premium',
+        name: 'Midnight Premium',
+        description: 'Deep navy with silver tones — sophisticated & cool',
+        primary_brand_color: '#0F172A',
+        background_color: '#020617',
+        luxury_gold_color: '#94A3B8',
+        secondary_accent_color: '#38BDF8',
+        text_color: '#F8FAFC',
+        surface_color: '#1E293B',
+        is_active: false,
+        is_preset: true,
+        created_at: '2026-08-12',
+        updated_at: '2026-08-12',
+      },
+    ],
+    active_theme_id: 'preset-chovique-classic',
+  };
+
+  // --- Theme Builder State ---
+  const [themesData, setThemesData] = useState<SuperadminThemeListResponse | null>(null);
+  const [themesLoading, setThemesLoading] = useState(true);
+  const [themesError, setThemesError] = useState<string | null>(null);
+
+  const [selectedThemeId, setSelectedThemeId] = useState<string>('preset-chovique-classic');
+  const [activeThemeId, setActiveThemeId] = useState<string>('preset-chovique-classic');
+
+  const [customColors, setCustomColors] = useState({
+    primary_brand_color: '#5A3825',
+    background_color: '#0D090A',
+    luxury_gold_color: '#D4AF37',
+    secondary_accent_color: '#B76E79',
+    text_color: '#F7F7F7',
+    surface_color: '#1A1716',
+  });
+
+  const [isApplyingTheme, setIsApplyingTheme] = useState(false);
+  const [isResettingTheme, setIsResettingTheme] = useState(false);
+  const [isSavingCustomTheme, setIsSavingCustomTheme] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [customThemeForm, setCustomThemeForm] = useState({ name: '', description: '' });
+
+  const hexRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+  const isValidHex = (val: string) => hexRegex.test(val.trim());
+
+  const isFormValid =
+    isValidHex(customColors.primary_brand_color) &&
+    isValidHex(customColors.background_color) &&
+    isValidHex(customColors.luxury_gold_color) &&
+    isValidHex(customColors.secondary_accent_color) &&
+    isValidHex(customColors.text_color) &&
+    isValidHex(customColors.surface_color);
+
+  const fetchThemes = async () => {
+    setThemesLoading(true);
+    setThemesError(null);
+    try {
+      const res = await adminService.getSuperadminThemes();
+      if (res && res.items.length > 0) {
+        setThemesData(res);
+        const act = res.items.find((t) => t.is_active) || res.items[0];
+        setActiveThemeId(act.id);
+        setSelectedThemeId(act.id);
+        setCustomColors({
+          primary_brand_color: act.primary_brand_color,
+          background_color: act.background_color,
+          luxury_gold_color: act.luxury_gold_color,
+          secondary_accent_color: act.secondary_accent_color,
+          text_color: act.text_color,
+          surface_color: act.surface_color,
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to load themes:', err);
+      setThemesError(err?.detail || err?.message || 'Failed to load theme configuration.');
+    } finally {
+      setThemesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'theme-builder') {
+      fetchThemes();
+    }
+  }, [activeTab]);
+
+  const displayThemes = themesData || defaultPresetThemes;
+
+  const handleSelectPreset = (theme: SuperadminThemeRecord) => {
+    setSelectedThemeId(theme.id);
+    setCustomColors({
+      primary_brand_color: theme.primary_brand_color,
+      background_color: theme.background_color,
+      luxury_gold_color: theme.luxury_gold_color,
+      secondary_accent_color: theme.secondary_accent_color,
+      text_color: theme.text_color,
+      surface_color: theme.surface_color,
+    });
+  };
+
+  const handleApplyTheme = async () => {
+    if (!isFormValid) {
+      addToast('error', 'Please correct invalid HEX colors before applying.', 'Validation Error');
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Apply Theme Globally?',
+      message: 'Are you sure you want to apply this theme palette across all pages live?',
+      confirmText: 'Apply Theme',
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        setIsApplyingTheme(true);
+        try {
+          const targetPreset = displayThemes.items.find((t) => t.id === selectedThemeId);
+          if (targetPreset) {
+            await adminService.applySuperadminTheme(targetPreset.id);
+            setActiveThemeId(targetPreset.id);
+            addToast('success', `Theme '${targetPreset.name}' applied live globally!`, 'Theme Applied');
+          } else {
+            addToast('success', 'Custom theme palette applied live!', 'Theme Applied');
+          }
+          fetchThemes();
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to apply theme live.', 'Apply Failed');
+        } finally {
+          setIsApplyingTheme(false);
+        }
+      },
+    });
+  };
+
+  const handleResetDefaults = async () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reset Theme to Default?',
+      message: 'Are you sure you want to restore the signature Chovique Classic theme palette?',
+      confirmText: 'Reset Defaults',
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        setIsResettingTheme(true);
+        try {
+          const res = await adminService.resetSuperadminTheme();
+          if (res) {
+            setActiveThemeId(res.id);
+            setSelectedThemeId(res.id);
+            setCustomColors({
+              primary_brand_color: res.primary_brand_color,
+              background_color: res.background_color,
+              luxury_gold_color: res.luxury_gold_color,
+              secondary_accent_color: res.secondary_accent_color,
+              text_color: res.text_color,
+              surface_color: res.surface_color,
+            });
+            addToast('success', 'Restored signature Chovique Classic theme palette!', 'Theme Reset');
+            fetchThemes();
+          }
+        } catch (err: any) {
+          addToast('error', err?.detail || err?.message || 'Failed to reset theme.', 'Reset Failed');
+        } finally {
+          setIsResettingTheme(false);
+        }
+      },
+    });
+  };
+
+  const handleSaveCustomThemeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customThemeForm.name.trim()) {
+      addToast('error', 'Theme name is required.', 'Validation Error');
+      return;
+    }
+    if (!isFormValid) {
+      addToast('error', 'All color fields must contain valid HEX values.', 'Validation Error');
+      return;
+    }
+
+    setIsSavingCustomTheme(true);
+    try {
+      const res = await adminService.createSuperadminTheme({
+        name: customThemeForm.name.trim(),
+        description: customThemeForm.description.trim() || undefined,
+        primary_brand_color: customColors.primary_brand_color,
+        background_color: customColors.background_color,
+        luxury_gold_color: customColors.luxury_gold_color,
+        secondary_accent_color: customColors.secondary_accent_color,
+        text_color: customColors.text_color,
+        surface_color: customColors.surface_color,
+      });
+      if (res) {
+        addToast('success', `Custom theme '${res.name}' created successfully!`, 'Theme Saved');
+        setShowSaveModal(false);
+        setCustomThemeForm({ name: '', description: '' });
+        fetchThemes();
+      }
+    } catch (err: any) {
+      addToast('error', err?.detail || err?.message || 'Failed to save custom theme.', 'Save Error');
+    } finally {
+      setIsSavingCustomTheme(false);
+    }
+  };
 
   // --- Toast Notifications State ---
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -456,45 +1453,182 @@ export const SuperadminDashboard: React.FC = () => {
   }, []);
 
 
-  // --- Platform Settings State & Handlers ---
-  const [platformSettings, setPlatformSettings] = useState({
-    storeName: 'Chovique Luxury Chocolates',
-    supportEmail: 'support@chovique.com',
-    supportPhone: '+91 98765 43210',
-    maintenanceMode: false,
-    enableCOD: true,
-    minOrderFreeShipping: 1500,
-    allowRegistrations: true,
-    idleTimeout: 30,
-    taxRate: 5,
-    platformFee: 0,
-    currency: 'INR (₹)',
-  });
-  
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  // ─── Platform Settings State & Handlers ────────────────────────────────────
+  type PsSettingsTab = 'store' | 'payment' | 'customer-order' | 'system';
 
-  useEffect(() => {
-    adminService.getPlatformConfig()
-      .then((data) => {
-        if (data && Object.keys(data).length > 0) {
-          setPlatformSettings((prev) => ({ ...prev, ...data }));
-        }
-      })
-      .catch((err) => console.error('Failed to load platform settings', err));
-  }, []);
+  const [psActiveTab, setPsActiveTab] = useState<PsSettingsTab>('store');
+  const [psLoading, setPsLoading] = useState(false);
+  const [psSaving, setPsSaving] = useState(false);
+  const [psHasChanges, setPsHasChanges] = useState(false);
+  const [psShowMaintenanceConfirm, setPsShowMaintenanceConfirm] = useState(false);
+  const [psPendingMaintenanceMode, setPsPendingMaintenanceMode] = useState<boolean | null>(null);
 
-  const handleSavePlatformSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    adminService.updatePlatformConfig(platformSettings)
-      .then(() => {
-        setSettingsSaved(true);
-        addLogEntry('Saved system platform settings configuration', 'setting');
-        setTimeout(() => setSettingsSaved(false), 3000);
-      })
-      .catch((err) => {
-        console.error('Failed to save platform settings:', err);
-      });
+  const defaultPs = {
+    store_front_name: 'Chovique Luxury Chocolates',
+    support_email: 'support@chovique.com',
+    support_phone: '+91 98765 43210',
+    store_address: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pincode: '',
+    base_currency: 'INR',
+    timezone: 'Asia/Kolkata',
+    business_status: 'active',
+    cod_enabled: true,
+    gst_rate: 18,
+    platform_fee: 0,
+    standard_shipping_charge: 50,
+    free_shipping_min_order: 500,
+    maximum_cod_order_value: 5000,
+    customer_registration_enabled: true,
+    guest_checkout_enabled: true,
+    minimum_order_value: 100,
+    order_cancellation_enabled: true,
+    cancellation_time_limit: 24,
+    return_refund_enabled: true,
+    maintenance_mode: false,
+    admin_session_timeout: 60,
+    max_login_attempts: 5,
+    account_lockout_duration: 30,
+    require_admin_password_change: false,
   };
+
+  const [psForm, setPsForm] = useState({ ...defaultPs });
+  const [psErrors, setPsErrors] = useState<Record<string, string>>({});
+
+  // Load settings from backend on mount / when platform-settings tab is active
+  useEffect(() => {
+    if (activeTab !== 'platform-settings') return;
+    setPsLoading(true);
+    (adminService as any).getPlatformSettings()
+      .then((data: any) => {
+        if (data) {
+          setPsForm((prev) => ({
+            ...prev,
+            store_front_name: data.store_front_name ?? prev.store_front_name,
+            support_email: data.support_email ?? prev.support_email,
+            support_phone: data.support_phone ?? prev.support_phone,
+            store_address: data.store_address ?? prev.store_address,
+            city: data.city ?? prev.city,
+            state: data.state ?? prev.state,
+            country: data.country ?? prev.country,
+            pincode: data.pincode ?? prev.pincode,
+            base_currency: data.base_currency ?? prev.base_currency,
+            timezone: data.timezone ?? prev.timezone,
+            business_status: data.business_status ?? prev.business_status,
+            cod_enabled: data.cod_enabled ?? prev.cod_enabled,
+            gst_rate: data.gst_rate ?? prev.gst_rate,
+            platform_fee: data.platform_fee ?? prev.platform_fee,
+            standard_shipping_charge: data.standard_shipping_charge ?? prev.standard_shipping_charge,
+            free_shipping_min_order: data.free_shipping_min_order ?? prev.free_shipping_min_order,
+            maximum_cod_order_value: data.maximum_cod_order_value ?? prev.maximum_cod_order_value,
+            customer_registration_enabled: data.customer_registration_enabled ?? prev.customer_registration_enabled,
+            guest_checkout_enabled: data.guest_checkout_enabled ?? prev.guest_checkout_enabled,
+            minimum_order_value: data.minimum_order_value ?? prev.minimum_order_value,
+            order_cancellation_enabled: data.order_cancellation_enabled ?? prev.order_cancellation_enabled,
+            cancellation_time_limit: data.cancellation_time_limit ?? prev.cancellation_time_limit,
+            return_refund_enabled: data.return_refund_enabled ?? prev.return_refund_enabled,
+            maintenance_mode: data.maintenance_mode ?? prev.maintenance_mode,
+            admin_session_timeout: data.admin_session_timeout ?? prev.admin_session_timeout,
+            max_login_attempts: data.max_login_attempts ?? prev.max_login_attempts,
+            account_lockout_duration: data.account_lockout_duration ?? prev.account_lockout_duration,
+            require_admin_password_change: data.require_admin_password_change ?? prev.require_admin_password_change,
+          }));
+        }
+        setPsHasChanges(false);
+      })
+      .catch((err: any) => {
+        addToast('error', 'Failed to load platform settings from server.', 'Load Error');
+        console.error('Platform settings load error', err);
+      })
+      .finally(() => setPsLoading(false));
+  }, [activeTab]);
+
+  const updatePsField = (field: string, value: any) => {
+    setPsForm((prev) => ({ ...prev, [field]: value }));
+    setPsErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
+    setPsHasChanges(true);
+  };
+
+  const validatePs = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!psForm.store_front_name?.trim()) errs.store_front_name = 'Store name is required.';
+    if (!psForm.support_email?.trim()) {
+      errs.support_email = 'Support email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(psForm.support_email)) {
+      errs.support_email = 'Enter a valid email address.';
+    }
+    if (!psForm.support_phone?.trim()) {
+      errs.support_phone = 'Support phone is required.';
+    } else if (!/^[\d\s\-\+\(\)]{7,20}$/.test(psForm.support_phone)) {
+      errs.support_phone = 'Enter a valid phone number.';
+    }
+    if (!psForm.country?.trim()) errs.country = 'Country is required.';
+    if (psForm.pincode && !/^\d{4,10}$/.test(psForm.pincode.trim())) errs.pincode = 'Pincode must be 4–10 digits.';
+    if (psForm.gst_rate < 0 || psForm.gst_rate > 100) errs.gst_rate = 'GST must be between 0 and 100.';
+    if (psForm.platform_fee < 0) errs.platform_fee = 'Platform fee cannot be negative.';
+    if (psForm.standard_shipping_charge < 0) errs.standard_shipping_charge = 'Shipping charge cannot be negative.';
+    if (psForm.free_shipping_min_order < 0) errs.free_shipping_min_order = 'Free shipping threshold cannot be negative.';
+    if (psForm.maximum_cod_order_value < 0) errs.maximum_cod_order_value = 'Max COD value cannot be negative.';
+    if (psForm.minimum_order_value < 0) errs.minimum_order_value = 'Minimum order value cannot be negative.';
+    if (psForm.order_cancellation_enabled && psForm.cancellation_time_limit < 1)
+      errs.cancellation_time_limit = 'Cancellation time limit must be at least 1 hour.';
+    if (psForm.admin_session_timeout < 5) errs.admin_session_timeout = 'Session timeout must be at least 5 minutes.';
+    if (psForm.max_login_attempts < 1) errs.max_login_attempts = 'Must allow at least 1 login attempt.';
+    if (psForm.account_lockout_duration < 1) errs.account_lockout_duration = 'Lockout duration must be at least 1 minute.';
+    setPsErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSavePlatformSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!validatePs()) {
+      addToast('error', 'Please fix validation errors before saving.', 'Validation Failed');
+      return;
+    }
+    setPsSaving(true);
+    try {
+      await (adminService as any).updatePlatformSettings(psForm);
+      addToast('success', 'Platform settings saved successfully.', 'Settings Saved');
+      setPsHasChanges(false);
+    } catch (err: any) {
+      addToast('error', err?.detail || err?.message || 'Failed to save platform settings.', 'Save Error');
+    } finally {
+      setPsSaving(false);
+    }
+  };
+
+  const handlePsDiscard = () => {
+    setPsForm({ ...defaultPs });
+    setPsErrors({});
+    setPsHasChanges(false);
+    // Reload from backend
+    (adminService as any).getPlatformSettings()
+      .then((data: any) => { if (data) setPsForm((prev) => ({ ...prev, ...data })); })
+      .catch(() => {});
+  };
+
+  const handleMaintenanceModeToggle = (val: boolean) => {
+    if (val) {
+      setPsPendingMaintenanceMode(true);
+      setPsShowMaintenanceConfirm(true);
+    } else {
+      updatePsField('maintenance_mode', false);
+    }
+  };
+
+  const confirmMaintenanceMode = async () => {
+    setPsShowMaintenanceConfirm(false);
+    try {
+      await (adminService as any).toggleMaintenanceMode(true);
+      updatePsField('maintenance_mode', true);
+      addToast('info', 'Maintenance mode is now ENABLED. The storefront is offline for customers.', 'Maintenance Mode ON');
+    } catch (err: any) {
+      addToast('error', err?.detail || 'Failed to enable maintenance mode.', 'Error');
+    }
+  };
+
   const [backendAuditLogs, setBackendAuditLogs] = useState<AuditLogEntry[]>([]);
 
   useEffect(() => {
@@ -502,6 +1636,106 @@ export const SuperadminDashboard: React.FC = () => {
       .then((logs) => setBackendAuditLogs(logs))
       .catch((err) => console.error('Failed to fetch audit logs:', err));
   }, []);
+
+  // ─── Superadmin Notifications State & Handlers ─────────────────────────────
+  const [notifItems, setNotifItems] = useState<any[]>([]);
+  const [notifTotal, setNotifTotal] = useState<number>(0);
+  const [notifPage, setNotifPage] = useState<number>(1);
+  const [notifLimit] = useState<number>(10);
+  const [notifTotalPages, setNotifTotalPages] = useState<number>(1);
+  const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
+  const [notifLoading, setNotifLoading] = useState<boolean>(false);
+
+  const [notifCategoryTab, setNotifCategoryTab] = useState<string>('ALL'); // ALL | SECURITY | ADMIN_MANAGEMENT | PLATFORM_SYSTEM | BUSINESS
+  const [notifReadFilter, setNotifReadFilter] = useState<string>('ALL'); // ALL | UNREAD | READ
+  const [notifDateFrom, setNotifDateFrom] = useState<string>('');
+  const [notifDateTo, setNotifDateTo] = useState<string>('');
+  const [notifSearch, setNotifSearch] = useState<string>('');
+
+  const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
+  const [notifToDelete, setNotifToDelete] = useState<any | null>(null);
+  const [isDeletingNotif, setIsDeletingNotif] = useState<boolean>(false);
+
+  const fetchSuperadminNotifications = async () => {
+    setNotifLoading(true);
+    try {
+      const isReadVal = notifReadFilter === 'UNREAD' ? false : notifReadFilter === 'READ' ? true : undefined;
+      const categoryVal = notifCategoryTab !== 'ALL' ? notifCategoryTab : undefined;
+
+      const res = await (adminService as any).getSuperadminNotifications({
+        page: notifPage,
+        limit: notifLimit,
+        category: categoryVal,
+        is_read: isReadVal,
+        date_from: notifDateFrom || undefined,
+        date_to: notifDateTo || undefined,
+        search: notifSearch || undefined,
+      });
+
+      setNotifItems(res.items || []);
+      setNotifTotal(res.total || 0);
+      setNotifTotalPages(res.total_pages || 1);
+      setNotifUnreadCount(res.unread_count || 0);
+    } catch (err: any) {
+      console.error('Failed to fetch superadmin notifications:', err);
+      addToast('error', err?.detail || 'Failed to load notifications.', 'Error');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      fetchSuperadminNotifications();
+    }
+  }, [activeTab, notifPage, notifCategoryTab, notifReadFilter, notifDateFrom, notifDateTo, notifSearch]);
+
+  const handleMarkNotifAsRead = async (notif: any) => {
+    if (notif.is_read) return;
+    try {
+      await (adminService as any).markSuperadminNotificationAsRead(notif.id);
+      setNotifItems((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n))
+      );
+      setNotifUnreadCount((prev) => Math.max(0, prev - 1));
+      if (selectedNotif && selectedNotif.id === notif.id) {
+        setSelectedNotif((prev: any) => prev ? { ...prev, is_read: true } : null);
+      }
+      addToast('success', 'Notification marked as read.', 'Success');
+    } catch (err: any) {
+      addToast('error', err?.detail || 'Failed to mark notification as read.', 'Error');
+    }
+  };
+
+  const handleMarkAllNotifsAsRead = async () => {
+    try {
+      await (adminService as any).markAllSuperadminNotificationsAsRead();
+      setNotifItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifUnreadCount(0);
+      addToast('success', 'All notifications marked as read.', 'Success');
+    } catch (err: any) {
+      addToast('error', err?.detail || 'Failed to mark all as read.', 'Error');
+    }
+  };
+
+  const handleDeleteNotifConfirm = async () => {
+    if (!notifToDelete) return;
+    setIsDeletingNotif(true);
+    try {
+      await (adminService as any).deleteSuperadminNotification(notifToDelete.id);
+      addToast('success', 'Notification deleted successfully.', 'Deleted');
+      setNotifToDelete(null);
+      if (selectedNotif && selectedNotif.id === notifToDelete.id) {
+        setSelectedNotif(null);
+      }
+      fetchSuperadminNotifications();
+    } catch (err: any) {
+      addToast('error', err?.detail || 'Failed to delete notification.', 'Error');
+    } finally {
+      setIsDeletingNotif(false);
+    }
+  };
+
 
   // --- Stock adjustment fields ---
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
@@ -539,7 +1773,7 @@ export const SuperadminDashboard: React.FC = () => {
     }
   };
 
-  const handleApplyTheme = async () => {
+  const handleLegacyApplyCustomThemeColors = async () => {
     setActivePresetId(null);
     const customColors = {
       primary: themeInput.primary,
@@ -851,7 +2085,7 @@ export const SuperadminDashboard: React.FC = () => {
 
 
   // Edit admin user profile (name, email, scope)
-  const handleEditAdminSubmit = async (e: React.FormEvent) => {
+  const handleLegacyEditAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editAdminUser) return;
     if (!editAdminForm.name.trim() || !editAdminForm.email.trim()) {
@@ -1101,281 +2335,829 @@ export const SuperadminDashboard: React.FC = () => {
 
     <div style={{ minHeight: '100vh', background: 'var(--black)', color: 'var(--cream)', fontFamily: 'var(--font-body)' }}>
       {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabNavigation} />
 
       {/* Main content pane */}
       <div className="admin-workspace">
+        {/* Top-Right Admin Header Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          {/* Notification Bell Dropdown */}
+          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} />
+
+          {/* View Home Button */}
+          <button
+            onClick={() => navigate('/')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              height: '42px',
+              padding: '0 16px',
+              borderRadius: '10px',
+              background: 'rgba(20, 16, 13, 0.9)',
+              border: '1px solid rgba(201, 168, 76, 0.3)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              cursor: 'pointer',
+              color: '#f5efe6',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.6)';
+              e.currentTarget.style.background = 'rgba(30, 24, 19, 0.95)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.3)';
+              e.currentTarget.style.background = 'rgba(20, 16, 13, 0.9)';
+            }}
+            title="View Public Site Homepage"
+            aria-label="View Home"
+          >
+            <Home size={18} color="#c9a84c" />
+            <span>View Home</span>
+          </button>
+
+          {/* Admin User Profile Dropdown Menu */}
+          <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+        </div>
         
         {/* ENTERPRISE DASHBOARD TAB */}
         {activeTab === 'enterprise' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            {/* Header: Title & Timeframe Selector */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <span className="section-label">Enterprise Workspace</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
-                  Overview Control
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                  Enterprise Overview
                 </h1>
+                <p style={{ color: 'var(--beige)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
+                  Overall business performance at a glance
+                </p>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <Button variant="gold" size="sm" onClick={() => navigate('/')} glow>
-                  View Live Site
+
+              {/* Timeframe Selector Pills */}
+              <div style={{ display: 'flex', background: 'rgba(20, 16, 13, 0.9)', border: '1px solid rgba(201, 168, 76, 0.3)', borderRadius: '8px', padding: '4px', gap: '4px' }}>
+                {[
+                  { id: 'today', label: 'Today' },
+                  { id: '7days', label: '7 Days' },
+                  { id: '30days', label: '30 Days' },
+                  { id: '3months', label: '3 Months' },
+                  { id: '1year', label: '1 Year' },
+                ].map((tf) => (
+                  <button
+                    key={tf.id}
+                    onClick={() => {
+                      setOverviewTimeframe(tf.id);
+                      fetchOverview(tf.id);
+                    }}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: overviewTimeframe === tf.id ? 'var(--gradient-gold)' : 'transparent',
+                      color: overviewTimeframe === tf.id ? 'var(--dark-chocolate)' : 'var(--beige)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Error Alert State */}
+            {overviewError && (
+              <div
+                style={{
+                  padding: '16px 20px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{overviewError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchOverview(overviewTimeframe)}>
+                  Retry
                 </Button>
               </div>
-            </div>
+            )}
 
-            {/* Core Stats row */}
-            <div className="stats-grid-dashboard">
-              <div 
-                className="dashboard-stat-card glass-panel interactive-card" 
-                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
-                onClick={() => setActiveTab('revenue')}
-                title="View Revenue Analytics"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                    Combined ARR
-                  </span>
-                  <ArrowRight size={14} color="var(--gold)" />
+            {/* Loading Skeleton vs Content */}
+            {overviewLoading ? (
+              <div>
+                <DashboardKpiSkeleton />
+                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.4fr 1fr', gap: '24px', marginTop: '24px' }}>
+                  <DashboardCardSkeleton />
+                  <DashboardCardSkeleton />
                 </div>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  ₹{(totalRevenue * 12).toLocaleString('en-IN')}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', display: 'block', marginTop: '6px' }}>
-                  Based on monthly run rate
-                </span>
               </div>
-              <div 
-                className="dashboard-stat-card glass-panel interactive-card" 
-                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
-                onClick={() => { setActiveTab('sales-comparison'); setAnalyticsSubTab('total'); }}
-                title="View Sales Analytics"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                    Total Chocolates Sold
-                  </span>
-                  <ArrowRight size={14} color="var(--gold)" />
-                </div>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {totalUnitsSold.toLocaleString()} units
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#2ecc71', display: 'block', marginTop: '6px' }}>
-                  Online + Offline sales
-                </span>
-              </div>
-              <div 
-                className="dashboard-stat-card glass-panel interactive-card" 
-                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
-                onClick={() => { setActiveTab('sales-comparison'); setAnalyticsSubTab('total'); }}
-                title="View Total Stock"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                    Total Stock
-                  </span>
-                  <ArrowRight size={14} color="var(--gold)" />
-                </div>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {totalUnitsAvailable.toLocaleString()} units
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', display: 'block', marginTop: '6px' }}>
-                  Available in all warehouses
-                </span>
-              </div>
-              <div 
-                className="dashboard-stat-card glass-panel interactive-card" 
-                style={{ padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: 'all 0.3s' }}
-                onClick={() => setActiveTab('admin-mgmt')}
-                title="Manage Admin Accounts"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '1px' }}>
-                    Active Admins
-                  </span>
-                  <ArrowRight size={14} color="var(--gold)" />
-                </div>
-                <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cream)', display: 'block' }}>
-                  {dashboardStats?.admin_count || 0} accounts
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#2ecc71', display: 'block', marginTop: '6px' }}>
-                  100% Security Audited
-                </span>
-              </div>
-            </div>
+            ) : displayOverview ? (
+              <>
+                {/* 4 KPI Cards Grid */}
+                <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  {/* Card 1: TOTAL REVENUE */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      TOTAL REVENUE
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{displayOverview.total_revenue.current_value.toLocaleString('en-IN')}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayOverview.total_revenue.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayOverview.total_revenue.percentage_change >= 0 ? `+${displayOverview.total_revenue.percentage_change}%` : `${displayOverview.total_revenue.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.total_revenue.comparison_label}</span>
+                    </div>
+                  </div>
 
-            {/* Quick overview layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '30px', marginTop: '30px' }}>
-              {/* Financial source pie chart */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', marginBottom: '15px' }}>
-                  Revenue Channels Distribution
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flexGrow: 1 }}>
-                  <ResponsiveContainer width={180} height={180}>
-                    <PieChart>
-                      <Pie
-                        data={revenueChannelsData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {revenueChannelsData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {revenueChannelsData.map((channel, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: channel.color }} />
-                        <div>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)', display: 'block' }}>{channel.name}</span>
-                          <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--cream)' }}>₹{channel.value.toLocaleString('en-IN')}</span>
-                        </div>
-                      </div>
-                    ))}
+                  {/* Card 2: TOTAL ORDERS */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      TOTAL ORDERS
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {displayOverview.total_orders.current_value.toLocaleString()}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayOverview.total_orders.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayOverview.total_orders.percentage_change >= 0 ? `+${displayOverview.total_orders.percentage_change}%` : `${displayOverview.total_orders.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.total_orders.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: TOTAL CUSTOMERS */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      TOTAL CUSTOMERS
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {displayOverview.total_customers.current_value.toLocaleString()}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayOverview.total_customers.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayOverview.total_customers.percentage_change >= 0 ? `+${displayOverview.total_customers.percentage_change}%` : `${displayOverview.total_customers.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.total_customers.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: ACTIVE ADMINS */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      ACTIVE ADMINS
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {displayOverview.active_admins.current_value.toLocaleString()}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayOverview.active_admins.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayOverview.active_admins.percentage_change >= 0 ? `+${displayOverview.active_admins.percentage_change}%` : `${displayOverview.active_admins.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.active_admins.comparison_label}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* System Audit logs timeline */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
-                    Recent Operations Log
-                  </h3>
-                  <button onClick={() => setActiveTab('audit-logs')} style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600 }}>
-                    View All
-                  </button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {backendAuditLogs.slice(0, 3).map((log: any) => (
-                    <div
-                      key={log.id}
-                      style={{
-                        padding: '12px',
-                        background: 'rgba(0,0,0,0.15)',
-                        borderRadius: '6px',
-                        fontSize: '0.8rem',
-                        borderLeft: '3px solid var(--gold)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--gold)', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: 600 }}>{log.user_name || log.user_email || 'System'}</span>
-                        <span>{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      </div>
-                      <p style={{ margin: 0, color: 'var(--cream)' }}>{log.action}</p>
+                {/* ROW 1: Revenue Trend Chart & Sales Source Donut Chart */}
+                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.4fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                  {/* Revenue Trend Chart */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        REVENUE TREND ({overviewTimeframe === 'today' ? 'TODAY' : overviewTimeframe === '30days' ? 'THIS MONTH' : overviewTimeframe.toUpperCase()})
+                      </h3>
                     </div>
-                  ))}
+                    <div style={{ height: '240px', width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={displayOverview.revenue_trend}>
+                          <defs>
+                            <linearGradient id="goldGradientOverview" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#c9a84c" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                          <Tooltip
+                            contentStyle={{ background: '#14100d', borderColor: '#c9a84c', borderRadius: '8px', color: '#f5efe6' }}
+                            formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Revenue']}
+                          />
+                          <Area type="monotone" dataKey="revenue" stroke="#c9a84c" strokeWidth={2.5} fillOpacity={1} fill="url(#goldGradientOverview)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Sales Source Donut Chart */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
+                      SALES SOURCE
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ width: '150px', height: '150px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: 'Online Sales', value: displayOverview.sales_source.online_revenue, fill: '#b76e79' },
+                                { name: 'Offline Sales', value: displayOverview.sales_source.offline_revenue, fill: '#80343f' },
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={70}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              <Cell key="online" fill="#b76e79" />
+                              <Cell key="offline" fill="#80343f" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#b76e79' }} />
+                          <div>
+                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Online Sales</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
+                              ₹{displayOverview.sales_source.online_revenue.toLocaleString('en-IN')} ({displayOverview.sales_source.online_percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#80343f' }} />
+                          <div>
+                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Offline Sales</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
+                              ₹{displayOverview.sales_source.offline_revenue.toLocaleString('en-IN')} ({displayOverview.sales_source.offline_percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+
+                {/* ROW 2: Top Selling Product & Recent Activity */}
+                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '24px' }}>
+                  {/* Top Selling Product */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
+                      TOP SELLING PRODUCT
+                    </h3>
+                    {displayOverview.top_selling_products.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {displayOverview.top_selling_products.slice(0, 3).map((prod) => (
+                          <div
+                            key={prod.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '16px',
+                              padding: '14px',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              borderRadius: '10px',
+                              border: '1px solid rgba(201, 168, 76, 0.15)',
+                            }}
+                          >
+                            <img
+                              src={getImageUrl(prod.image_url)}
+                              alt={prod.name}
+                              style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(201, 168, 76, 0.3)' }}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80';
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6', margin: '0 0 4px 0' }}>
+                                {prod.name}
+                              </h4>
+                              <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: '2px' }}>
+                                Sold: {prod.units_sold} units
+                              </span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c9a84c' }}>
+                                Revenue: ₹{prod.revenue.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '30px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+                        No product sales recorded for this timeframe.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recent Activity */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        RECENT ACTIVITY
+                      </h3>
+                      <button
+                        onClick={() => setActiveTab('audit-logs')}
+                        style={{ background: 'none', border: 'none', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        View All
+                      </button>
+                    </div>
+
+                    {displayOverview.recent_activities.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {displayOverview.recent_activities.slice(0, 4).map((act) => (
+                          <div
+                            key={act.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '12px',
+                              padding: '10px 12px',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              borderRadius: '8px',
+                              borderLeft: '3px solid #c9a84c',
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <p style={{ margin: '0 0 2px 0', fontSize: '0.82rem', color: '#f5efe6', fontWeight: 600 }}>
+                                {act.description || act.action}
+                              </p>
+                              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>
+                                {act.timestamp}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '30px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+                        No recent activity recorded.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         )}
 
         {/* REVENUE ANALYTICS TAB */}
         {activeTab === 'revenue' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            {/* Header Title & Export Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <span className="section-label">Financial Analytics</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
                   Revenue Performance
                 </h1>
+                <p style={{ color: 'var(--beige)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
+                  Track and analyze your revenue performance
+                </p>
               </div>
-              <Button variant="gold" glow onClick={handleExportOverallSales}>
-                Export Overall Sales (CSV)
+              <Button
+                variant="gold"
+                glow
+                onClick={handleExportRevenueCsv}
+                disabled={revenueExporting}
+              >
+                <Download size={16} style={{ marginRight: '8px' }} />
+                {revenueExporting ? 'Exporting...' : 'Export Revenue (CSV)'}
               </Button>
             </div>
 
-            {/* Income summaries */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Income</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalRevenue.toLocaleString('en-IN')}</h3>
+            {/* Filter Toolbar: Preset selector + Custom Range */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                background: 'rgba(20, 16, 13, 0.85)',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <select
+                  value={revenuePreset}
+                  onChange={(e) => {
+                    setRevenuePreset(e.target.value);
+                    fetchRevenueAnalytics(e.target.value, revenueDateFrom, revenueDateTo);
+                  }}
+                  style={{
+                    background: '#14100d',
+                    color: '#f5efe6',
+                    border: '1px solid rgba(201, 168, 76, 0.4)',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="3months">Last 3 Months</option>
+                  <option value="year">This Year</option>
+                  <option value="custom">Custom Date Range</option>
+                </select>
+
+                {revenuePreset === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="date"
+                      value={revenueDateFrom}
+                      onChange={(e) => setRevenueDateFrom(e.target.value)}
+                      style={{
+                        background: '#14100d',
+                        color: '#f5efe6',
+                        colorScheme: 'dark',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
+                    <input
+                      type="date"
+                      value={revenueDateTo}
+                      onChange={(e) => setRevenueDateTo(e.target.value)}
+                      style={{
+                        background: '#14100d',
+                        color: '#f5efe6',
+                        colorScheme: 'dark',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fetchRevenueAnalytics('custom', revenueDateFrom, revenueDateTo)}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Online Channels</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalOnlineRevenue.toLocaleString('en-IN')}</h3>
-              </div>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Boutique Sales</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalOfflineRevenue.toLocaleString('en-IN')}</h3>
-              </div>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Gross Margin (Online Share)</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>
-                  {totalRevenue > 0 ? ((totalOnlineRevenue / totalRevenue) * 100).toFixed(1) : '0'}%
-                </h3>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c9a84c', fontSize: '0.85rem', fontWeight: 600 }}>
+                <Calendar size={16} />
+                <span>{displayRevenue.display_range}</span>
               </div>
             </div>
 
-            {/* Charts detail */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-              <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', height: '400px' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  Monthly Revenue Trends (ARR Projection)
-                </h3>
-                <ResponsiveContainer width="100%" height="85%">
-                  <AreaChart data={salesHistoryData}>
-                    <defs>
-                      <linearGradient id="colorOnline" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--rose-gold)" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="var(--rose-gold)" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorBoutique" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--gold)" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="var(--gold)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="name" stroke="var(--beige)" />
-                    <YAxis stroke="var(--beige)" />
-                    <Tooltip contentStyle={{ background: 'var(--dark-chocolate)', border: '1px solid var(--gold)', color: 'white' }} />
-                    <Legend />
-                    <Area type="monotone" dataKey="OnlineSales" name="Online Boutique" stroke="var(--rose-gold)" fillOpacity={1} fill="url(#colorOnline)" strokeWidth={3} />
-                    <Area type="monotone" dataKey="BoutiqueSales" name="Offline Boutiques" stroke="var(--gold)" fillOpacity={1} fill="url(#colorBoutique)" strokeWidth={3} />
-                  </AreaChart>
-                </ResponsiveContainer>
+            {/* Error Alert State */}
+            {revenueError && (
+              <div
+                style={{
+                  padding: '16px 20px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{revenueError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchRevenueAnalytics()}>
+                  Retry
+                </Button>
               </div>
-            </div>
+            )}
+
+            {/* Loading Skeleton vs Content */}
+            {revenueLoading ? (
+              <div>
+                <DashboardKpiSkeleton />
+                <DashboardCardSkeleton height="350px" />
+              </div>
+            ) : displayRevenue ? (
+              <>
+                {/* 4 KPI Cards */}
+                <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  {/* Card 1: TOTAL REVENUE / INCOME */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      TOTAL REVENUE
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{displayRevenue.total_income.current_value.toLocaleString('en-IN')}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.total_income.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayRevenue.total_income.percentage_change >= 0 ? `+${displayRevenue.total_income.percentage_change}%` : `${displayRevenue.total_income.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.total_income.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 2: ONLINE REVENUE */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      ONLINE REVENUE
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{displayRevenue.online_revenue.current_value.toLocaleString('en-IN')}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.online_revenue.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayRevenue.online_revenue.percentage_change >= 0 ? `+${displayRevenue.online_revenue.percentage_change}%` : `${displayRevenue.online_revenue.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.online_revenue.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: OFFLINE REVENUE */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      OFFLINE REVENUE
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{displayRevenue.offline_revenue.current_value.toLocaleString('en-IN')}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.offline_revenue.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayRevenue.offline_revenue.percentage_change >= 0 ? `+${displayRevenue.offline_revenue.percentage_change}%` : `${displayRevenue.offline_revenue.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.offline_revenue.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: AVERAGE ORDER VALUE */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      AVG ORDER VALUE
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{displayRevenue.avg_order_value.current_value.toLocaleString('en-IN')}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.avg_order_value.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{displayRevenue.avg_order_value.percentage_change >= 0 ? `+${displayRevenue.avg_order_value.percentage_change}%` : `${displayRevenue.avg_order_value.percentage_change}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.avg_order_value.comparison_label}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Trend Chart: REVENUE TREND */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                      REVENUE TREND
+                    </h3>
+                  </div>
+                  <div style={{ height: '300px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={displayRevenue.revenue_trend}>
+                        <defs>
+                          <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#c9a84c" stopOpacity={0.5} />
+                            <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.0} />
+                          </linearGradient>
+                          <linearGradient id="roseGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#b76e79" stopOpacity={0.5} />
+                            <stop offset="95%" stopColor="#b76e79" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                        <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                        <Tooltip
+                          contentStyle={{ background: '#14100d', borderColor: '#c9a84c', borderRadius: '8px', color: '#f5efe6' }}
+                          formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
+                        />
+                        <Legend />
+                        <Area type="monotone" dataKey="online_revenue" name="Online Revenue" stroke="#c9a84c" strokeWidth={2.5} fillOpacity={1} fill="url(#goldGradient)" />
+                        <Area type="monotone" dataKey="offline_revenue" name="Offline Revenue" stroke="#b76e79" strokeWidth={2.5} fillOpacity={1} fill="url(#roseGradient)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Additional Sections: Revenue by Source & Revenue by Payment Method */}
+                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1.2fr', gap: '24px', marginBottom: '24px' }}>
+                  {/* Revenue by Source */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
+                      REVENUE BY SOURCE
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ width: '150px', height: '150px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: 'Online', value: displayRevenue.revenue_by_source.online_revenue, fill: '#b76e79' },
+                                { name: 'Offline', value: displayRevenue.revenue_by_source.offline_revenue, fill: '#80343f' },
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={70}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              <Cell key="online" fill="#b76e79" />
+                              <Cell key="offline" fill="#80343f" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#b76e79' }} />
+                          <div>
+                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Online</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
+                              ₹{displayRevenue.revenue_by_source.online_revenue.toLocaleString('en-IN')} ({displayRevenue.revenue_by_source.online_percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#80343f' }} />
+                          <div>
+                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Offline</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
+                              ₹{displayRevenue.revenue_by_source.offline_revenue.toLocaleString('en-IN')} ({displayRevenue.revenue_by_source.offline_percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Revenue by Payment Method */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
+                      REVENUE BY PAYMENT METHOD
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {displayRevenue.revenue_by_payment_method.map((pm, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                            <span style={{ color: '#f5efe6', fontWeight: 600 }}>{pm.method}</span>
+                            <span style={{ color: '#c9a84c', fontWeight: 700 }}>
+                              ₹{pm.amount.toLocaleString('en-IN')} ({pm.percentage}%)
+                            </span>
+                          </div>
+                          <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                width: `${Math.min(100, Math.max(0, pm.percentage))}%`,
+                                height: '100%',
+                                background: i === 0 ? 'var(--gradient-gold)' : i === 1 ? '#b76e79' : '#80343f',
+                                borderRadius: '4px',
+                                transition: 'width 0.5s ease',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Revenue Summary Datatable */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                      REVENUE SUMMARY BREAKDOWN
+                    </h3>
+                    <Button variant="secondary" size="sm" onClick={handleExportRevenueCsv} disabled={revenueExporting}>
+                      <Download size={14} style={{ marginRight: '6px' }} />
+                      Export Table CSV
+                    </Button>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                          <th style={{ padding: '12px' }}>Date</th>
+                          <th style={{ padding: '12px' }}>Online Orders</th>
+                          <th style={{ padding: '12px' }}>Online Revenue</th>
+                          <th style={{ padding: '12px' }}>Offline Sales</th>
+                          <th style={{ padding: '12px' }}>Offline Revenue</th>
+                          <th style={{ padding: '12px' }}>Total Revenue</th>
+                          <th style={{ padding: '12px' }}>Avg Order Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayRevenue.summary_rows.length > 0 ? (
+                          displayRevenue.summary_rows
+                            .slice((summaryPage - 1) * summaryRowsPerPage, summaryPage * summaryRowsPerPage)
+                            .map((row, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                <td style={{ padding: '12px', fontWeight: 600 }}>{row.date}</td>
+                                <td style={{ padding: '12px' }}>{row.online_orders}</td>
+                                <td style={{ padding: '12px' }}>₹{row.online_revenue.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px' }}>{row.offline_sales}</td>
+                                <td style={{ padding: '12px' }}>₹{row.offline_revenue.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{row.total_revenue.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px' }}>₹{row.avg_order_value.toLocaleString('en-IN')}</td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                              No revenue entries found for selected range.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {displayRevenue.summary_rows.length > summaryRowsPerPage && (
+                    <div style={{ marginTop: '16px' }}>
+                      <Pagination
+                        currentPage={summaryPage}
+                        totalPages={Math.ceil(displayRevenue.summary_rows.length / summaryRowsPerPage)}
+                        totalItems={displayRevenue.summary_rows.length}
+                        itemsPerPage={summaryRowsPerPage}
+                        onPageChange={setSummaryPage}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
         )}
 
-        {/* SALES COMPARISON & INVENTORY TAB */}
+        {/* SALES ANALYTICS & LEDGER TAB */}
         {activeTab === 'sales-comparison' && (
           <div>
-            <span className="section-label">Enterprise Reporting</span>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '25px' }}>
-              Sales Analytics & Ledger
-            </h1>
+            {/* Header Title & Export Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                  Sales Analytics & Ledger
+                </h1>
+                <p style={{ color: 'var(--beige)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
+                  Detailed sales and stock performance
+                </p>
+              </div>
+              <Button
+                variant="gold"
+                glow
+                onClick={handleExportSalesCsv}
+                disabled={salesExporting}
+              >
+                <Download size={16} style={{ marginRight: '8px' }} />
+                {salesExporting ? 'Exporting...' : 'Export Sales (CSV)'}
+              </Button>
+            </div>
 
-            {/* Sub-tab Navigation */}
-            <div style={{ display: 'flex', gap: '15px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px', marginBottom: '30px' }}>
+            {/* Sub-tab Navigation (Matching mockup design) */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px' }}>
               {[
-                { id: 'total' as const, label: 'Total Sales & Stock' },
+                { id: 'products' as const, label: 'Total Sales & Stock' },
                 { id: 'online' as const, label: 'Online Sales Ledger' },
                 { id: 'offline' as const, label: 'Offline Sales Ledger' },
               ].map((sub) => {
-                const isSubActive = analyticsSubTab === sub.id;
+                const isSubActive = salesSubTab === sub.id;
                 return (
                   <button
                     key={sub.id}
-                    onClick={() => setAnalyticsSubTab(sub.id)}
+                    onClick={() => {
+                      setSalesSubTab(sub.id);
+                      setSalesProductsPage(1);
+                      setOnlineLedgerPage(1);
+                      setOfflineLedgerPage(1);
+                    }}
                     style={{
-                      padding: '8px 16px',
+                      padding: '10px 20px',
                       fontSize: '0.9rem',
                       fontWeight: 600,
-                      color: isSubActive ? 'var(--gold)' : 'var(--beige)',
-                      background: isSubActive ? 'rgba(201, 168, 76, 0.08)' : 'transparent',
-                      border: isSubActive ? '1px solid var(--gold)' : '1px solid transparent',
-                      borderRadius: '4px',
-                      transition: 'all 0.3s ease',
+                      color: isSubActive ? '#c9a84c' : '#f5efe6',
+                      background: isSubActive ? 'rgba(201, 168, 76, 0.12)' : 'rgba(20, 16, 13, 0.6)',
+                      border: isSubActive ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      outline: 'none',
                     }}
                   >
                     {sub.label}
@@ -1384,330 +3166,459 @@ export const SuperadminDashboard: React.FC = () => {
               })}
             </div>
 
-            {/* SUB-TAB 1: TOTAL SALES OVERVIEW */}
-            {analyticsSubTab === 'total' && (
-              <div>
-                {/* Volumes & Metrics breakdown */}
-                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Combined Sales Volume</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{totalUnitsSold.toLocaleString()} units</h3>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
-                      Online + Offline combined
-                    </span>
-                  </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Combined Revenue</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalRevenue.toLocaleString('en-IN')}</h3>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
-                      Online: ₹{totalOnlineRevenue.toLocaleString('en-IN')} | Offline: ₹{totalOfflineRevenue.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Top Selling Chocolate</span>
-                    {(() => {
-                      if (!dashboardStats?.top_products || dashboardStats.top_products.length === 0) {
-                        return (
-                          <>
-                            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--gold)' }}>N/A</h3>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
-                              Volume: 0 units sold
-                            </span>
-                          </>
-                        );
-                      }
-                      
-                      const topProd = dashboardStats.top_products[0];
-                      return (
-                        <>
-                          <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--gold)' }}>{topProd.name}</h3>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>
-                            Volume: {topProd.units_sold} units sold
-                          </span>
-                        </>
-                      );
-                    })()}
-                  </div>
+            {/* Top 4 KPI Cards (Matching mockup values & styling) */}
+            <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* Card 1: TOTAL UNITS SOLD */}
+              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  TOTAL UNITS SOLD
+                </span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                  {displaySalesProducts.kpis.total_units_sold.toLocaleString()}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.units_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                  <span>{displaySalesProducts.kpis.units_pct_change >= 0 ? `+${displaySalesProducts.kpis.units_pct_change}%` : `${displaySalesProducts.kpis.units_pct_change}%`}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
+                </div>
+              </div>
+
+              {/* Card 2: TOTAL REVENUE */}
+              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  TOTAL REVENUE
+                </span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                  ₹{displaySalesProducts.kpis.total_revenue.toLocaleString('en-IN')}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.revenue_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                  <span>{displaySalesProducts.kpis.revenue_pct_change >= 0 ? `+${displaySalesProducts.kpis.revenue_pct_change}%` : `${displaySalesProducts.kpis.revenue_pct_change}%`}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
+                </div>
+              </div>
+
+              {/* Card 3: ONLINE REVENUE */}
+              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  ONLINE REVENUE
+                </span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                  ₹{displaySalesProducts.kpis.online_revenue.toLocaleString('en-IN')}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.online_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                  <span>{displaySalesProducts.kpis.online_pct_change >= 0 ? `+${displaySalesProducts.kpis.online_pct_change}%` : `${displaySalesProducts.kpis.online_pct_change}%`}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
+                </div>
+              </div>
+
+              {/* Card 4: OFFLINE REVENUE */}
+              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  OFFLINE REVENUE
+                </span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                  ₹{displaySalesProducts.kpis.offline_revenue.toLocaleString('en-IN')}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.offline_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                  <span>{displaySalesProducts.kpis.offline_pct_change >= 0 ? `+${displaySalesProducts.kpis.offline_pct_change}%` : `${displaySalesProducts.kpis.offline_pct_change}%`}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Toolbar: Search & Filters */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                background: 'rgba(20, 16, 13, 0.85)',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
+                {/* Search Bar */}
+                <div style={{ position: 'relative', minWidth: '220px', flex: 1 }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                  <input
+                    type="text"
+                    placeholder={
+                      salesSubTab === 'products'
+                        ? 'Search product name...'
+                        : salesSubTab === 'online'
+                        ? 'Search order ID, customer name or email...'
+                        : 'Search receipt ID or product name...'
+                    }
+                    value={salesSearch}
+                    onChange={(e) => {
+                      setSalesSearch(e.target.value);
+                      setSalesProductsPage(1);
+                      setOnlineLedgerPage(1);
+                      setOfflineLedgerPage(1);
+                    }}
+                    style={{
+                      width: '100%',
+                      background: '#14100d',
+                      color: '#f5efe6',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      borderRadius: '8px',
+                      padding: '8px 12px 8px 36px',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
 
-                {/* Stock Control Table */}
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
-                      Product Sales & Stock Control
-                    </h3>
-                    <Button variant="glass" size="sm" onClick={handleExportOverallSales}>
-                      Export Consolidated Sales (CSV)
-                    </Button>
-                  </div>
-                  
-                  <div className="admin-table-wrapper">
-                    <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Product Name</th>
-                        <th>Category</th>
-                        <th>Price</th>
-                        <th>Units Sold</th>
-                        <th>Total Revenue</th>
-                        <th>Available Stock</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((prod) => {
-                        // Dynamically calculate units sold for this specific product
-                        let unitsSold = 0;
-                        superOrders.forEach((o: any) => {
-                          if (o.status !== 'Cancelled') {
-                            o.items.forEach((it: any) => {
-                              if (it.product.id === prod.id || it.product.name === prod.name) {
-                                unitsSold += it.quantity;
-                              }
-                            });
-                          }
-                        });
-                        offlineSales.forEach((s: any) => {
-                          if (s.productName === prod.name) {
-                            unitsSold += s.quantity;
-                          }
-                        });
-                        
-                        const isLowStock = (prod.stock || 0) < 10;
-                        
-                        return (
-                          <tr key={prod.id}>
-                            <td style={{ fontWeight: 600 }}>{prod.name}</td>
-                            <td style={{ textTransform: 'capitalize', color: 'var(--beige)' }}>{prod.category}</td>
-                            <td>₹{prod.price}</td>
-                            <td style={{ fontWeight: 700, color: 'var(--rose-gold)' }}>{unitsSold} units</td>
-                            <td>₹{(unitsSold * prod.price).toLocaleString('en-IN')}</td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                {adjustingStockId === prod.id ? (
-                                  <input
-                                    type="number"
-                                    value={adjustStockVal}
-                                    onChange={(e) => setAdjustStockVal(parseInt(e.target.value) || 0)}
-                                    style={{
-                                      padding: '4px 8px',
-                                      width: '70px',
-                                      background: 'rgba(0,0,0,0.3)',
-                                      border: '1px solid var(--gold)',
-                                      color: 'white',
-                                      borderRadius: '4px',
-                                      outline: 'none',
-                                    }}
-                                  />
-                                ) : (
-                                  <span style={{ fontWeight: 700, color: isLowStock ? 'var(--rose-gold)' : 'var(--cream)' }}>
-                                    {prod.stock} units
+                {/* Sub-tab 2 Filters (Online Status & Payment Method) */}
+                {salesSubTab === 'online' && (
+                  <>
+                    <select
+                      value={salesOnlineStatus}
+                      onChange={(e) => setSalesOnlineStatus(e.target.value)}
+                      style={{
+                        background: '#14100d',
+                        color: '#f5efe6',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Shipped">Shipped</option>
+                      <option value="Delivered">Delivered</option>
+                      <option value="Processing">Processing</option>
+                    </select>
+
+                    <select
+                      value={salesPaymentMethod}
+                      onChange={(e) => setSalesPaymentMethod(e.target.value)}
+                      style={{
+                        background: '#14100d',
+                        color: '#f5efe6',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="ALL">All Payment Methods</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                      <option value="COD">Cash on Delivery</option>
+                    </select>
+                  </>
+                )}
+
+                {/* Sub-tab 3 Filter (Offline Payment Method) */}
+                {salesSubTab === 'offline' && (
+                  <select
+                    value={salesPaymentMethod}
+                    onChange={(e) => setSalesPaymentMethod(e.target.value)}
+                    style={{
+                      background: '#14100d',
+                      color: '#f5efe6',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="ALL">All Payment Methods</option>
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                  </select>
+                )}
+              </div>
+
+              {/* Date Filters */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="date"
+                  value={salesDateFrom}
+                  onChange={(e) => setSalesDateFrom(e.target.value)}
+                  style={{
+                    background: '#14100d',
+                    color: '#f5efe6',
+                    colorScheme: 'dark',
+                    border: '1px solid rgba(201, 168, 76, 0.4)',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                  }}
+                />
+                <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
+                <input
+                  type="date"
+                  value={salesDateTo}
+                  onChange={(e) => setSalesDateTo(e.target.value)}
+                  style={{
+                    background: '#14100d',
+                    color: '#f5efe6',
+                    colorScheme: 'dark',
+                    border: '1px solid rgba(201, 168, 76, 0.4)',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Error Alert State */}
+            {salesError && (
+              <div
+                style={{
+                  padding: '16px 20px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{salesError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchSalesData()}>
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {/* Content Loading Skeleton vs Tables */}
+            {salesLoading ? (
+              <div>
+                <DashboardKpiSkeleton />
+                <DashboardCardSkeleton height="350px" />
+              </div>
+            ) : (
+              <>
+                {/* SUB-TAB 1: PRODUCT PERFORMANCE TABLE */}
+                {salesSubTab === 'products' && (
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        PRODUCT PERFORMANCE
+                      </h3>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                            <th style={{ padding: '12px' }}>PRODUCT NAME</th>
+                            <th style={{ padding: '12px' }}>ONLINE UNITS</th>
+                            <th style={{ padding: '12px' }}>OFFLINE UNITS</th>
+                            <th style={{ padding: '12px' }}>TOTAL UNITS</th>
+                            <th style={{ padding: '12px' }}>TOTAL REVENUE</th>
+                            <th style={{ padding: '12px' }}>STOCK AVAILABLE</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displaySalesProducts.products.length > 0 ? (
+                            displaySalesProducts.products.map((prod, i) => (
+                              <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                <td style={{ padding: '12px', fontWeight: 600 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    {prod.image_url ? (
+                                      <img
+                                        src={getImageUrl(prod.image_url)}
+                                        alt={prod.name}
+                                        style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)' }}
+                                      />
+                                    ) : (
+                                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c' }}>
+                                        <ShoppingBag size={18} />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div style={{ color: '#f5efe6', fontWeight: 600 }}>{prod.name}</div>
+                                      <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{prod.category_name}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '12px' }}>{prod.online_units}</td>
+                                <td style={{ padding: '12px' }}>{prod.offline_units}</td>
+                                <td style={{ padding: '12px', fontWeight: 700 }}>{prod.total_units}</td>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>
+                                  ₹{prod.total_revenue.toLocaleString('en-IN')}
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ fontWeight: 600, color: prod.stock_available < 10 ? '#e74c3c' : '#2ecc71' }}>
+                                    {prod.stock_available}
                                   </span>
-                                )}
-                                {isLowStock && (
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                                No product sales performance records found.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div style={{ marginTop: '16px' }}>
+                      <Pagination
+                        currentPage={salesProductsPage}
+                        totalPages={Math.ceil(displaySalesProducts.total / salesPageLimit) || 1}
+                        totalItems={displaySalesProducts.total}
+                        itemsPerPage={salesPageLimit}
+                        onPageChange={setSalesProductsPage}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-TAB 2: ONLINE SALES LEDGER */}
+                {salesSubTab === 'online' && (
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        ONLINE SALES LEDGER
+                      </h3>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                            <th style={{ padding: '12px' }}>ORDER ID</th>
+                            <th style={{ padding: '12px' }}>DATE</th>
+                            <th style={{ padding: '12px' }}>CUSTOMER</th>
+                            <th style={{ padding: '12px' }}>PRODUCT</th>
+                            <th style={{ padding: '12px' }}>QTY</th>
+                            <th style={{ padding: '12px' }}>PAYMENT</th>
+                            <th style={{ padding: '12px' }}>AMOUNT</th>
+                            <th style={{ padding: '12px' }}>STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayOnlineLedger.items.length > 0 ? (
+                            displayOnlineLedger.items.map((item, i) => (
+                              <tr key={item.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>{item.order_id}</td>
+                                <td style={{ padding: '12px' }}>{item.created_at}</td>
+                                <td style={{ padding: '12px' }}>
+                                  <div style={{ fontWeight: 600, color: '#f5efe6' }}>{item.customer_name}</div>
+                                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{item.customer_email}</div>
+                                </td>
+                                <td style={{ padding: '12px', maxWidth: '200px' }}>{item.product_summary}</td>
+                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.quantity}</td>
+                                <td style={{ padding: '12px' }}>{item.payment_method}</td>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{item.amount.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px' }}>
                                   <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    background: 'rgba(183, 110, 121, 0.15)',
-                                    color: 'var(--rose-gold)',
-                                    padding: '2px 8px',
+                                    padding: '4px 10px',
                                     borderRadius: '12px',
-                                    fontSize: '0.7rem',
-                                    border: '1px solid rgba(183, 110, 121, 0.25)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    background: item.order_status === 'Delivered' ? 'rgba(46, 204, 113, 0.15)' : item.order_status === 'Paid' ? 'rgba(52, 152, 219, 0.15)' : 'rgba(201, 168, 76, 0.15)',
+                                    color: item.order_status === 'Delivered' ? '#2ecc71' : item.order_status === 'Paid' ? '#3498db' : '#c9a84c',
                                   }}>
-                                    <AlertTriangle size={10} /> Low
+                                    {item.order_status}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              {adjustingStockId === prod.id ? (
-                                <div style={{ display: 'inline-flex', gap: '8px' }}>
-                                  <Button
-                                    variant="gold"
-                                    size="sm"
-                                    onClick={() => handleSaveStockLevel(prod.id)}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setAdjustingStockId(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  variant="glass"
-                                  size="sm"
-                                  onClick={() => {
-                                    setAdjustingStockId(prod.id);
-                                    setAdjustStockVal(prod.stock || 0);
-                                  }}
-                                >
-                                  Adjust Stock
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* SUB-TAB 2: ONLINE SALES LEDGER */}
-            {analyticsSubTab === 'online' && (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Online Revenue</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalOnlineRevenue.toLocaleString('en-IN')}</h3>
-                  </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Website Orders Placed</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{superOrders.length} orders</h3>
-                  </div>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
-                      Website Online Orders (Completed & Processing)
-                    </h3>
-                    <Button variant="gold" size="sm" onClick={handleExportOnlineSales} glow>
-                      Download Online Sales (CSV)
-                    </Button>
-                  </div>
-
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Order ID</th>
-                          <th>Date</th>
-                          <th>Customer Details</th>
-                          <th>Products Purchased</th>
-                          <th>Subtotal</th>
-                          <th>Total Paid</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {superOrders.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'var(--grey-light)', fontStyle: 'italic' }}>
-                              No website orders registered.
-                            </td>
-                          </tr>
-                        ) : (
-                          superOrders.map((ord: any) => (
-                            <tr key={ord.id}>
-                              <td style={{ fontWeight: 600, color: 'var(--gold)' }}>{ord.id}</td>
-                              <td>{ord.date}</td>
-                              <td>
-                                <div>
-                                  <div style={{ fontWeight: 500 }}>{ord.shippingAddress.name}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{ord.shippingAddress.phone}</div>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ fontSize: '0.85rem' }}>
-                                  {ord.items.map((it: any) => `${it.product.name} (x${it.quantity})`).join(', ')}
-                                </div>
-                              </td>
-                              <td>₹{ord.subtotal.toLocaleString('en-IN')}</td>
-                              <td style={{ fontWeight: 700 }}>₹{ord.total.toLocaleString('en-IN')}</td>
-                              <td>
-                                <span style={{
-                                  padding: '4px 8px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  background: ord.status === 'Delivered' ? 'rgba(46, 204, 113, 0.15)' : ord.status === 'Cancelled' ? 'rgba(183, 110, 121, 0.15)' : 'rgba(201, 168, 76, 0.15)',
-                                  color: ord.status === 'Delivered' ? '#2ecc71' : ord.status === 'Cancelled' ? 'var(--rose-gold)' : 'var(--gold-light)'
-                                }}>
-                                  {ord.status}
-                                </span>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                                No online sales ledger records found.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-            {/* SUB-TAB 3: OFFLINE SALES LEDGER */}
-            {analyticsSubTab === 'offline' && (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Boutique Revenue</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>₹{totalOfflineRevenue.toLocaleString('en-IN')}</h3>
+                    <div style={{ marginTop: '16px' }}>
+                      <Pagination
+                        currentPage={onlineLedgerPage}
+                        totalPages={Math.ceil(displayOnlineLedger.total / salesPageLimit) || 1}
+                        totalItems={displayOnlineLedger.total}
+                        itemsPerPage={salesPageLimit}
+                        onPageChange={setOnlineLedgerPage}
+                      />
+                    </div>
                   </div>
-                  <div className="glass-panel" style={{ padding: '20px' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Offline Items Sold</span>
-                    <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>
-                      {offlineSales.reduce((sum, s) => sum + s.quantity, 0)} units
-                    </h3>
-                  </div>
-                </div>
+                )}
 
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
-                      Boutique Offline Sales Logs
-                    </h3>
-                    <Button variant="gold" size="sm" onClick={handleExportOfflineSales} glow>
-                      Download Offline Sales (CSV)
-                    </Button>
-                  </div>
+                {/* SUB-TAB 3: OFFLINE SALES LEDGER */}
+                {salesSubTab === 'offline' && (
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        OFFLINE SALES LEDGER
+                      </h3>
+                    </div>
 
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Receipt ID</th>
-                          <th>Date</th>
-                          <th>Product Name</th>
-                          <th>Quantity Sold</th>
-                          <th>Payment Method</th>
-                          <th>Total Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {offlineSales.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'var(--grey-light)', fontStyle: 'italic' }}>
-                              No offline sales logged.
-                            </td>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                            <th style={{ padding: '12px' }}>RECEIPT ID</th>
+                            <th style={{ padding: '12px' }}>DATE</th>
+                            <th style={{ padding: '12px' }}>PRODUCT NAME</th>
+                            <th style={{ padding: '12px' }}>QTY</th>
+                            <th style={{ padding: '12px' }}>PAYMENT METHOD</th>
+                            <th style={{ padding: '12px' }}>AMOUNT</th>
                           </tr>
-                        ) : (
-                          offlineSales.map((sale) => (
-                            <tr key={sale.id}>
-                              <td style={{ fontWeight: 600, color: 'var(--gold)' }}>{sale.id}</td>
-                              <td>{sale.date}</td>
-                              <td style={{ fontWeight: 500 }}>{sale.productName}</td>
-                              <td>{sale.quantity} units</td>
-                              <td>{sale.paymentMethod}</td>
-                              <td style={{ fontWeight: 700 }}>₹{sale.totalPrice.toLocaleString('en-IN')}</td>
+                        </thead>
+                        <tbody>
+                          {displayOfflineLedger.items.length > 0 ? (
+                            displayOfflineLedger.items.map((item: any, i: number) => (
+                              <tr key={item.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>{item.receipt_id}</td>
+                                <td style={{ padding: '12px' }}>{item.created_at}</td>
+                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.product_name}</td>
+                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.quantity}</td>
+                                <td style={{ padding: '12px' }}>{item.payment_method}</td>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{item.amount.toLocaleString('en-IN')}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                                No offline sales ledger records found.
+                              </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div style={{ marginTop: '16px' }}>
+                      <Pagination
+                        currentPage={offlineLedgerPage}
+                        totalPages={Math.ceil(displayOfflineLedger.total / salesPageLimit) || 1}
+                        totalItems={displayOfflineLedger.total}
+                        itemsPerPage={salesPageLimit}
+                        onPageChange={setOfflineLedgerPage}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1715,49 +3626,56 @@ export const SuperadminDashboard: React.FC = () => {
         {/* ADMIN MANAGEMENT TAB */}
         {activeTab === 'admin-mgmt' && (
           <div>
-            <span className="section-label">Access Control</span>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '35px' }}>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
-                Manage Administrators
-              </h1>
-              
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                  Manage Administrators
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.65)' }}>
+                  Create and manage administrator accounts
+                </p>
+              </div>
+
               <Button
                 variant="gold"
                 glow
-                onClick={() => setShowAddAdminForm(!showAddAdminForm)}
+                onClick={() => setIsRegisterOpen(!isRegisterOpen)}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                {showAddAdminForm ? <X size={16} /> : <Plus size={16} />}
-                {showAddAdminForm ? 'Close Registration Panel' : 'Register Administrator'}
+                {isRegisterOpen ? <X size={16} /> : <UserPlus size={16} />}
+                {isRegisterOpen ? 'Close Form' : '+ Register Administrator'}
               </Button>
             </div>
 
-            {/* Expandable Register Admin Form */}
+            {/* Expandable Register Administrator Form */}
             <AnimatePresence>
-              {showAddAdminForm && (
+              {isRegisterOpen && (
                 <motion.div
                   initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                  animate={{ opacity: 1, height: 'auto', marginBottom: 30 }}
+                  animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   style={{ overflow: 'hidden' }}
                 >
                   <div className="admin-form-panel">
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ display: 'inline-flex', padding: '6px', background: 'rgba(201,168,76,0.12)', borderRadius: '6px', border: '1px solid rgba(201,168,76,0.3)' }}>
-                        <UserCheck size={18} color="var(--gold)" />
-                      </span>
-                      Add New Administrator Account
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '24px', letterSpacing: '0.3px' }}>
-                      Register a new admin account with access to the management dashboard.
-                    </p>
-                    {adminCreateError && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                        <UserPlus size={18} /> Register New Administrator Account
+                      </h3>
+                      <button
+                        onClick={() => setIsRegisterOpen(false)}
+                        style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    {regFormError && (
                       <div
                         style={{
                           background: 'rgba(231, 76, 60, 0.15)',
                           border: '1px solid #e74c3c',
                           color: '#e74c3c',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           padding: '10px 14px',
                           fontSize: '0.85rem',
                           marginBottom: '16px',
@@ -1766,1008 +3684,1251 @@ export const SuperadminDashboard: React.FC = () => {
                           gap: '8px',
                         }}
                       >
-                        <AlertTriangle size={15} /> {adminCreateError}
+                        <AlertTriangle size={16} /> {regFormError}
                       </div>
                     )}
-                    <form onSubmit={handleAddAdmin} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr) auto', gap: '16px', alignItems: 'end' }}>
-                      <Input
-                        label="Full Name"
-                        required
-                        placeholder="e.g. Priya Sharma"
-                        value={newAdmin.name}
-                        onChange={(e) => {
-                          setNewAdmin({ ...newAdmin, name: e.target.value });
-                          if (adminCreateError) setAdminCreateError('');
-                        }}
-                      />
-                      <Input
-                        label="Email Address"
-                        type="email"
-                        required
-                        placeholder="admin@chovique.com"
-                        value={newAdmin.email}
-                        onChange={(e) => {
-                          setNewAdmin({ ...newAdmin, email: e.target.value });
-                          if (adminCreateError) setAdminCreateError('');
-                        }}
-                      />
-                      <Input
-                        label="Initial Password"
-                        type="password"
-                        required
-                        placeholder="Min. 6 characters"
-                        value={newAdmin.password}
-                        onChange={(e) => {
-                          setNewAdmin({ ...newAdmin, password: e.target.value });
-                          if (adminCreateError) setAdminCreateError('');
-                        }}
-                      />
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ fontSize: '0.85rem', color: 'var(--cream)', marginBottom: '8px', fontWeight: 600 }}>Role</label>
-                        <select
-                          value={newAdmin.role}
-                          onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })}
-                          style={{
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid var(--glass-border)',
-                            color: 'var(--cream)',
-                            padding: '10px 14px',
-                            borderRadius: '6px',
-                            outline: 'none',
-                          }}
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="superadmin">Superadmin</option>
-                        </select>
-                      </div>
-                      <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'flex-end' }}>
-                        <Button variant="gold" type="submit" glow disabled={isCreatingAdmin} style={{ height: '42px', minWidth: '150px', whiteSpace: 'nowrap', width: '100%' }}>
-                          {isCreatingAdmin ? 'Creating...' : 'Register Account'}
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
-            {/* Edit Admin Modal */}
-            <AnimatePresence>
-              {editAdminUser && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  style={{ marginBottom: '30px' }}
-                >
-                  <div className="admin-form-panel">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <UserCheck size={18} /> Edit Admin — {editAdminUser.name}
-                      </h3>
-                      <button
-                        onClick={() => { setEditAdminUser(null); setEditAdminError(''); }}
-                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                    {editAdminError && (
-                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={15} /> {editAdminError}
-                      </div>
-                    )}
-                    <form onSubmit={handleEditAdminSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(2, 1fr) auto', gap: '16px', alignItems: 'end' }}>
-                      <Input
-                        label="Full Name"
-                        required
-                        value={editAdminForm.name}
-                        placeholder="Admin full name"
-                        onChange={(e) => { setEditAdminForm({ ...editAdminForm, name: e.target.value }); setEditAdminError(''); }}
-                      />
-                      <Input
-                        label="Email Address"
-                        type="email"
-                        required
-                        value={editAdminForm.email}
-                        placeholder="admin@chovique.com"
-                        onChange={(e) => { setEditAdminForm({ ...editAdminForm, email: e.target.value }); setEditAdminError(''); }}
-                      />
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <Button variant="gold" type="submit" glow disabled={isEditingAdmin} style={{ height: '42px' }}>
-                          {isEditingAdmin ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                        <Button variant="glass" type="button" onClick={() => setEditAdminUser(null)} style={{ height: '42px' }}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Password Reset Modal */}
-            <AnimatePresence>
-              {resetAdminUser && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  style={{ marginBottom: '30px' }}
-                >
-                  <div className="admin-form-panel">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Key size={18} /> Reset Password — {resetAdminUser.name}
-                      </h3>
-                      <button
-                        onClick={() => { setResetAdminUser(null); setResetAdminPassword(''); }}
-                        style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                    {resetPasswordError && (
-                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={15} /> {resetPasswordError}
-                      </div>
-                    )}
-                    {resetPasswordSuccess && (
-                      <div style={{ background: 'rgba(46, 204, 113, 0.15)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '6px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Check size={16} /> {resetPasswordSuccess}
-                      </div>
-                    )}
-                    <form onSubmit={handleUpdateAdminPasswordSubmit} style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', maxWidth: '600px' }}>
-                      <div style={{ flexGrow: 1 }}>
+                    <form onSubmit={handleRegisterAdminSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
                         <Input
-                          label="New Account Password"
-                          type="password"
+                          label="Full Name *"
                           required
-                          placeholder="At least 6 characters"
-                          value={resetAdminPassword}
-                          onChange={(e) => {
-                            setResetAdminPassword(e.target.value);
-                            if (resetPasswordError) setResetPasswordError('');
-                          }}
+                          placeholder="e.g. Ramesh Kumar"
+                          value={regFullName}
+                          onChange={(e) => setRegFullName(e.target.value)}
+                        />
+                        <Input
+                          label="Email Address *"
+                          type="email"
+                          required
+                          placeholder="e.g. ramesh@gmail.com"
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                        />
+                        <Input
+                          label="Phone Number *"
+                          type="tel"
+                          required
+                          placeholder="e.g. +91 98765 43210"
+                          value={regPhone}
+                          onChange={(e) => setRegPhone(e.target.value)}
                         />
                       </div>
-                      <Button variant="gold" type="submit" glow disabled={isResettingPassword} style={{ height: '42px', whiteSpace: 'nowrap' }}>
-                        {isResettingPassword ? 'Saving...' : 'Update Password'}
-                      </Button>
-                      <Button variant="glass" type="button" onClick={() => setResetAdminUser(null)} style={{ height: '42px' }}>
-                        Cancel
-                      </Button>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(4, 1fr)', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'rgba(245, 230, 211, 0.75)', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: 600 }}>
+                            Role *
+                          </label>
+                          <select
+                            value={regRole}
+                            onChange={(e) => setRegRole(e.target.value)}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.4)',
+                              borderRadius: '6px',
+                              padding: '8px 12px',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">Super Admin</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'rgba(245, 230, 211, 0.75)', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: 600 }}>
+                            Status *
+                          </label>
+                          <select
+                            value={regStatus}
+                            onChange={(e) => setRegStatus(e.target.value)}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.4)',
+                              borderRadius: '6px',
+                              padding: '8px 12px',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        </div>
+
+                        <Input
+                          label="Password *"
+                          type="password"
+                          required
+                          placeholder="Min. 8 chars (A-Z, 0-9, !@#)"
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                        />
+                        <Input
+                          label="Confirm Password *"
+                          type="password"
+                          required
+                          placeholder="Repeat password"
+                          value={regConfirmPassword}
+                          onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                        <Button variant="secondary" type="button" onClick={() => setIsRegisterOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button variant="gold" type="submit" glow disabled={regSubmitting}>
+                          {regSubmitting ? 'Registering...' : 'Submit Administrator'}
+                        </Button>
+                      </div>
                     </form>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <div className="admin-table-wrapper">
-                <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {systemUsers
-                    .filter((u) => u.role === 'admin' || u.role === 'superadmin')
-                    .map((u) => (
-                      <tr key={u.id}>
-                        <td style={{ fontWeight: 600 }}>{u.name}</td>
-                        <td>{u.email}</td>
-                        <td>
-                          <span style={{
-                            background: u.role === 'superadmin' ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255,255,255,0.07)',
-                            color: u.role === 'superadmin' ? 'var(--gold-light)' : 'var(--beige)',
-                            padding: '4px 10px',
-                            borderRadius: '4px',
-                            fontSize: '0.8rem',
-                            border: u.role === 'superadmin' ? '1px solid rgba(201, 168, 76, 0.2)' : '1px solid rgba(255,255,255,0.1)',
-                            textTransform: 'capitalize',
-                          }}>
-                            {u.role === 'superadmin' ? 'Superadmin' : 'Admin'}
-                          </span>
-                        </td>
-                        <td style={{ color: '#2ecc71', fontWeight: 600 }}>Active</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                            {/* Edit button */}
-                            <button
-                              onClick={() => {
-                                setEditAdminUser(u);
-                                setEditAdminForm({ name: u.name, email: u.email });
-                                setEditAdminError('');
-                                setResetAdminUser(null);
-                              }}
-                              style={{
-                                color: 'var(--gold)',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'rgba(201,168,76,0.08)',
-                                border: '1px solid rgba(201,168,76,0.3)',
-                                borderRadius: '4px',
-                                padding: '5px 10px',
-                                fontSize: '0.82rem',
-                                fontWeight: 600,
-                                transition: 'all 0.2s ease',
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
-                            >
-                              <UserCheck size={14} /> Edit
-                            </button>
-                            {/* Promote / Demote button */}
-                            {u.role === 'admin' ? (
-                              <button
-                                onClick={() => handlePromoteAdmin(u.id, u.name)}
-                                style={{
-                                  color: 'var(--gold)',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(201,168,76,0.08)',
-                                  border: '1px solid rgba(201,168,76,0.3)',
-                                  borderRadius: '4px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
-                              >
-                                <UserCheck size={14} /> Promote
-                              </button>
-                            ) : u.id !== user?.id ? (
-                              <button
-                                onClick={() => handleDemoteAdmin(u.id, u.name)}
-                                style={{
-                                  color: '#ffaa00',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(255,170,0,0.08)',
-                                  border: '1px solid rgba(255,170,0,0.3)',
-                                  borderRadius: '4px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,170,0,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,170,0,0.08)'; }}
-                              >
-                                <UserX size={14} /> Demote
-                              </button>
-                            ) : null}
-                            {/* Reset Password button */}
-                            <button
-                              onClick={() => {
-                                setResetAdminUser(u);
-                                setResetAdminPassword('');
-                                setResetPasswordError('');
-                                setResetPasswordSuccess('');
-                                setEditAdminUser(null);
-                              }}
-                              style={{
-                                color: 'var(--beige)',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                                borderRadius: '4px',
-                                padding: '5px 10px',
-                                fontSize: '0.82rem',
-                                fontWeight: 600,
-                                transition: 'all 0.2s ease',
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                            >
-                              <Key size={14} /> Password
-                            </button>
-                            {/* Delete button — allow superadmin to delete any non-self admin/superadmin account */}
-                            {u.id !== user?.id && (
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Revoke administrator account for "${u.name}" (${u.email})? This cannot be undone.`)) {
-                                    handleRemoveAdmin(u.id, u.name, u.email);
-                                  }
-                                }}
-                                style={{
-                                  color: '#ff6b6b',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(255,107,107,0.08)',
-                                  border: '1px solid rgba(255,107,107,0.3)',
-                                  borderRadius: '4px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.08)'; }}
-                                title="Delete Account"
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-                </table>
+            {/* Modal: Edit Administrator */}
+            <AnimatePresence>
+              {editingAdmin && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ marginBottom: '24px' }}
+                >
+                  <div className="admin-form-panel">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                        <Edit3 size={18} /> Edit Administrator Profile — {editingAdmin.full_name}
+                      </h3>
+                      <button onClick={() => setEditingAdmin(null)} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    {editFormError && (
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={16} /> {editFormError}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleEditAdminSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
+                        <Input label="Full Name" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} required />
+                        <Input label="Email Address" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} required />
+                        <Input label="Phone Number" type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+91 98765 43210" />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'rgba(245, 230, 211, 0.75)', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: 600 }}>Role</label>
+                          <select
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value)}
+                            style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.88rem', outline: 'none' }}
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">Super Admin</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'rgba(245, 230, 211, 0.75)', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: 600 }}>Status</label>
+                          <select
+                            value={editStatus}
+                            onChange={(e) => setEditStatus(e.target.value)}
+                            style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.88rem', outline: 'none' }}
+                          >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                        <Button variant="secondary" type="button" onClick={() => setEditingAdmin(null)}>Cancel</Button>
+                        <Button variant="gold" type="submit" glow disabled={editSubmitting}>{editSubmitting ? 'Saving...' : 'Save Changes'}</Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Modal: Secure Password Reset */}
+            <AnimatePresence>
+              {pwdResetAdmin && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ marginBottom: '24px' }}
+                >
+                  <div className="admin-form-panel">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                        <KeyRound size={18} /> Change Password — {pwdResetAdmin.full_name}
+                      </h3>
+                      <button onClick={() => setPwdResetAdmin(null)} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    {pwdFormError && (
+                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={16} /> {pwdFormError}
+                      </div>
+                    )}
+
+                    <form onSubmit={handlePasswordResetSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
+                        <Input
+                          label="New Strong Password *"
+                          type="password"
+                          value={pwdNewPassword}
+                          onChange={(e) => setPwdNewPassword(e.target.value)}
+                          placeholder="Min. 8 chars (A-Z, 0-9, !@#)"
+                          required
+                        />
+                        <Input
+                          label="Confirm New Password *"
+                          type="password"
+                          value={pwdConfirmPassword}
+                          onChange={(e) => setPwdConfirmPassword(e.target.value)}
+                          placeholder="Repeat password"
+                          required
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                        <Button variant="secondary" type="button" onClick={() => setPwdResetAdmin(null)}>Cancel</Button>
+                        <Button variant="gold" type="submit" glow disabled={pwdSubmitting}>{pwdSubmitting ? 'Updating...' : 'Update Password'}</Button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Toolbar: Search & Filters */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                background: 'rgba(20, 16, 13, 0.85)',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '240px' }}>
+                <Search size={18} color="#c9a84c" />
+                <input
+                  type="text"
+                  placeholder="Search administrator name, email or phone..."
+                  value={adminsSearch}
+                  onChange={(e) => {
+                    setAdminsSearch(e.target.value);
+                    setAdminsPage(1);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#f5efe6',
+                    fontSize: '0.88rem',
+                    width: '100%',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <select
+                  value={adminsRoleFilter}
+                  onChange={(e) => {
+                    setAdminsRoleFilter(e.target.value);
+                    setAdminsPage(1);
+                  }}
+                  style={{
+                    background: '#14100d',
+                    color: '#f5efe6',
+                    border: '1px solid rgba(201, 168, 76, 0.4)',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="ALL">All Roles</option>
+                  <option value="superadmin">Super Admin</option>
+                  <option value="admin">Admin</option>
+                </select>
+
+                <select
+                  value={adminsStatusFilter}
+                  onChange={(e) => {
+                    setAdminsStatusFilter(e.target.value);
+                    setAdminsPage(1);
+                  }}
+                  style={{
+                    background: '#14100d',
+                    color: '#f5efe6',
+                    border: '1px solid rgba(201, 168, 76, 0.4)',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
               </div>
             </div>
+
+            {/* Error Alert */}
+            {adminsError && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{adminsError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchAdmins()}>Retry</Button>
+              </div>
+            )}
+
+            {/* Main Administrators Datatable */}
+            {adminsLoading ? (
+              <DashboardCardSkeleton height="350px" />
+            ) : (
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', color: '#f5efe6' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                        <th style={{ padding: '12px' }}>NAME</th>
+                        <th style={{ padding: '12px' }}>EMAIL</th>
+                        <th style={{ padding: '12px' }}>ROLE</th>
+                        <th style={{ padding: '12px' }}>STATUS</th>
+                        <th style={{ padding: '12px' }}>CREATED DATE</th>
+                        <th style={{ padding: '12px' }}>LAST LOGIN</th>
+                        <th style={{ padding: '12px', textAlign: 'right' }}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayAdmins.items.length > 0 ? (
+                        displayAdmins.items.map((adm, idx) => (
+                          <tr key={adm.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                            <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
+                              {adm.full_name}
+                            </td>
+                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.75)' }}>
+                              {adm.email}
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  background: adm.role === 'superadmin' ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                                  color: adm.role === 'superadmin' ? '#c9a84c' : 'rgba(255, 255, 255, 0.8)',
+                                  border: adm.role === 'superadmin' ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                                }}
+                              >
+                                {adm.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color: adm.is_active ? '#2ecc71' : '#e74c3c',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
+                                {adm.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem' }}>
+                              {adm.created_at || '—'}
+                            </td>
+                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem' }}>
+                              {adm.last_login_at || 'Never'}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                {/* Edit */}
+                                <button
+                                  onClick={() => handleEditAdminOpen(adm)}
+                                  title="Edit Administrator"
+                                  style={{
+                                    background: 'rgba(201, 168, 76, 0.1)',
+                                    border: '1px solid rgba(201, 168, 76, 0.3)',
+                                    color: '#c9a84c',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <Edit3 size={15} />
+                                </button>
+
+                                {/* Toggle Status */}
+                                <button
+                                  onClick={() => handleToggleAdminStatus(adm)}
+                                  title={adm.is_active ? 'Deactivate Account' : 'Activate Account'}
+                                  style={{
+                                    background: adm.is_active ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)',
+                                    border: adm.is_active ? '1px solid rgba(231, 76, 60, 0.3)' : '1px solid rgba(46, 204, 113, 0.3)',
+                                    color: adm.is_active ? '#e74c3c' : '#2ecc71',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <Power size={15} />
+                                </button>
+
+                                {/* Change Password */}
+                                <button
+                                  onClick={() => {
+                                    setPwdResetAdmin(adm);
+                                    setPwdNewPassword('');
+                                    setPwdConfirmPassword('');
+                                    setPwdFormError(null);
+                                  }}
+                                  title="Change Password"
+                                  style={{
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#f5efe6',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <KeyRound size={15} />
+                                </button>
+
+                                {/* Delete */}
+                                <button
+                                  onClick={() => handleDeleteAdmin(adm)}
+                                  title="Delete Account"
+                                  style={{
+                                    background: 'rgba(231, 76, 60, 0.15)',
+                                    border: '1px solid rgba(231, 76, 60, 0.4)',
+                                    color: '#e74c3c',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                            No administrators found matching criteria.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ marginTop: '20px' }}>
+                  <Pagination
+                    currentPage={adminsPage}
+                    totalPages={Math.ceil(displayAdmins.total / adminsLimit) || 1}
+                    totalItems={displayAdmins.total}
+                    itemsPerPage={adminsLimit}
+                    onPageChange={setAdminsPage}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
 
 
-        {/* AUDIT LOGS & ORDERS INSPECTOR TAB */}
+        {/* AUDIT LOGS TAB */}
         {activeTab === 'audit-logs' && (
           <div>
-            <span className="section-label">Audit Trial & Logs</span>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              System Ledger & Customer Inspector
-            </h1>
-
-            {/* Split layout: Customers Inspector List & Active Orders Status Editor */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              
-              {/* Customer Inspection List */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '15px' }}>
-                  Interactive Customer Directory
-                </h3>
-                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                  Click a customer profile card to inspect their complete order list, spend metrics, and verify stock availability of items they bought.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                  Audit Logs
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.65)' }}>
+                  Track all system and administrator activities
                 </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {systemUsers.filter(u => u.role === 'customer').map((cust) => {
-                    const customerOrders = superOrders.filter((o: any) =>
-                      o.shippingAddress.name.toLowerCase() === cust.name.toLowerCase() ||
-                      o.shippingAddress.phone.includes('98765')
-                    );
-                    const totalSpend = customerOrders.reduce((sum: number, o: any) => sum + o.total, 0);
-
-                    return (
-                      <div
-                        key={cust.id}
-                        onClick={() => setInspectedCustomer(cust)}
-                        style={{
-                          padding: '16px',
-                          background: 'rgba(0,0,0,0.15)',
-                          border: inspectedCustomer?.id === cust.id ? '2px solid var(--gold)' : '1px solid var(--glass-border)',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s ease',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (inspectedCustomer?.id !== cust.id) {
-                            e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.4)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (inspectedCustomer?.id !== cust.id) {
-                            e.currentTarget.style.borderColor = 'var(--glass-border)';
-                          }
-                        }}
-                      >
-                        <div>
-                          <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: '1rem', fontWeight: 600 }}>{cust.name}</h4>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{cust.email}</span>
-                        </div>
-
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--gold)' }}>
-                            ₹{totalSpend.toLocaleString('en-IN')}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                            {customerOrders.length} orders total
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
 
-              {/* Active Orders List with status editor */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '15px' }}>
-                  Orders & Status Editor
-                </h3>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {superOrders.map((ord: any) => (
-                    <div
-                      key={ord.id}
-                      style={{
-                        padding: '16px',
-                        background: 'rgba(0,0,0,0.2)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <div>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--gold)' }}>{ord.id}</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginLeft: '8px' }}>{ord.date}</span>
-                        </div>
-                        <select
-                          value={ord.status}
-                          onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                          style={{
-                            background: 'var(--dark-chocolate)',
-                            color: ord.status === 'Delivered' ? '#2ecc71' : ord.status === 'Cancelled' ? 'var(--rose-gold)' : 'var(--gold)',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            outline: 'none',
-                          }}
-                        >
-                          <option value="Processing">Processing</option>
-                          <option value="Shipped">Shipped</option>
-                          <option value="Delivered">Delivered</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: '0.85rem', color: 'var(--cream)' }}>
-                            Purchaser: <span style={{ fontWeight: 600 }}>{ord.shippingAddress.name}</span>
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                            Items: {ord.items.map((it: any) => `${it.product.name} (x${it.quantity})`).join(', ')}
-                          </div>
-                        </div>
-
-                        <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--cream)' }}>
-                          ₹{ord.total.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <Button
+                variant="gold"
+                glow
+                onClick={handleExportAuditLogsCsv}
+                disabled={auditExporting}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Download size={16} />
+                {auditExporting ? 'Exporting...' : 'Export Audit Logs (CSV)'}
+              </Button>
             </div>
 
-            {/* Inspected Customer Detail Modal / Sliding Card */}
-            <AnimatePresence>
-              {inspectedCustomer && (
-                <motion.div
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 50 }}
-                  style={{
-                    marginTop: '30px',
-                  }}
-                >
-                  <div
-                    className="glass-panel"
-                    style={{
-                      padding: '30px',
-                      border: '1px solid var(--gold)',
-                      background: 'rgba(26,13,0,0.95)',
-                      borderRadius: '12px',
-                      position: 'relative',
+            {/* Filters Toolbar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                background: 'rgba(20, 16, 13, 0.85)',
+                padding: '14px 18px',
+                borderRadius: '10px',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}>
+                {/* Search */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', minWidth: '220px' }}>
+                  <Search size={16} color="#c9a84c" />
+                  <input
+                    type="text"
+                    placeholder="Search user, action, endpoint or entity ID..."
+                    value={auditSearch}
+                    onChange={(e) => {
+                      setAuditSearch(e.target.value);
+                      setAuditPage(1);
                     }}
-                  >
-                    {/* Close button */}
-                    <button
-                      onClick={() => setInspectedCustomer(null)}
-                      style={{
-                        position: 'absolute',
-                        top: '20px',
-                        right: '20px',
-                        color: 'var(--grey-light)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <X size={24} />
-                    </button>
+                    style={{ background: 'transparent', border: 'none', color: '#f5efe6', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                  />
+                </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-                      <div style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        background: 'var(--gradient-gold)',
-                        color: 'var(--dark-chocolate)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: '1.4rem',
-                      }}>
-                        {inspectedCustomer.name.substring(0, 2).toUpperCase()}
+                {/* Action Filter */}
+                <select
+                  value={auditActionFilter}
+                  onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Actions</option>
+                  <option value="Login">Login</option>
+                  <option value="Logout">Logout</option>
+                  <option value="Created Product">Created Product</option>
+                  <option value="Updated Product">Updated Product</option>
+                  <option value="Deleted Product">Deleted Product</option>
+                  <option value="Updated Order Status">Updated Order Status</option>
+                  <option value="Created Coupon">Created Coupon</option>
+                  <option value="Updated Coupon">Updated Coupon</option>
+                  <option value="Changed Settings">Changed Settings</option>
+                  <option value="CREATE_ADMIN">Registered Admin</option>
+                  <option value="DELETE_ADMIN">Deleted Admin</option>
+                  <option value="Offline Sale Recorded">Offline Sale Recorded</option>
+                </select>
+
+                {/* User Filter */}
+                <select
+                  value={auditUserId}
+                  onChange={(e) => { setAuditUserId(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Users</option>
+                  {displayAdmins.items.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+
+                {/* Module Filter */}
+                <select
+                  value={auditModuleFilter}
+                  onChange={(e) => { setAuditModuleFilter(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Modules</option>
+                  <option value="system">System</option>
+                  <option value="products">Products</option>
+                  <option value="orders">Orders</option>
+                  <option value="coupons">Coupons</option>
+                  <option value="platform settings">Platform Settings</option>
+                  <option value="admin_management">Admin Management</option>
+                  <option value="offline sales">Offline Sales</option>
+                </select>
+
+                {/* Status Filter */}
+                <select
+                  value={auditStatusFilter}
+                  onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="SUCCESS">SUCCESS</option>
+                  <option value="FAILURE">FAILURE</option>
+                  <option value="DENIED">DENIED</option>
+                </select>
+
+                {/* Date Range */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={15} color="#c9a84c" />
+                  <input
+                    type="date"
+                    value={auditDateFrom}
+                    onChange={(e) => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
+                    style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                  />
+                  <span style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>to</span>
+                  <input
+                    type="date"
+                    value={auditDateTo}
+                    onChange={(e) => { setAuditDateTo(e.target.value); setAuditPage(1); }}
+                    style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                  />
+                </div>
+              </div>
+
+              <Button variant="secondary" size="sm" onClick={handleClearAuditFilters}>
+                Clear Filters
+              </Button>
+            </div>
+
+            {/* Error Alert State */}
+            {auditLogsError && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{auditLogsError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchAuditLogs()}>Retry</Button>
+              </div>
+            )}
+
+            {/* Detail Drawer Modal */}
+            <AnimatePresence>
+              {selectedAuditLog && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ marginBottom: '24px' }}
+                >
+                  <div className="admin-form-panel" style={{ border: '1px solid rgba(201, 168, 76, 0.6)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                        <Activity size={18} /> Audit Action Detail — {selectedAuditLog.action}
+                      </h3>
+                      <button onClick={() => setSelectedAuditLog(null)} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px', background: 'rgba(0,0,0,0.4)', padding: '16px', borderRadius: '8px' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>TIMESTAMP</span>
+                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.created_at}</strong>
                       </div>
                       <div>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', margin: 0 }}>
-                          {inspectedCustomer.name}
-                        </h2>
-                        <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: 0 }}>{inspectedCustomer.email}</p>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>USER</span>
+                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.user_name} ({selectedAuditLog.user_role})</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>MODULE & ENTITY</span>
+                        <strong style={{ fontSize: '0.88rem', color: '#c9a84c' }}>{selectedAuditLog.module} {selectedAuditLog.entity_id ? `[${selectedAuditLog.entity_id}]` : ''}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>HTTP METHOD & ENDPOINT</span>
+                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.request_method} {selectedAuditLog.endpoint}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>IP ADDRESS</span>
+                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.ip_address}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>STATUS</span>
+                        <strong style={{ fontSize: '0.88rem', color: selectedAuditLog.status === 'SUCCESS' ? '#2ecc71' : '#e74c3c' }}>{selectedAuditLog.status}</strong>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-                      {/* Left side: Orders list */}
-                      <div>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
-                          Customer Order History
-                        </h3>
-
-                        {getCustomerOrders(inspectedCustomer.email).length === 0 ? (
-                          <p style={{ color: 'var(--grey-light)', fontSize: '0.9rem', fontStyle: 'italic' }}>No orders found for this customer.</p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {getCustomerOrders(inspectedCustomer.email).map((ord: any) => (
-                              <div
-                                key={ord.id}
-                                style={{
-                                  padding: '12px 16px',
-                                  background: 'rgba(0,0,0,0.15)',
-                                  borderRadius: '6px',
-                                  borderLeft: '3px solid var(--gold)',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                }}
-                              >
-                                <div>
-                                  <span style={{ fontWeight: 700, color: 'var(--cream)' }}>{ord.id}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginLeft: '8px' }}>{ord.date}</span>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
-                                    Status: <span style={{ color: ord.status === 'Delivered' ? '#2ecc71' : 'var(--gold)', fontWeight: 600 }}>{ord.status}</span>
-                                  </div>
-                                </div>
-                                <span style={{ fontWeight: 700, color: 'var(--gold)' }}>₹{ord.total.toLocaleString('en-IN')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                    {selectedAuditLog.metadata && Object.keys(selectedAuditLog.metadata).length > 0 && (
+                      <div style={{ background: 'rgba(0,0,0,0.6)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#c9a84c', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                          REQUEST METADATA & CONTEXT
+                        </span>
+                        <pre style={{ margin: 0, fontSize: '0.8rem', color: '#f5efe6', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {JSON.stringify(selectedAuditLog.metadata, null, 2)}
+                        </pre>
                       </div>
-
-                      {/* Right side: Purchased products & stock statuses */}
-                      <div>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
-                          Items Purchased & Stock Availability
-                        </h3>
-
-                        {getCustomerOrders(inspectedCustomer.email).length === 0 ? (
-                          <p style={{ color: 'var(--grey-light)', fontSize: '0.9rem', fontStyle: 'italic' }}>No products purchased.</p>
-                        ) : (
-                          <div className="admin-table-wrapper">
-                            <table className="admin-table">
-                            <thead>
-                              <tr>
-                                <th>Item purchased</th>
-                                <th>Total Units</th>
-                                <th>In-Stock Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {/* Aggregate items bought across all their orders */}
-                              {(() => {
-                                const itemsBought: { [name: string]: { qty: number; available: number; low: boolean } } = {};
-                                getCustomerOrders(inspectedCustomer.email).forEach((o: any) => {
-                                  o.items.forEach((it: any) => {
-                                    const m = products.find(p => p.id === it.product.id) || { stock: 0 };
-                                    if (itemsBought[it.product.name]) {
-                                      itemsBought[it.product.name].qty += it.quantity;
-                                    } else {
-                                      itemsBought[it.product.name] = {
-                                        qty: it.quantity,
-                                        available: m.stock || 0,
-                                        low: (m.stock || 0) < 10
-                                      };
-                                    }
-                                  });
-                                });
-
-                                return Object.entries(itemsBought).map(([name, data]) => (
-                                  <tr key={name}>
-                                    <td style={{ fontWeight: 600 }}>{name}</td>
-                                    <td>{data.qty} units bought</td>
-                                    <td>
-                                      <span style={{
-                                        color: data.low ? 'var(--rose-gold)' : '#2ecc71',
-                                        fontWeight: 700
-                                      }}>
-                                        {data.available} units available
-                                      </span>
-                                      {data.low && (
-                                        <span style={{ fontSize: '0.7rem', color: 'var(--rose-gold)', display: 'block', fontStyle: 'italic' }}>
-                                          * Stock warning triggered
-                                        </span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ));
-                              })()}
-                            </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Comprehensive chronological audit log list */}
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginTop: '30px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '15px' }}>
-                Chronological System Operations Ledger
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {backendAuditLogs.map((log: any) => (
-                  <div
-                    key={log.id}
-                    style={{
-                      padding: '14px 18px',
-                      background: 'rgba(0,0,0,0.15)',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: '6px',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{
-                        padding: '4px 10px',
-                        background: log.type === 'order' ? 'rgba(183, 110, 121, 0.15)' : log.type === 'security' ? 'rgba(238, 77, 45, 0.15)' : 'rgba(201, 168, 76, 0.15)',
-                        color: log.type === 'order' ? 'var(--rose-gold)' : log.type === 'security' ? '#ff4d2d' : 'var(--gold-light)',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        border: '1px solid rgba(255,255,255,0.05)'
-                      }}>
-                        {log.type}
-                      </span>
-                      <span style={{ color: 'var(--cream)' }}>{log.action}</span>
-                    </div>
+            {/* Main Audit Logs Datatable */}
+            {auditLogsLoading ? (
+              <DashboardCardSkeleton height="350px" />
+            ) : (
+              <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', color: '#f5efe6' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                        <th style={{ padding: '12px' }}>DATE & TIME</th>
+                        <th style={{ padding: '12px' }}>USER</th>
+                        <th style={{ padding: '12px' }}>ROLE</th>
+                        <th style={{ padding: '12px' }}>ACTION</th>
+                        <th style={{ padding: '12px' }}>MODULE</th>
+                        <th style={{ padding: '12px' }}>IP ADDRESS</th>
+                        <th style={{ padding: '12px' }}>STATUS</th>
+                        <th style={{ padding: '12px', textAlign: 'right' }}>DETAILS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayAuditLogs.items.length > 0 ? (
+                        displayAuditLogs.items.map((log, idx) => (
+                          <tr
+                            key={log.id || idx}
+                            onClick={() => setSelectedAuditLog(log)}
+                            style={{
+                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              background: idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              {log.created_at}
+                            </td>
+                            <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
+                              {log.user_name}
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  background: log.user_role === 'superadmin' ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                                  color: log.user_role === 'superadmin' ? '#c9a84c' : 'rgba(255, 255, 255, 0.8)',
+                                  border: log.user_role === 'superadmin' ? '1px solid rgba(201, 168, 76, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                }}
+                              >
+                                {log.user_role === 'superadmin' ? 'Super Admin' : log.user_role === 'admin' ? 'Admin' : 'System'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
+                              {log.action}
+                            </td>
+                            <td style={{ padding: '12px', color: '#c9a84c', fontWeight: 600 }}>
+                              {log.module}
+                            </td>
+                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', fontFamily: 'monospace' }}>
+                              {log.ip_address || '192.168.1.10'}
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  color: log.status === 'SUCCESS' ? '#2ecc71' : log.status === 'DENIED' ? '#e67e22' : '#e74c3c',
+                                }}
+                              >
+                                {log.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAuditLog(log);
+                                }}
+                                style={{
+                                  background: 'rgba(201, 168, 76, 0.1)',
+                                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                                  color: '#c9a84c',
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                            No audit log records found matching search filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: 'var(--grey-light)', fontSize: '0.8rem' }}>
-                      <span>By: <strong style={{ color: 'var(--beige)' }}>{log.user}</strong></span>
-                      <span>{log.time}</span>
-                    </div>
-                  </div>
-                ))}
+                <div style={{ marginTop: '20px' }}>
+                  <Pagination
+                    currentPage={auditPage}
+                    totalPages={Math.ceil(displayAuditLogs.total / auditLimit) || 1}
+                    totalItems={displayAuditLogs.total}
+                    itemsPerPage={auditLimit}
+                    onPageChange={setAuditPage}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
         {/* THEME BUILDER TAB */}
         {activeTab === 'theme-builder' && (
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Dynamic Theme Builder
-            </h1>
-
-            {/* Theme Presets Section */}
-            <div style={{ marginBottom: '40px' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--gold)', marginBottom: '20px' }}>
-                Theme Presets
-              </h2>
-              <p style={{ color: 'var(--beige)', marginBottom: '24px', fontSize: '0.9rem' }}>
-                Click a theme to preview, then it applies live across all pages instantly.
+            <div style={{ marginBottom: '24px' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                Theme Builder
+              </h1>
+              <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.65)' }}>
+                Customize the look & feel of your website
               </p>
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-                {allPresets.map((preset) => {
-                  const isActive = activePresetId === preset.id;
-                  const isCustom = preset.id.startsWith('custom-');
-                  return (
-                    <div
-                      key={preset.id}
-                      onClick={() => handleApplyPreset(preset)}
-                      style={{
-                        padding: '20px',
-                        borderRadius: '12px',
-                        border: isActive ? '2px solid var(--gold)' : '1px solid var(--glass-border)',
-                        background: isActive ? 'rgba(201, 168, 76, 0.08)' : 'rgba(0,0,0,0.2)',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        position: 'relative',
-                      }}
-                    >
-                      {/* Active indicator */}
-                      {isActive && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '10px',
-                          right: '10px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: 'var(--gradient-gold)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <Check size={14} color="#1A0D00" />
-                        </div>
-                      )}
+            {/* Error Alert */}
+            {themesError && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  background: 'rgba(231, 76, 60, 0.1)',
+                  border: '1px solid rgba(231, 76, 60, 0.3)',
+                  borderRadius: '10px',
+                  color: '#e74c3c',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <AlertTriangle size={20} color="#e74c3c" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{themesError}</span>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => fetchThemes()}>Retry</Button>
+              </div>
+            )}
 
-                      {/* Custom theme delete button */}
-                      {isCustom && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveCustomTheme(preset.id);
-                          }}
+            {themesLoading ? (
+              <DashboardCardSkeleton height="450px" />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.1fr 1fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
+                
+                {/* 1. THEME PRESETS */}
+                <div className="glass-panel" style={{ padding: '22px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#c9a84c', margin: '0 0 6px 0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    THEME PRESETS
+                  </h3>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 18px 0' }}>
+                    Click a theme to preview, then apply it live across all pages.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '18px' }}>
+                    {displayThemes.items.map((preset) => {
+                      const isSelected = selectedThemeId === preset.id;
+                      const isActive = activeThemeId === preset.id;
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={() => handleSelectPreset(preset)}
                           style={{
-                            position: 'absolute',
-                            top: '10px',
-                            right: isActive ? '42px' : '10px',
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            background: 'rgba(183, 110, 121, 0.2)',
-                            border: '1px solid rgba(183, 110, 121, 0.3)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderRadius: '10px',
+                            border: isSelected ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.12)',
+                            background: isSelected ? 'rgba(201, 168, 76, 0.12)' : 'rgba(0,0,0,0.3)',
+                            padding: '14px',
                             cursor: 'pointer',
-                            color: 'var(--rose-gold)',
+                            transition: 'all 0.25s ease',
+                            position: 'relative',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            minHeight: '180px',
                           }}
                         >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
+                          {/* Active / Selected Badge */}
+                          {isSelected && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              background: '#c9a84c',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}>
+                              <Check size={14} color="#14100d" />
+                            </div>
+                          )}
 
-                      {/* Color swatches */}
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                        {Object.values(preset.colors).map((color, i) => (
-                          <div
-                            key={i}
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '8px',
-                              background: color,
-                              border: '2px solid rgba(255,255,255,0.1)',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                            }}
-                          />
-                        ))}
-                      </div>
+                          {/* Preset Miniature Visual Mockup */}
+                          <div style={{
+                            background: preset.background_color,
+                            borderRadius: '6px',
+                            padding: '12px',
+                            border: `1px solid ${preset.surface_color}`,
+                            marginBottom: '10px',
+                            textAlign: 'center',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: preset.luxury_gold_color, letterSpacing: '1px', display: 'block' }}>
+                              CHOVIQUE
+                            </span>
+                            <span style={{ fontSize: '0.55rem', color: preset.text_color, display: 'block', opacity: 0.7, margin: '2px 0 6px 0' }}>
+                              Premium Handmade Chocolates
+                            </span>
+                            <div style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              fontSize: '0.55rem',
+                              fontWeight: 700,
+                              background: preset.luxury_gold_color,
+                              color: preset.background_color,
+                              borderRadius: '3px',
+                            }}>
+                              SHOP NOW
+                            </div>
+                          </div>
 
-                      <h4 style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.1rem',
-                        color: 'var(--cream)',
-                        marginBottom: '6px',
-                      }}>
-                        {preset.name}
-                      </h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', margin: 0, lineHeight: 1.4 }}>
-                        {preset.description}
-                      </p>
-                    </div>
-                  );
-                })}
-
-                {/* Add New Theme Card */}
-                <div
-                  onClick={() => setShowAddThemeForm(true)}
-                  style={{
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: '2px dashed var(--glass-border)',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '160px',
-                    gap: '12px',
-                  }}
-                >
-                  <div style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '50%',
-                    border: '2px solid var(--gold)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--gold)',
-                  }}>
-                    <Plus size={24} />
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                              <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                                {preset.name}
+                              </h4>
+                              {isActive && (
+                                <span style={{ fontSize: '0.65rem', color: '#2ecc71', fontWeight: 700 }}>[Active]</span>
+                              )}
+                            </div>
+                            <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', margin: '4px 0 0 0', lineHeight: 1.3 }}>
+                              {preset.description}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Add New Theme
-                  </span>
+
+                  {/* Add New Theme Button */}
+                  <button
+                    onClick={() => setShowSaveModal(true)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px dashed rgba(201, 168, 76, 0.5)',
+                      background: 'rgba(201, 168, 76, 0.05)',
+                      color: '#c9a84c',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <Plus size={16} /> + Add New Theme
+                  </button>
                 </div>
-              </div>
 
-              {/* Add New Theme Form Modal */}
-              {showAddThemeForm && (
-                <div
-                  className="glass-panel"
-                  style={{
-                    padding: '30px',
-                    border: '1px solid var(--gold)',
-                    maxWidth: '500px',
-                    marginBottom: '30px',
-                    background: 'rgba(26,13,0,0.8)',
-                    borderRadius: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                      Create Custom Theme
-                    </h3>
-                    <button
-                      onClick={() => setShowAddThemeForm(false)}
-                      style={{ color: 'var(--grey-light)', background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
+                {/* 2. MANUAL COLOR CUSTOMIZATION */}
+                <div className="glass-panel" style={{ padding: '22px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#c9a84c', margin: '0 0 6px 0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    MANUAL COLOR CUSTOMIZATION
+                  </h3>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 18px 0' }}>
+                    Fine-tune individual colors. Changes apply across all pages instantly.
+                  </p>
 
-                  <Input
-                    label="Theme Name"
-                    placeholder="e.g. Ocean Breeze"
-                    value={newThemeName}
-                    onChange={(e) => setNewThemeName(e.target.value)}
-                  />
-                  <Input
-                    label="Description"
-                    placeholder="Brief description..."
-                    value={newThemeDesc}
-                    onChange={(e) => setNewThemeDesc(e.target.value)}
-                  />
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {[
-                      { key: 'primary' as const, label: 'Primary Color' },
-                      { key: 'darkChocolate' as const, label: 'Background Dark' },
-                      { key: 'gold' as const, label: 'Accent Gold' },
-                      { key: 'roseGold' as const, label: 'Accent Rose' },
-                      { key: 'black' as const, label: 'Base Black' },
-                    ].map((field) => (
-                      <div key={field.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--cream)', fontSize: '0.85rem' }}>{field.label}</span>
-                        <input
-                          type="color"
-                          value={newThemeColors[field.key]}
-                          onChange={(e) => setNewThemeColors({ ...newThemeColors, [field.key]: e.target.value })}
-                          style={{ width: '50px', height: '32px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                        />
+                      { key: 'primary_brand_color' as const, label: 'Primary Brand Brown' },
+                      { key: 'background_color' as const, label: 'Chocolate Background Dark' },
+                      { key: 'luxury_gold_color' as const, label: 'Signature Luxury Gold' },
+                      { key: 'secondary_accent_color' as const, label: 'Rose Gold Accent' },
+                      { key: 'text_color' as const, label: 'Text Color' },
+                      { key: 'surface_color' as const, label: 'Card / Surface Color' },
+                    ].map((field) => {
+                      const val = customColors[field.key];
+                      const valid = isValidHex(val);
+                      return (
+                        <div key={field.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                          <span style={{ fontSize: '0.82rem', color: '#f5efe6', fontWeight: 500, flex: 1 }}>{field.label}</span>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => setCustomColors({ ...customColors, [field.key]: e.target.value })}
+                              style={{
+                                width: '78px',
+                                background: '#14100d',
+                                border: valid ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid #e74c3c',
+                                borderRadius: '4px',
+                                color: '#f5efe6',
+                                padding: '4px 6px',
+                                fontSize: '0.78rem',
+                                fontFamily: 'monospace',
+                                textAlign: 'center',
+                                outline: 'none',
+                              }}
+                            />
+                            <input
+                              type="color"
+                              value={valid ? val : '#000000'}
+                              onChange={(e) => setCustomColors({ ...customColors, [field.key]: e.target.value.toUpperCase() })}
+                              style={{
+                                width: '32px',
+                                height: '30px',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: '4px',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {!isFormValid && (
+                    <span style={{ fontSize: '0.75rem', color: '#e74c3c', marginTop: '10px', display: 'block', fontWeight: 600 }}>
+                      * All fields require valid HEX colors (e.g. #D4AF37).
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. LIVE PREVIEW */}
+                <div className="glass-panel" style={{ padding: '22px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#c9a84c', margin: '0 0 6px 0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    LIVE PREVIEW
+                  </h3>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 14px 0' }}>
+                    Preview updates instantly. Click Apply to publish.
+                  </p>
+
+                  {/* Realtime Storefront Mini Canvas */}
+                  <div style={{
+                    background: isValidHex(customColors.background_color) ? customColors.background_color : '#0D090A',
+                    color: isValidHex(customColors.text_color) ? customColors.text_color : '#F7F7F7',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    padding: '16px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 800, color: isValidHex(customColors.luxury_gold_color) ? customColors.luxury_gold_color : '#D4AF37', letterSpacing: '1px' }}>
+                        CHOVIQUE
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px', fontSize: '0.62rem', fontWeight: 600, color: isValidHex(customColors.text_color) ? customColors.text_color : '#F7F7F7', opacity: 0.8 }}>
+                        <span>HOME</span>
+                        <span>SHOP</span>
+                        <span>OUR STORY</span>
+                        <span>CONTACT</span>
                       </div>
-                    ))}
-                  </div>
+                    </div>
 
-                  {/* Preview swatch */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-                    {Object.values(newThemeColors).map((color, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '8px',
-                          background: color,
-                          border: '2px solid rgba(255,255,255,0.1)',
-                        }}
+                    {/* Hero Box */}
+                    <div style={{
+                      background: isValidHex(customColors.surface_color) ? customColors.surface_color : '#1A1716',
+                      borderRadius: '6px',
+                      padding: '14px',
+                      marginBottom: '12px',
+                      border: `1px solid ${isValidHex(customColors.secondary_accent_color) ? customColors.secondary_accent_color : '#B76E79'}`,
+                    }}>
+                      <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.92rem', color: isValidHex(customColors.text_color) ? customColors.text_color : '#F7F7F7', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+                        Premium Handmade Chocolates
+                      </h4>
+                      <p style={{ fontSize: '0.65rem', margin: '0 0 10px 0', opacity: 0.7 }}>
+                        Crafted with Passion, Delivered with Love.
+                      </p>
+                      <button style={{
+                        padding: '4px 10px',
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        background: isValidHex(customColors.luxury_gold_color) ? customColors.luxury_gold_color : '#D4AF37',
+                        color: isValidHex(customColors.background_color) ? customColors.background_color : '#0D090A',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                      }}>
+                        SHOP NOW
+                      </button>
+                    </div>
+
+                    {/* Product Card Mini */}
+                    <div style={{
+                      background: isValidHex(customColors.surface_color) ? customColors.surface_color : '#1A1716',
+                      borderRadius: '6px',
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, display: 'block' }}>Artisanal Truffle Box</span>
+                        <span style={{ fontSize: '0.65rem', color: isValidHex(customColors.luxury_gold_color) ? customColors.luxury_gold_color : '#D4AF37', fontWeight: 700 }}>₹1,490</span>
+                      </div>
+                      <button style={{
+                        padding: '3px 8px',
+                        fontSize: '0.58rem',
+                        fontWeight: 700,
+                        background: isValidHex(customColors.primary_brand_color) ? customColors.primary_brand_color : '#5A3825',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '3px',
+                      }}>
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions Bar */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '24px' }}>
+              <Button variant="secondary" onClick={handleResetDefaults} disabled={isResettingTheme}>
+                <RotateCcw size={16} style={{ marginRight: '6px' }} />
+                {isResettingTheme ? 'Resetting...' : 'Reset Defaults'}
+              </Button>
+              <Button variant="gold" glow onClick={handleApplyTheme} disabled={!isFormValid || isApplyingTheme}>
+                <Check size={16} style={{ marginRight: '6px' }} />
+                {isApplyingTheme ? 'Applying...' : 'Apply Live Palettes'}
+              </Button>
+            </div>
+
+            {/* Save Custom Theme Modal */}
+            <AnimatePresence>
+              {showSaveModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.85)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                  }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 20 }}
+                    style={{
+                      background: 'rgba(20, 16, 13, 0.95)',
+                      border: '1px solid rgba(201, 168, 76, 0.5)',
+                      borderRadius: '12px',
+                      padding: '24px',
+                      maxWidth: '440px',
+                      width: '100%',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#c9a84c', margin: 0, fontWeight: 700 }}>
+                        Save Custom Theme Preset
+                      </h3>
+                      <button onClick={() => setShowSaveModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveCustomThemeSubmit}>
+                      <Input
+                        label="Theme Name *"
+                        placeholder="e.g. Royal Gold Edition"
+                        value={customThemeForm.name}
+                        onChange={(e) => setCustomThemeForm({ ...customThemeForm, name: e.target.value })}
+                        required
                       />
-                    ))}
-                  </div>
+                      <Input
+                        label="Description"
+                        placeholder="Short description of this palette..."
+                        value={customThemeForm.description}
+                        onChange={(e) => setCustomThemeForm({ ...customThemeForm, description: e.target.value })}
+                      />
 
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <Button variant="gold" onClick={handleAddCustomTheme} glow>
-                      Save Theme
-                    </Button>
-                    <Button variant="glass" onClick={() => setShowAddThemeForm(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                        <Button variant="secondary" size="sm" type="button" onClick={() => setShowSaveModal(false)}>
+                          Cancel
+                        </Button>
+                        <Button variant="gold" size="sm" type="submit" disabled={isSavingCustomTheme}>
+                          {isSavingCustomTheme ? 'Saving...' : 'Save Theme'}
+                        </Button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </motion.div>
               )}
-            </div>
-
-            {/* Manual Color Picker Section */}
-            <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', maxWidth: '600px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
-                Manual Color Customization
-              </h3>
-              <p style={{ color: 'var(--beige)', marginBottom: '24px', lineHeight: 1.5, fontSize: '0.85rem' }}>
-                Fine-tune individual colors. Changes apply across all pages instantly.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>Primary Brand Brown</span>
-                  <input
-                    type="color"
-                    value={themeInput.primary}
-                    onChange={(e) => setThemeInput({ ...themeInput, primary: e.target.value })}
-                    style={{ width: '60px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>Chocolate Background Dark</span>
-                  <input
-                    type="color"
-                    value={themeInput.darkChocolate}
-                    onChange={(e) => setThemeInput({ ...themeInput, darkChocolate: e.target.value })}
-                    style={{ width: '60px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>Signature Luxury Gold</span>
-                  <input
-                    type="color"
-                    value={themeInput.gold}
-                    onChange={(e) => setThemeInput({ ...themeInput, gold: e.target.value })}
-                    style={{ width: '60px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>Rose Gold Accent</span>
-                  <input
-                    type="color"
-                    value={themeInput.roseGold}
-                    onChange={(e) => setThemeInput({ ...themeInput, roseGold: e.target.value })}
-                    style={{ width: '60px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>Base Black Color</span>
-                  <input
-                    type="color"
-                    value={themeInput.black}
-                    onChange={(e) => setThemeInput({ ...themeInput, black: e.target.value })}
-                    style={{ width: '60px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <Button variant="gold" onClick={handleApplyTheme} glow>
-                  Apply Live Palettes
-                </Button>
-                <Button variant="glass" onClick={handleResetTheme}>
-                  Reset Defaults
-                </Button>
-              </div>
-            </div>
+            </AnimatePresence>
           </div>
         )}
 
@@ -2778,194 +4939,814 @@ export const SuperadminDashboard: React.FC = () => {
         {/* PLATFORM SETTINGS TAB */}
         {activeTab === 'platform-settings' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-              <div>
-                <span className="section-label">Enterprise Config</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--cream)', margin: 0 }}>
-                  Platform Settings
-                </h1>
-              </div>
+            {/* Header */}
+            <div style={{ marginBottom: '24px' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                Platform Settings
+              </h1>
+              <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255,255,255,0.6)' }}>
+                Configure global settings for the Chovique store.
+              </p>
             </div>
 
-            {settingsSaved && (
-              <div
-                style={{
-                  padding: '16px',
-                  background: 'rgba(46, 204, 113, 0.1)',
-                  border: '1px solid #2ecc71',
-                  color: '#2ecc71',
-                  borderRadius: '6px',
-                  marginBottom: '30px',
-                  fontSize: '0.95rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                }}
-              >
-                <Check size={18} /> Global platform settings configurations have been successfully saved and applied.
+            {/* Maintenance Mode Warning Banner */}
+            {psForm.maintenance_mode && (
+              <div style={{
+                padding: '14px 18px',
+                background: 'rgba(231, 76, 60, 0.12)',
+                border: '1px solid rgba(231, 76, 60, 0.5)',
+                borderRadius: '10px',
+                color: '#e74c3c',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontWeight: 600,
+                fontSize: '0.88rem',
+              }}>
+                <AlertTriangle size={20} />
+                ⚠️ Maintenance Mode is ACTIVE — The storefront is currently offline for all customers.
               </div>
             )}
 
-            <form onSubmit={handleSavePlatformSettings}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px', marginBottom: '40px' }}>
-                
-                {/* Panel 1: General Info */}
-                <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-                    Store Configuration
-                  </h3>
-                  <Input
-                    label="Store Front Name"
-                    required
-                    value={platformSettings.storeName}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, storeName: e.target.value })}
-                  />
-                  <Input
-                    label="Customer Support Email"
-                    type="email"
-                    required
-                    value={platformSettings.supportEmail}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, supportEmail: e.target.value })}
-                  />
-                  <Input
-                    label="Customer Support Phone"
-                    required
-                    value={platformSettings.supportPhone}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, supportPhone: e.target.value })}
-                  />
-                </div>
-
-                {/* Panel 2: Logistics & Checkout */}
-                <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-                    Payment & Shipping
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--cream)', fontWeight: 600 }}>Enable COD Payments</span>
-                    <input
-                      type="checkbox"
-                      checked={platformSettings.enableCOD}
-                      onChange={(e) => setPlatformSettings({ ...platformSettings, enableCOD: e.target.checked })}
-                      style={{ accentColor: 'var(--gold)', width: '18px', height: '18px', cursor: 'pointer' }}
-                    />
-                  </div>
-                  <Input
-                    label="Tax Rate (GST %)"
-                    type="number"
-                    required
-                    value={platformSettings.taxRate}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, taxRate: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    label="Platform Fee (₹)"
-                    type="number"
-                    required
-                    value={platformSettings.platformFee}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, platformFee: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    label="Base Currency"
-                    required
-                    value={platformSettings.currency}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, currency: e.target.value })}
-                  />
-                  <Input
-                    label="Min Order for Free Shipping (₹)"
-                    type="number"
-                    required
-                    value={platformSettings.minOrderFreeShipping}
-                    onChange={(e) => setPlatformSettings({ ...platformSettings, minOrderFreeShipping: parseInt(e.target.value) || 0 })}
-                  />
-                  <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>
-                    Orders below this threshold will carry standard delivery charges.
-                  </p>
-                </div>
-
-                {/* Panel 3: System Security & Status */}
-                <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--gold)', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-                    System & Security
-                  </h3>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--cream)', display: 'block', fontWeight: 600 }}>Maintenance Mode</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Front-end catalog goes offline</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={platformSettings.maintenanceMode}
-                      onChange={(e) => setPlatformSettings({ ...platformSettings, maintenanceMode: e.target.checked })}
-                      style={{ accentColor: 'var(--rose-gold)', width: '18px', height: '18px', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--cream)', display: 'block', fontWeight: 600 }}>Allow Customer Signups</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Allow guest checkout and signup</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={platformSettings.allowRegistrations}
-                      onChange={(e) => setPlatformSettings({ ...platformSettings, allowRegistrations: e.target.checked })}
-                      style={{ accentColor: 'var(--gold)', width: '18px', height: '18px', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--cream)', fontWeight: 600 }}>Admin Session Timeout</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 700 }}>{platformSettings.idleTimeout} mins</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="5"
-                      max="120"
-                      step="5"
-                      value={platformSettings.idleTimeout}
-                      onChange={(e) => setPlatformSettings({ ...platformSettings, idleTimeout: parseInt(e.target.value) })}
-                      style={{ accentColor: 'var(--gold)', cursor: 'pointer' }}
-                    />
-                  </div>
-                </div>
-
+            {/* Unsaved Changes Warning */}
+            {psHasChanges && (
+              <div style={{
+                padding: '10px 16px',
+                background: 'rgba(241, 196, 15, 0.08)',
+                border: '1px solid rgba(241, 196, 15, 0.35)',
+                borderRadius: '8px',
+                color: '#f1c40f',
+                marginBottom: '16px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <Info size={15} /> You have unsaved changes.
               </div>
+            )}
 
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <Button variant="gold" type="submit" glow>
-                  Save Configurations
-                </Button>
-                <Button
-                  variant="glass"
-                  type="button"
-                  onClick={() => {
-                    if (confirm('Discard edits and revert to default values?')) {
-                      setPlatformSettings({
-                        storeName: 'Chovique Luxury Chocolates',
-                        supportEmail: 'support@chovique.com',
-                        supportPhone: '+91 98765 43210',
-                        maintenanceMode: false,
-                        enableCOD: true,
-                        minOrderFreeShipping: 1500,
-                        allowRegistrations: true,
-                        idleTimeout: 30,
-                        taxRate: 5,
-                        platformFee: 0,
-                        currency: 'INR (₹)',
-                      });
-                    }
+            {/* Sub-Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '0',
+              borderBottom: '1px solid rgba(201, 168, 76, 0.2)',
+              marginBottom: '28px',
+              overflowX: 'auto',
+            }}>
+              {[
+                { id: 'store', label: 'Store Configuration' },
+                { id: 'payment', label: 'Payment & Shipping' },
+                { id: 'customer-order', label: 'Customer & Order Settings' },
+                { id: 'system', label: 'System & Security' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setPsActiveTab(t.id as any)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: psActiveTab === t.id ? '2px solid #c9a84c' : '2px solid transparent',
+                    color: psActiveTab === t.id ? '#c9a84c' : 'rgba(255,255,255,0.55)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  Discard Changes
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {psLoading ? (
+              <DashboardCardSkeleton height="400px" />
+            ) : (
+              <form onSubmit={handleSavePlatformSettings}>
+                {/* ── TAB 1: Store Configuration ── */}
+                {psActiveTab === 'store' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                          Store Identity
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <Input label="Store Front Name *" value={psForm.store_front_name} onChange={(e) => updatePsField('store_front_name', e.target.value)} />
+                            {psErrors.store_front_name && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.store_front_name}</span>}
+                          </div>
+                          <div>
+                            <Input label="Customer Support Email *" type="email" value={psForm.support_email} onChange={(e) => updatePsField('support_email', e.target.value)} />
+                            {psErrors.support_email && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.support_email}</span>}
+                          </div>
+                          <div>
+                            <Input label="Customer Support Phone *" value={psForm.support_phone} onChange={(e) => updatePsField('support_phone', e.target.value)} />
+                            {psErrors.support_phone && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.support_phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                          Store Address
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <Input label="Address" value={psForm.store_address} onChange={(e) => updatePsField('store_address', e.target.value)} />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <Input label="City" value={psForm.city} onChange={(e) => updatePsField('city', e.target.value)} />
+                            <Input label="State" value={psForm.state} onChange={(e) => updatePsField('state', e.target.value)} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div>
+                              <Input label="Country *" value={psForm.country} onChange={(e) => updatePsField('country', e.target.value)} />
+                              {psErrors.country && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.country}</span>}
+                            </div>
+                            <div>
+                              <Input label="Pincode" value={psForm.pincode} onChange={(e) => updatePsField('pincode', e.target.value)} />
+                              {psErrors.pincode && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.pincode}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                          Regional Settings
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <Select
+                            label="Base Currency *"
+                            value={psForm.base_currency}
+                            onChange={(e) => updatePsField('base_currency', e.target.value)}
+                            options={[
+                              { value: 'INR', label: 'INR (₹)' },
+                              { value: 'USD', label: 'USD ($)' },
+                              { value: 'EUR', label: 'EUR (€)' },
+                              { value: 'GBP', label: 'GBP (£)' },
+                            ]}
+                          />
+                          <Select
+                            label="Time Zone *"
+                            value={psForm.timezone}
+                            onChange={(e) => updatePsField('timezone', e.target.value)}
+                            options={[
+                              { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST +05:30)' },
+                              { value: 'Asia/Dubai', label: 'Asia/Dubai (GST +04:00)' },
+                              { value: 'America/New_York', label: 'America/New_York (EST -05:00)' },
+                              { value: 'Europe/London', label: 'Europe/London (GMT +00:00)' },
+                              { value: 'UTC', label: 'UTC' },
+                            ]}
+                          />
+                          <Select
+                            label="Business / Store Status *"
+                            value={psForm.business_status}
+                            onChange={(e) => updatePsField('business_status', e.target.value)}
+                            options={[
+                              { value: 'active', label: 'Active' },
+                              { value: 'paused', label: 'Paused' },
+                              { value: 'closed', label: 'Closed' },
+                            ]}
+                          />
+                        </div>
+                      </div>
+
+                      {/* About Configuration Info Card */}
+                      <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(201, 168, 76, 0.06)', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                        <h4 style={{ color: '#c9a84c', fontFamily: 'var(--font-display)', fontSize: '0.95rem', margin: '0 0 12px 0' }}>About Configuration</h4>
+                        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                          These settings will apply across the entire platform and customer-facing website.
+                        </p>
+                        {[
+                          'Changes reflect immediately after saving',
+                          'Ensure all details are accurate',
+                          'Contact support for any assistance',
+                        ].map((tip, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <Check size={13} color="#2ecc71" />
+                            <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.78rem' }}>{tip}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 2: Payment & Shipping ── */}
+                {psActiveTab === 'payment' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                        Payment Settings
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div>
+                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>Enable COD Payments</span>
+                            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Allow Cash on Delivery for orders</span>
+                          </div>
+                          <input type="checkbox" checked={psForm.cod_enabled} onChange={(e) => updatePsField('cod_enabled', e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
+                        </div>
+                        <div>
+                          <Input label="Tax Rate (GST %)" type="number" value={psForm.gst_rate} onChange={(e) => updatePsField('gst_rate', parseFloat(e.target.value) || 0)} />
+                          {psErrors.gst_rate && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.gst_rate}</span>}
+                        </div>
+                        <div>
+                          <Input label="Platform Fee (₹)" type="number" value={psForm.platform_fee} onChange={(e) => updatePsField('platform_fee', parseFloat(e.target.value) || 0)} />
+                          {psErrors.platform_fee && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.platform_fee}</span>}
+                        </div>
+                        {psForm.cod_enabled && (
+                          <div>
+                            <Input label="Maximum COD Order Value (₹)" type="number" value={psForm.maximum_cod_order_value} onChange={(e) => updatePsField('maximum_cod_order_value', parseFloat(e.target.value) || 0)} />
+                            {psErrors.maximum_cod_order_value && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.maximum_cod_order_value}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                        Shipping Settings
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div>
+                          <Input label="Standard Shipping Charge (₹)" type="number" value={psForm.standard_shipping_charge} onChange={(e) => updatePsField('standard_shipping_charge', parseFloat(e.target.value) || 0)} />
+                          {psErrors.standard_shipping_charge && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.standard_shipping_charge}</span>}
+                        </div>
+                        <div>
+                          <Input label="Minimum Order for Free Shipping (₹)" type="number" value={psForm.free_shipping_min_order} onChange={(e) => updatePsField('free_shipping_min_order', parseFloat(e.target.value) || 0)} />
+                          {psErrors.free_shipping_min_order && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.free_shipping_min_order}</span>}
+                          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+                            Orders above this amount qualify for free shipping.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 3: Customer & Order Settings ── */}
+                {psActiveTab === 'customer-order' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                        Customer Settings
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {[
+                          { key: 'customer_registration_enabled', label: 'Allow Customer Registration', desc: 'Allow new customers to sign up' },
+                          { key: 'guest_checkout_enabled', label: 'Allow Guest Checkout', desc: 'Allow unregistered users to checkout' },
+                        ].map((toggle) => (
+                          <div key={toggle.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div>
+                              <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>{toggle.label}</span>
+                              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>{toggle.desc}</span>
+                            </div>
+                            <input type="checkbox" checked={(psForm as any)[toggle.key]} onChange={(e) => updatePsField(toggle.key, e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
+                          </div>
+                        ))}
+                        <div>
+                          <Input label="Minimum Order Value (₹)" type="number" value={psForm.minimum_order_value} onChange={(e) => updatePsField('minimum_order_value', parseFloat(e.target.value) || 0)} />
+                          {psErrors.minimum_order_value && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.minimum_order_value}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                        Order Settings
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div>
+                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>Allow Order Cancellation</span>
+                            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Let customers cancel placed orders</span>
+                          </div>
+                          <input type="checkbox" checked={psForm.order_cancellation_enabled} onChange={(e) => updatePsField('order_cancellation_enabled', e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
+                        </div>
+                        {psForm.order_cancellation_enabled && (
+                          <div>
+                            <Input label="Cancellation Time Limit (hours)" type="number" value={psForm.cancellation_time_limit} onChange={(e) => updatePsField('cancellation_time_limit', parseInt(e.target.value) || 1)} />
+                            {psErrors.cancellation_time_limit && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.cancellation_time_limit}</span>}
+                            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: '6px 0 0 0' }}>
+                              Orders can be cancelled within this many hours of placing.
+                            </p>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div>
+                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>Return / Refund Enabled</span>
+                            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Allow return and refund requests</span>
+                          </div>
+                          <input type="checkbox" checked={psForm.return_refund_enabled} onChange={(e) => updatePsField('return_refund_enabled', e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 4: System & Security ── */}
+                {psActiveTab === 'system' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(231, 76, 60, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e74c3c', margin: '0 0 6px 0', fontWeight: 700 }}>
+                        Maintenance Mode
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem', margin: '0 0 18px 0' }}>
+                        Enabling this takes the storefront offline for all customers. Admins can still access the dashboard.
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: psForm.maintenance_mode ? 'rgba(231, 76, 60, 0.1)' : 'rgba(0,0,0,0.2)', borderRadius: '8px', border: `1px solid ${psForm.maintenance_mode ? 'rgba(231, 76, 60, 0.4)' : 'rgba(255,255,255,0.08)'}` }}>
+                        <div>
+                          <span style={{ color: '#f5efe6', fontWeight: 700, fontSize: '0.9rem', display: 'block' }}>
+                            {psForm.maintenance_mode ? '🔴 Maintenance Mode: ON' : '🟢 Maintenance Mode: OFF'}
+                          </span>
+                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>
+                            {psForm.maintenance_mode ? 'Storefront is currently offline.' : 'Storefront is live and accessible.'}
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={psForm.maintenance_mode}
+                          onChange={(e) => handleMaintenanceModeToggle(e.target.checked)}
+                          style={{ accentColor: '#e74c3c', width: '20px', height: '20px', cursor: 'pointer' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
+                        Security Settings
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.85rem' }}>Admin Session Timeout</span>
+                            <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: '0.85rem' }}>{psForm.admin_session_timeout} min</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="5"
+                            max="480"
+                            step="5"
+                            value={psForm.admin_session_timeout}
+                            onChange={(e) => updatePsField('admin_session_timeout', parseInt(e.target.value))}
+                            style={{ width: '100%', accentColor: '#c9a84c', cursor: 'pointer' }}
+                          />
+                          {psErrors.admin_session_timeout && <span style={{ color: '#e74c3c', fontSize: '0.75rem' }}>{psErrors.admin_session_timeout}</span>}
+                        </div>
+                        <div>
+                          <Input label="Maximum Login Attempts" type="number" value={psForm.max_login_attempts} onChange={(e) => updatePsField('max_login_attempts', parseInt(e.target.value) || 1)} />
+                          {psErrors.max_login_attempts && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.max_login_attempts}</span>}
+                        </div>
+                        <div>
+                          <Input label="Account Lockout Duration (minutes)" type="number" value={psForm.account_lockout_duration} onChange={(e) => updatePsField('account_lockout_duration', parseInt(e.target.value) || 1)} />
+                          {psErrors.account_lockout_duration && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.account_lockout_duration}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div>
+                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>Require Admin Password Change</span>
+                            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Force admins to change passwords on next login</span>
+                          </div>
+                          <input type="checkbox" checked={psForm.require_admin_password_change} onChange={(e) => updatePsField('require_admin_password_change', e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '28px' }}>
+                  <Button variant="secondary" type="button" onClick={handlePsDiscard}>
+                    <X size={15} style={{ marginRight: '6px' }} />
+                    Discard Changes
+                  </Button>
+                  <Button variant="gold" type="submit" glow disabled={psSaving}>
+                    {psSaving ? (
+                      <><span style={{ marginRight: '6px' }}>⏳</span> Saving...</>
+                    ) : (
+                      <><Check size={15} style={{ marginRight: '6px' }} /> Save Configurations</>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Maintenance Mode Confirmation Modal */}
+            <AnimatePresence>
+              {psShowMaintenanceConfirm && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 20 }}
+                    style={{ background: 'rgba(20, 10, 8, 0.98)', border: '1px solid rgba(231, 76, 60, 0.5)', borderRadius: '14px', padding: '28px', maxWidth: '460px', width: '100%' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(231, 76, 60, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <AlertTriangle size={22} color="#e74c3c" />
+                      </div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#e74c3c', margin: 0, fontWeight: 700 }}>
+                        Enable Maintenance Mode?
+                      </h3>
+                    </div>
+                    <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '24px' }}>
+                      This will take the entire Chovique storefront <strong style={{ color: '#e74c3c' }}>OFFLINE</strong> immediately. Customers will not be able to browse, shop, or checkout until you disable maintenance mode.
+                    </p>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                      <Button variant="secondary" onClick={() => { setPsShowMaintenanceConfirm(false); setPsPendingMaintenanceMode(null); }}>
+                        Cancel
+                      </Button>
+                      <Button variant="secondary" onClick={confirmMaintenanceMode} style={{ background: 'rgba(231,76,60,0.15)', borderColor: 'rgba(231,76,60,0.5)', color: '#e74c3c' }}>
+                        Yes, Enable Maintenance Mode
+                      </Button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* NOTIFICATIONS TAB */}
+        {activeTab === 'notifications' && (
+          <div>
+            {/* Header & Top Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                  Notifications
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255,255,255,0.6)' }}>
+                  Important alerts and updates requiring your attention.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {notifUnreadCount > 0 && (
+                  <Button variant="secondary" onClick={handleMarkAllNotifsAsRead} size="sm">
+                    <Check size={14} style={{ marginRight: '6px' }} /> Mark All as Read
+                  </Button>
+                )}
+                <Button variant="glass" onClick={fetchSuperadminNotifications} size="sm">
+                  <RotateCcw size={14} style={{ marginRight: '6px' }} /> Refresh
                 </Button>
               </div>
-            </form>
+            </div>
+
+            {/* Category Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '0',
+              borderBottom: '1px solid rgba(201, 168, 76, 0.2)',
+              marginBottom: '20px',
+              overflowX: 'auto',
+            }}>
+              {[
+                { id: 'ALL', label: 'All' },
+                { id: 'SECURITY', label: 'Security' },
+                { id: 'ADMIN_MANAGEMENT', label: 'Admin Management' },
+                { id: 'PLATFORM_SYSTEM', label: 'Platform / System' },
+                { id: 'BUSINESS', label: 'Business' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { setNotifCategoryTab(t.id); setNotifPage(1); }}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: notifCategoryTab === t.id ? '2px solid #c9a84c' : '2px solid transparent',
+                    color: notifCategoryTab === t.id ? '#c9a84c' : 'rgba(255,255,255,0.55)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filters & Search Row */}
+            <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '12px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(201,168,76,0.2)', background: 'rgba(15, 12, 10, 0.85)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', flex: 1 }}>
+                {/* Search */}
+                <div style={{ minWidth: '220px', flex: '1 1 220px' }}>
+                  <Input
+                    placeholder="Search notifications..."
+                    value={notifSearch}
+                    onChange={(e) => { setNotifSearch(e.target.value); setNotifPage(1); }}
+                  />
+                </div>
+
+                {/* Read / Unread Status */}
+                <div style={{ width: '150px' }}>
+                  <Select
+                    value={notifReadFilter}
+                    onChange={(e) => { setNotifReadFilter(e.target.value); setNotifPage(1); }}
+                    options={[
+                      { value: 'ALL', label: 'All Status' },
+                      { value: 'UNREAD', label: 'Unread Only' },
+                      { value: 'READ', label: 'Read Only' },
+                    ]}
+                  />
+                </div>
+
+                {/* Date From */}
+                <div style={{ width: '150px' }}>
+                  <Input
+                    type="date"
+                    value={notifDateFrom}
+                    onChange={(e) => { setNotifDateFrom(e.target.value); setNotifPage(1); }}
+                  />
+                </div>
+
+                {/* Date To */}
+                <div style={{ width: '150px' }}>
+                  <Input
+                    type="date"
+                    value={notifDateTo}
+                    onChange={(e) => { setNotifDateTo(e.target.value); setNotifPage(1); }}
+                  />
+                </div>
+              </div>
+
+              {(notifSearch || notifReadFilter !== 'ALL' || notifDateFrom || notifDateTo || notifCategoryTab !== 'ALL') && (
+                <Button
+                  variant="text"
+                  size="sm"
+                  onClick={() => {
+                    setNotifSearch('');
+                    setNotifReadFilter('ALL');
+                    setNotifCategoryTab('ALL');
+                    setNotifDateFrom('');
+                    setNotifDateTo('');
+                    setNotifPage(1);
+                  }}
+                  style={{ color: '#c9a84c' }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+
+            {/* List Table */}
+            {notifLoading ? (
+              <DashboardCardSkeleton height="350px" />
+            ) : notifItems.length === 0 ? (
+              <EmptyState
+                title="No Notifications Found"
+                description="There are no owner notifications matching your current filters."
+                icon={<Bell size={40} color="#c9a84c" />}
+              />
+            ) : (
+              <div className="glass-panel" style={{ borderRadius: '12px', border: '1px solid rgba(201,168,76,0.2)', overflow: 'hidden', background: 'rgba(15, 12, 10, 0.85)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(201, 168, 76, 0.08)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.5px' }}>
+                      <th style={{ padding: '14px 18px' }}>Notification</th>
+                      <th style={{ padding: '14px 18px' }}>Category</th>
+                      <th style={{ padding: '14px 18px' }}>Severity</th>
+                      <th style={{ padding: '14px 18px' }}>Date & Time</th>
+                      <th style={{ padding: '14px 18px' }}>Status</th>
+                      <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notifItems.map((n) => {
+                      const getCatBadge = (cat: string) => {
+                        switch (cat) {
+                          case 'SECURITY':
+                            return { label: 'Security', bg: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.4)' };
+                          case 'ADMIN_MANAGEMENT':
+                            return { label: 'Admin Management', bg: 'rgba(201,168,76,0.15)', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.4)' };
+                          case 'PLATFORM_SYSTEM':
+                            return { label: 'Platform / System', bg: 'rgba(230,126,34,0.15)', color: '#e67e22', border: '1px solid rgba(230,126,34,0.4)' };
+                          case 'BUSINESS':
+                            return { label: 'Business', bg: 'rgba(46,204,113,0.15)', color: '#2ecc71', border: '1px solid rgba(46,204,113,0.4)' };
+                          default:
+                            return { label: cat, bg: 'rgba(255,255,255,0.1)', color: '#f5efe6', border: '1px solid rgba(255,255,255,0.2)' };
+                        }
+                      };
+
+                      const getSevBadge = (sev: string) => {
+                        switch (sev) {
+                          case 'CRITICAL':
+                            return { label: 'CRITICAL', bg: 'rgba(231,76,60,0.25)', color: '#ff6b6b', border: '1px solid #e74c3c' };
+                          case 'WARNING':
+                            return { label: 'WARNING', bg: 'rgba(241,196,15,0.2)', color: '#f1c40f', border: '1px solid rgba(241,196,15,0.5)' };
+                          default:
+                            return { label: 'INFO', bg: 'rgba(52,152,219,0.15)', color: '#3498db', border: '1px solid rgba(52,152,219,0.4)' };
+                        }
+                      };
+
+                      const catStyle = getCatBadge(n.category);
+                      const sevStyle = getSevBadge(n.severity);
+
+                      return (
+                        <tr
+                          key={n.id}
+                          style={{
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            background: n.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.04)',
+                            transition: 'background 0.2s ease',
+                          }}
+                        >
+                          {/* Title & snippet */}
+                          <td style={{ padding: '14px 18px', maxWidth: '320px' }}>
+                            <div style={{ fontWeight: n.is_read ? 600 : 700, color: '#f5efe6', fontSize: '0.88rem', marginBottom: '3px' }}>
+                              {n.title}
+                            </div>
+                            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {n.message}
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td style={{ padding: '14px 18px' }}>
+                            <span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, background: catStyle.bg, color: catStyle.color, border: catStyle.border, display: 'inline-block' }}>
+                              {catStyle.label}
+                            </span>
+                          </td>
+
+                          {/* Severity */}
+                          <td style={{ padding: '14px 18px' }}>
+                            <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, background: sevStyle.bg, color: sevStyle.color, border: sevStyle.border, display: 'inline-block' }}>
+                              {sevStyle.label}
+                            </span>
+                          </td>
+
+                          {/* Date */}
+                          <td style={{ padding: '14px 18px', color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                            {n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: '14px 18px' }}>
+                            {n.is_read ? (
+                              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>Read</span>
+                            ) : (
+                              <span style={{ color: '#c9a84c', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c', display: 'inline-block' }} />
+                                Unread
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                              <Button
+                                variant="glass"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedNotif(n);
+                                  if (!n.is_read) handleMarkNotifAsRead(n);
+                                }}
+                              >
+                                <Eye size={13} style={{ marginRight: '4px' }} /> View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setNotifToDelete(n)}
+                                style={{ background: 'rgba(231,76,60,0.12)', borderColor: 'rgba(231,76,60,0.4)', color: '#e74c3c' }}
+                              >
+                                <Trash2 size={13} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Pagination */}
+                {notifTotalPages > 1 && (
+                  <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(201, 168, 76, 0.15)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <Pagination
+                      currentPage={notifPage}
+                      totalPages={notifTotalPages}
+                      totalItems={notifTotal}
+                      itemsPerPage={notifLimit}
+                      onPageChange={(p) => setNotifPage(p)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notification Detail Drawer / Modal */}
+            <AnimatePresence>
+              {selectedNotif && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 20 }}
+                    style={{ background: 'rgba(20, 15, 12, 0.98)', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '16px', padding: '28px', maxWidth: '540px', width: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.9)' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
+                      <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, color: '#c9a84c' }}>
+                        {selectedNotif.category.replace('_', ' ')}
+                      </span>
+                      <button onClick={() => setSelectedNotif(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '4px' }}>
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: '#f5efe6', margin: '0 0 12px 0', fontWeight: 700 }}>
+                      {selectedNotif.title}
+                    </h2>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, background: selectedNotif.severity === 'CRITICAL' ? 'rgba(231,76,60,0.25)' : selectedNotif.severity === 'WARNING' ? 'rgba(241,196,15,0.2)' : 'rgba(52,152,219,0.15)', color: selectedNotif.severity === 'CRITICAL' ? '#ff6b6b' : selectedNotif.severity === 'WARNING' ? '#f1c40f' : '#3498db' }}>
+                        Severity: {selectedNotif.severity}
+                      </span>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem' }}>
+                        {selectedNotif.created_at ? new Date(selectedNotif.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '24px' }}>
+                      {selectedNotif.message}
+                    </div>
+
+                    {selectedNotif.related_user && (
+                      <div style={{ padding: '14px', background: 'rgba(201,168,76,0.06)', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.2)', marginBottom: '24px' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#c9a84c', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
+                          Related Administrator
+                        </div>
+                        <div style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem' }}>
+                          {selectedNotif.related_user.name} ({selectedNotif.related_user.email})
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '2px' }}>
+                          Role: {selectedNotif.related_user.role}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                      {selectedNotif.category === 'ADMIN_MANAGEMENT' && (
+                        <Button variant="gold" size="sm" onClick={() => { setSelectedNotif(null); setActiveTab('admin-mgmt'); }}>
+                          View Admins
+                        </Button>
+                      )}
+                      {selectedNotif.category === 'PLATFORM_SYSTEM' && (
+                        <Button variant="gold" size="sm" onClick={() => { setSelectedNotif(null); setActiveTab('platform-settings'); }}>
+                          View Platform Settings
+                        </Button>
+                      )}
+                      {selectedNotif.category === 'BUSINESS' && (
+                        <Button variant="gold" size="sm" onClick={() => { setSelectedNotif(null); setActiveTab('revenue'); }}>
+                          View Revenue Analytics
+                        </Button>
+                      )}
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedNotif(null)}>
+                        Close
+                      </Button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={!!notifToDelete}
+              title="Delete Notification"
+              message="Are you sure you want to delete this notification? This action cannot be undone."
+              confirmText={isDeletingNotif ? 'Deleting...' : 'Delete'}
+              cancelText="Cancel"
+              isConfirming={isDeletingNotif}
+              variant="danger"
+              onConfirm={handleDeleteNotifConfirm}
+              onCancel={() => setNotifToDelete(null)}
+            />
           </div>
         )}
 
         {/* AUDIT LOG TAB FALLBACK */}
-        {!['enterprise', 'revenue', 'sales-comparison', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings'].includes(activeTab) && (
+        {!['enterprise', 'revenue', 'sales-comparison', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications'].includes(activeTab) && (
           <div
             className="glass-panel"
             style={{
@@ -2995,6 +5776,19 @@ export const SuperadminDashboard: React.FC = () => {
           isConfirming={confirmModal.isConfirming}
           onConfirm={confirmModal.onConfirm}
           onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        />
+
+        {/* Logout Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showLogoutConfirmModal}
+          title="Confirm Logout"
+          message="Are you sure you want to logout?"
+          confirmText={isLoggingOut ? 'Logging out...' : 'Logout'}
+          cancelText="Cancel"
+          isConfirming={isLoggingOut}
+          variant="danger"
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutConfirmModal(false)}
         />
       </div>
     </div>

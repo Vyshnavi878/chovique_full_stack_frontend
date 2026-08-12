@@ -12,26 +12,38 @@ import {
   ExternalLink,
   ChevronRight,
 } from 'lucide-react';
+import { useApp } from '../app/providers';
 import { adminService, AdminNotification } from '../services/adminService';
 
 interface NotificationHeaderDropdownProps {
   onNavigateTab: (tab: string, entityId?: string) => void;
+  isSuperadmin?: boolean;
 }
 
 export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProps> = ({
   onNavigateTab,
+  isSuperadmin: isSuperadminProp,
 }) => {
+  const { role } = useApp();
+  const isSuperadmin = isSuperadminProp ?? (role === 'superadmin');
+
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
     try {
-      const res = await adminService.getAdminNotifications({ limit: 6 });
-      setNotifications(res.items);
-      setUnreadCount(res.unread_count);
+      if (isSuperadmin) {
+        const res = await (adminService as any).getSuperadminNotifications({ limit: 6 });
+        setNotifications(res.items || []);
+        setUnreadCount(res.unread_count || 0);
+      } else {
+        const res = await adminService.getAdminNotifications({ limit: 6 });
+        setNotifications(res.items || []);
+        setUnreadCount(res.unread_count || 0);
+      }
     } catch (err) {
       console.error('Failed to fetch notifications header dropdown:', err);
     }
@@ -41,7 +53,7 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 15000); // Polling every 15s
     return () => clearInterval(interval);
-  }, []);
+  }, [isSuperadmin]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -56,7 +68,11 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await adminService.markAllNotificationsAsRead();
+      if (isSuperadmin) {
+        await (adminService as any).markAllSuperadminNotificationsAsRead();
+      } else {
+        await adminService.markAllNotificationsAsRead();
+      }
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (err) {
@@ -64,10 +80,14 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
     }
   };
 
-  const handleNotificationClick = async (notif: AdminNotification) => {
+  const handleNotificationClick = async (notif: any) => {
     if (!notif.is_read) {
       try {
-        await adminService.markNotificationAsRead(notif.id);
+        if (isSuperadmin) {
+          await (adminService as any).markSuperadminNotificationAsRead(notif.id);
+        } else {
+          await adminService.markNotificationAsRead(notif.id);
+        }
         setNotifications((prev) =>
           prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
         );
@@ -78,35 +98,71 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
     }
     setIsOpen(false);
 
-    // Route navigation mapping
-    switch (notif.type) {
-      case 'new_order':
-      case 'payment_failure':
-        onNavigateTab('orders', notif.related_entity_id || undefined);
-        break;
-      case 'low_stock':
-        onNavigateTab('products', notif.related_entity_id || undefined);
-        break;
-      case 'new_customer':
-        onNavigateTab('customers', notif.related_entity_id || undefined);
-        break;
-      case 'coupon_usage':
-        onNavigateTab('coupons', notif.related_entity_id || undefined);
-        break;
-      case 'support_message':
-        onNavigateTab('contact-messages', notif.related_entity_id || undefined);
-        break;
-      case 'reward_adjustment':
-        onNavigateTab('reward-settings', notif.related_entity_id || undefined);
-        break;
-      default:
-        onNavigateTab('notifications');
-        break;
+    if (isSuperadmin) {
+      // Superadmin routing
+      switch (notif.category) {
+        case 'ADMIN_MANAGEMENT':
+          onNavigateTab('admin-mgmt', notif.related_entity_id || undefined);
+          break;
+        case 'PLATFORM_SYSTEM':
+          onNavigateTab('platform-settings', notif.related_entity_id || undefined);
+          break;
+        case 'SECURITY':
+          onNavigateTab('notifications', notif.id);
+          break;
+        case 'BUSINESS':
+          onNavigateTab('revenue', notif.related_entity_id || undefined);
+          break;
+        default:
+          onNavigateTab('notifications');
+          break;
+      }
+    } else {
+      // Route navigation mapping for standard Admin
+      switch (notif.type) {
+        case 'new_order':
+        case 'payment_failure':
+          onNavigateTab('orders', notif.related_entity_id || undefined);
+          break;
+        case 'low_stock':
+          onNavigateTab('products', notif.related_entity_id || undefined);
+          break;
+        case 'new_customer':
+          onNavigateTab('customers', notif.related_entity_id || undefined);
+          break;
+        case 'coupon_usage':
+          onNavigateTab('coupons', notif.related_entity_id || undefined);
+          break;
+        case 'support_message':
+          onNavigateTab('contact-messages', notif.related_entity_id || undefined);
+          break;
+        case 'reward_adjustment':
+          onNavigateTab('reward-settings', notif.related_entity_id || undefined);
+          break;
+        default:
+          onNavigateTab('notifications');
+          break;
+      }
     }
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
+  const getNotificationIcon = (notif: any) => {
+    if (isSuperadmin) {
+      switch (notif.category) {
+        case 'SECURITY':
+          return <AlertCircle size={16} color="#e74c3c" />;
+        case 'ADMIN_MANAGEMENT':
+          return <Users size={16} color="#c9a84c" />;
+        case 'PLATFORM_SYSTEM':
+          return <AlertTriangle size={16} color="#e5c875" />;
+        case 'BUSINESS':
+          return <ShoppingBag size={16} color="#2ecc71" />;
+        default:
+          return <Bell size={16} color="#c9a84c" />;
+      }
+    }
+
+    switch (notif.type) {
       case 'new_order':
         return <ShoppingBag size={16} color="#c9a84c" />;
       case 'low_stock':
@@ -305,7 +361,7 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
                       marginTop: '2px',
                     }}
                   >
-                    {getNotificationIcon(notif.type)}
+                    {getNotificationIcon(notif)}
                   </div>
 
                   {/* Body */}

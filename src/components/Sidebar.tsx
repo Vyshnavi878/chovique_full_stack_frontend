@@ -9,20 +9,16 @@ import {
   Tag,
   Coins,
   Star,
-  FileText,
   Settings,
   Image,
-  LogOut,
   ShieldCheck,
   Palette,
   FileClock,
-  Home,
   Database,
   AlertTriangle,
   Menu,
   X,
   Mail,
-  Video,
   BarChart3,
   Bell
 } from 'lucide-react';
@@ -143,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
           left: 0,
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           padding: '24px 16px',
           zIndex: 110,
           fontFamily: 'var(--font-body)',
@@ -151,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
           transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflow: 'hidden' }}>
           {/* Brand Header & Optional Mobile Close Button */}
           <div
             style={{
@@ -208,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
           </div>
 
           {/* Navigation Items List */}
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflow: 'hidden' }}>
             <span
               style={{
                 fontSize: '0.7rem',
@@ -222,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
             >
               {role} Workspace
             </span>
-            <div style={{ maxHeight: '65vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '4px' }}>
               {items.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -256,58 +252,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
               })}
             </div>
           </nav>
-        </div>
-
-        {/* Footer Controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button
-            onClick={() => {
-              if (isMobile) setIsOpen(false);
-              navigate('/');
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: '4px',
-              fontSize: '0.9rem',
-              color: 'var(--cream)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              textAlign: 'left',
-            }}
-          >
-            <Home size={18} />
-            <span>View Site</span>
-          </button>
-          <button
-            onClick={() => {
-              if (isMobile) setIsOpen(false);
-              if (onRequestLogout) {
-                onRequestLogout();
-              } else {
-                logout();
-                navigate('/');
-              }
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: '4px',
-              fontSize: '0.9rem',
-              color: 'var(--rose-gold)',
-              background: 'transparent',
-              textAlign: 'left',
-              border: '1px solid rgba(183, 110, 121, 0.2)',
-            }}
-          >
-            <LogOut size={18} />
-            <span>Log Out</span>
-          </button>
         </div>
       </div>
     </>

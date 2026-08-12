@@ -29,7 +29,8 @@ import {
   AlertTriangle as AlertIcon,
   RefreshCw,
   ChevronDown,
-  Search
+  Search,
+  Home
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -1474,9 +1475,44 @@ export const AdminDashboard: React.FC = () => {
       {/* Main Admin Content box */}
       <div className="admin-workspace">
         {/* Top-Right Admin Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
           {/* Notification Bell Dropdown */}
           <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} />
+
+          {/* View Home Button */}
+          <button
+            onClick={() => navigate('/')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              height: '42px',
+              padding: '0 16px',
+              borderRadius: '10px',
+              background: 'rgba(20, 16, 13, 0.9)',
+              border: '1px solid rgba(201, 168, 76, 0.3)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              cursor: 'pointer',
+              color: '#f5efe6',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.6)';
+              e.currentTarget.style.background = 'rgba(30, 24, 19, 0.95)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.3)';
+              e.currentTarget.style.background = 'rgba(20, 16, 13, 0.9)';
+            }}
+            title="View Public Site Homepage"
+            aria-label="View Home"
+          >
+            <Home size={18} color="#c9a84c" />
+            <span>View Home</span>
+          </button>
 
           {/* Admin User Profile Dropdown Menu */}
           <AdminUserDropdown onNavigateTab={handleTabNavigation} />

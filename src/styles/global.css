@@ -52,6 +52,24 @@ option {
   color: var(--cream);
 }
 
+/* Custom Date Input Calendar Picker Styling */
+input[type="date"] {
+  color-scheme: dark;
+  position: relative;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(5deg);
+  opacity: 0.9;
+  padding: 2px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
 /* === Utility Classes === */
 .container {
   width: var(--container-width);
