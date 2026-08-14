@@ -532,15 +532,10 @@ export const SuperadminDashboard: React.FC = () => {
   const displayOnlineLedger = onlineLedgerData || defaultOnlineLedger;
   const displayOfflineLedger = offlineLedgerData || defaultOfflineLedger;
 
-  // --- Admin Management Default Fallback ---
+  // --- Admin Management Fallback ---
   const defaultAdminsList: AdminListResponse = {
-    items: [
-      { id: 'usr-1', full_name: 'Vyshnavi', email: 'vyshu@gmail.com', phone: '+91 98765 43210', role: 'superadmin', is_active: true, status: 'active', created_at: '01 Jan 2026', last_login_at: '12 Aug 2026, 10:30 AM' },
-      { id: 'usr-2', full_name: 'Ramesh Kumar', email: 'ramesh@gmail.com', phone: '+91 98765 43211', role: 'admin', is_active: true, status: 'active', created_at: '15 Feb 2026', last_login_at: '11 Aug 2026, 04:15 PM' },
-      { id: 'usr-3', full_name: 'Anitha Singh', email: 'anitha@gmail.com', phone: '+91 98765 43212', role: 'admin', is_active: false, status: 'inactive', created_at: '20 Mar 2026', last_login_at: '05 Aug 2026, 02:20 PM' },
-      { id: 'usr-4', full_name: 'Karthik Reddy', email: 'karthik@gmail.com', phone: '+91 98765 43213', role: 'admin', is_active: true, status: 'active', created_at: '10 Apr 2026', last_login_at: '12 Aug 2026, 09:10 AM' },
-    ],
-    total: 4,
+    items: [],
+    total: 0,
     page: 1,
     limit: 10,
   };
@@ -791,18 +786,10 @@ export const SuperadminDashboard: React.FC = () => {
 
   const displayAdmins = adminsData || defaultAdminsList;
 
-  // --- Audit Logs Default Fallback ---
+  // --- Audit Logs Fallback ---
   const defaultAuditLogsList: SuperadminAuditLogListResponse = {
-    items: [
-      { id: 'log-101', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Login', module: 'System', ip_address: '192.168.1.10', request_method: 'POST', endpoint: '/api/v1/auth/login', status: 'SUCCESS', created_at: '12 Aug 2026, 10:41 AM' },
-      { id: 'log-102', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Updated Product', module: 'Products', entity_type: 'product', entity_id: 'prod-99', ip_address: '192.168.1.10', request_method: 'PUT', endpoint: '/api/v1/products/prod-99', status: 'SUCCESS', created_at: '12 Aug 2026, 10:30 AM' },
-      { id: 'log-103', user_name: 'Ramesh Kumar', user_email: 'ramesh@gmail.com', user_role: 'admin', action: 'Created Coupon', module: 'Coupons', entity_type: 'coupon', entity_id: 'LUX10', ip_address: '192.168.1.12', request_method: 'POST', endpoint: '/api/v1/coupons', status: 'SUCCESS', created_at: '12 Aug 2026, 10:00 AM' },
-      { id: 'log-104', user_name: 'Anitha Singh', user_email: 'anitha@gmail.com', user_role: 'admin', action: 'Updated Order Status', module: 'Orders', entity_type: 'order', entity_id: 'ORD-8802', ip_address: '192.168.1.11', request_method: 'PATCH', endpoint: '/api/v1/orders/ORD-8802/status', status: 'SUCCESS', created_at: '12 Aug 2026, 09:15 AM' },
-      { id: 'log-105', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Changed Settings', module: 'Platform Settings', entity_type: 'setting', entity_id: 'site-config', ip_address: '192.168.1.10', request_method: 'PUT', endpoint: '/api/v1/superadmin/settings', status: 'SUCCESS', created_at: '12 Aug 2026, 08:40 AM' },
-      { id: 'log-106', user_name: 'Ramesh Kumar', user_email: 'ramesh@gmail.com', user_role: 'admin', action: 'Offline Sale Recorded', module: 'Offline Sales', entity_type: 'offline_sale', entity_id: 'RCP-302', ip_address: '192.168.1.12', request_method: 'POST', endpoint: '/api/v1/offline-sales', status: 'SUCCESS', created_at: '12 Aug 2026, 08:00 AM' },
-      { id: 'log-107', user_name: 'Vyshnavi', user_email: 'vyshu@gmail.com', user_role: 'superadmin', action: 'Logout', module: 'System', ip_address: '192.168.1.10', request_method: 'POST', endpoint: '/api/v1/auth/logout', status: 'SUCCESS', created_at: '11 Aug 2026, 06:10 PM' },
-    ],
-    total: 7,
+    items: [],
+    total: 0,
     page: 1,
     limit: 10,
   };

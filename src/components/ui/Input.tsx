@@ -44,6 +44,7 @@ export const Input: React.FC<InputProps> = ({
           }}
         >
           {label}
+          {props.required && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
         </label>
       )}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -150,6 +151,7 @@ export const Select: React.FC<SelectProps> = ({
           }}
         >
           {label}
+          {props.required && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
         </label>
       )}
       <select

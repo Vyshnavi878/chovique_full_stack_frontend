@@ -5,57 +5,65 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useApp } from '../../app/providers';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { authService } from '../../services/authService';
 
 export const LoginPage: React.FC = () => {
   const { login, googleLogin } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // After login, redirect back to where the user came from (e.g. /checkout)
+  // Redirect target after login (e.g. /checkout or /)
   const from = (location.state as { from?: string })?.from || '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+
+  // Field Level Errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      errors.email = 'Email Address is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Client-side validation
-    if (!email.trim()) {
-      setError('Please enter your email address.');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-    const result = await login(email, password);
+    const result = await login(email.trim(), password);
     setIsLoading(false);
 
     if (!result.success) {
-      setError(result.error || 'Login failed. Please check your credentials.');
+      setError(result.error || 'Invalid email or password.');
       return;
     }
 
-    // Redirect based on the role returned directly from the login response
     if (result.role === 'admin') {
       navigate('/admin');
     } else if (result.role === 'superadmin') {
       navigate('/superadmin');
     } else {
-      // Redirect to where the user originally wanted to go, or home
       navigate(from, { replace: true });
     }
   };
@@ -107,7 +115,7 @@ export const LoginPage: React.FC = () => {
                 border: '1px solid #e74c3c',
                 color: '#e74c3c',
                 borderRadius: '4px',
-                padding: '10px',
+                padding: '10px 14px',
                 fontSize: '0.85rem',
                 marginBottom: '20px',
               }}
@@ -121,8 +129,12 @@ export const LoginPage: React.FC = () => {
             type="email"
             placeholder="name@example.com"
             value={email}
+            error={fieldErrors.email}
             onChange={(e) => {
               setEmail(e.target.value);
+              if (fieldErrors.email) {
+                setFieldErrors((prev) => ({ ...prev, email: '' }));
+              }
               if (error) setError('');
             }}
             required
@@ -134,8 +146,12 @@ export const LoginPage: React.FC = () => {
             type="password"
             placeholder="••••••••"
             value={password}
+            error={fieldErrors.password}
             onChange={(e) => {
               setPassword(e.target.value);
+              if (fieldErrors.password) {
+                setFieldErrors((prev) => ({ ...prev, password: '' }));
+              }
               if (error) setError('');
             }}
             required
@@ -209,7 +225,7 @@ export const LoginPage: React.FC = () => {
                 }
               }}
               onError={() => {
-                setError(`Google Sign-In failed: Origin (${window.location.origin}) is not authorized in Google Cloud Console for this Client ID.`);
+                setError(`Google Sign-In failed: Origin (${window.location.origin}) is not authorized in Google Cloud Console.`);
               }}
               theme="filled_black"
               shape="rectangular"

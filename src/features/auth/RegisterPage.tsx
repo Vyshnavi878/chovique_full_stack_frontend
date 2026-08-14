@@ -14,12 +14,15 @@ export const RegisterPage: React.FC = () => {
   // Step state: 'DETAILS' -> 'OTP'
   const [step, setStep] = useState<'DETAILS' | 'OTP'>('DETAILS');
 
-  // Credentials State
+  // Form State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Field Level Error State
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // OTP Verification State
   const [otp, setOtp] = useState('');
@@ -50,8 +53,6 @@ export const RegisterPage: React.FC = () => {
     };
   }, [step, timeLeft]);
 
-
-
   // Password Strength calculation
   const [strengthScore, setStrengthScore] = useState(0);
   const [strengthText, setStrengthText] = useState('');
@@ -70,14 +71,13 @@ export const RegisterPage: React.FC = () => {
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    // Map 0-5 score to 1-4 display segments
     const displayScore = score === 0 ? 0 : score <= 2 ? 1 : score === 3 ? 2 : score === 4 ? 3 : 4;
     setStrengthScore(displayScore);
 
     if (displayScore === 1) setStrengthText('Weak');
     else if (displayScore === 2) setStrengthText('Fair');
     else if (displayScore === 3) setStrengthText('Good');
-    else if (displayScore === 4) setStrengthText('Strong & Luxurious');
+    else if (displayScore === 4) setStrengthText('Strong & Secure');
   }, [password]);
 
   const getStrengthColor = () => {
@@ -88,40 +88,66 @@ export const RegisterPage: React.FC = () => {
     return 'rgba(255,255,255,0.1)';
   };
 
+  // Field validation logic
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    // Name Validation
+    if (!trimmedName) {
+      errors.name = 'Full Name is required.';
+    } else if (trimmedName.length < 2) {
+      errors.name = 'Full Name must be at least 2 characters long.';
+    } else if (!/[a-zA-Z]/.test(trimmedName)) {
+      errors.name = 'Full Name must contain valid letters.';
+    }
+
+    // Email Validation
+    if (!trimmedEmail) {
+      errors.email = 'Email Address is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+
+    // Password Validation
+    if (!password) {
+      errors.password = 'Password is required.';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters long.';
+    } else if (!/[A-Z]/.test(password)) {
+      errors.password = 'Password must include at least one uppercase letter (A-Z).';
+    } else if (!/[a-z]/.test(password)) {
+      errors.password = 'Password must include at least one lowercase letter (a-z).';
+    } else if (!/[0-9]/.test(password)) {
+      errors.password = 'Password must include at least one number (0-9).';
+    } else if (!/[^A-Za-z0-9]/.test(password)) {
+      errors.password = 'Password must include at least one special character (!@#$%^&*).';
+    }
+
+    // Confirm Password Validation
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Confirm Password is required.';
+    } else if (confirmPassword !== password) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    // Terms Acceptance Validation
+    if (!termsAccepted) {
+      errors.terms = 'You must accept the Terms of Service & Privacy Policy to register.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // Phase 1 Submit: Validate & Send OTP via SMTP
   const handleSendOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessInfo('');
 
-    if (name.trim().length < 2) {
-      setError('Please enter your full name (at least 2 characters).');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    const PASSWORD_REGEX = {
-      minLength: password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      digit: /[0-9]/.test(password),
-      special: /[^A-Za-z0-9]/.test(password),
-    };
-    const isPasswordValid = Object.values(PASSWORD_REGEX).every(Boolean);
-    if (!isPasswordValid) {
-      setError(
-        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, one number, and one special character.'
-      );
-      return;
-    }
-    if (confirmPassword !== password) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (!termsAccepted) {
-      setError('You must accept the Terms and Conditions.');
+    if (!validateForm()) {
       return;
     }
 
@@ -135,9 +161,14 @@ export const RegisterPage: React.FC = () => {
       });
       setStep('OTP');
       setTimeLeft(response.expires_in || 30);
-      setSuccessInfo(`6-digit OTP sent to ${email.trim()}`);
+      setSuccessInfo(`6-digit OTP sent successfully to ${email.trim()}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send OTP. Please try again.';
+      let msg = 'Failed to send OTP. Please try again.';
+      if (err instanceof ApiError) {
+        msg = err.detail;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -155,8 +186,13 @@ export const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (!/^\d{6}$/.test(otp.trim())) {
-      setError('Please enter a valid 6-digit numerical OTP code.');
+    const trimmedOtp = otp.trim();
+    if (!trimmedOtp) {
+      setError('OTP is required.');
+      return;
+    }
+    if (!/^\d{6}$/.test(trimmedOtp)) {
+      setError('Please enter a valid 6-digit numeric OTP code.');
       return;
     }
     if (timeLeft === 0) {
@@ -165,11 +201,11 @@ export const RegisterPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    const result = await verifyOtp(email.trim(), otp.trim(), name.trim(), password);
+    const result = await verifyOtp(email.trim(), trimmedOtp, name.trim(), password);
     setIsLoading(false);
 
     if (!result.success) {
-      const errorMsg = result.error || 'Invalid or expired OTP. Please try again.';
+      const errorMsg = result.error || 'Incorrect OTP. Please try again.';
       if (result.status === 429 || errorMsg.includes('maximum number of OTP verification attempts')) {
         setIsVerificationLocked(true);
       }
@@ -190,7 +226,7 @@ export const RegisterPage: React.FC = () => {
       const response = await authService.resendOtp(email.trim());
       setTimeLeft(response.expires_in || 30);
       setOtp('');
-      setSuccessInfo(`Fresh OTP code sent to ${email.trim()}`);
+      setSuccessInfo('OTP has been resent successfully.');
     } catch (err: unknown) {
       let msg = 'Failed to resend OTP.';
       if (err instanceof ApiError) {
@@ -221,6 +257,7 @@ export const RegisterPage: React.FC = () => {
               setStep('DETAILS');
               setError('');
               setSuccessInfo('');
+              setFieldErrors({});
             }}
             className="back-to-store-link"
             style={{ background: 'none', border: 'none', cursor: 'pointer' }}
@@ -294,10 +331,14 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleSendOtpSubmit} noValidate>
             <Input
               label="Full Name"
-              placeholder="Your Name"
+              placeholder="Your Full Name"
               value={name}
+              error={fieldErrors.name}
               onChange={(e) => {
                 setName(e.target.value);
+                if (fieldErrors.name) {
+                  setFieldErrors((prev) => ({ ...prev, name: '' }));
+                }
                 if (error) setError('');
               }}
               required
@@ -309,8 +350,12 @@ export const RegisterPage: React.FC = () => {
               type="email"
               placeholder="name@example.com"
               value={email}
+              error={fieldErrors.email}
               onChange={(e) => {
                 setEmail(e.target.value);
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => ({ ...prev, email: '' }));
+                }
                 if (error) setError('');
               }}
               required
@@ -322,8 +367,12 @@ export const RegisterPage: React.FC = () => {
               type="password"
               placeholder="••••••••"
               value={password}
+              error={fieldErrors.password}
               onChange={(e) => {
                 setPassword(e.target.value);
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: '' }));
+                }
                 if (error) setError('');
               }}
               required
@@ -335,55 +384,76 @@ export const RegisterPage: React.FC = () => {
               type="password"
               placeholder="••••••••"
               value={confirmPassword}
+              error={fieldErrors.confirmPassword}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+                }
                 if (error) setError('');
               }}
               required
               autoComplete="new-password"
             />
 
-            {/* Password Strength UI */}
-            {password.length > 0 && (
-              <div style={{ marginBottom: '20px' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '0.75rem',
-                    color: 'var(--beige)',
-                    marginBottom: '6px',
-                  }}
-                >
-                  <span>Password Strength</span>
-                  <span style={{ color: getStrengthColor(), fontWeight: 600 }}>{strengthText}</span>
+            {/* Password Strength Indicator & Rules */}
+            <div style={{ marginBottom: '16px', marginTop: '-6px' }}>
+              {password.length > 0 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.75rem',
+                      color: 'var(--beige)',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    <span>Password Strength</span>
+                    <span style={{ color: getStrengthColor(), fontWeight: 600 }}>{strengthText}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="strength-bar-segment"
+                        style={{
+                          background: idx < strengthScore ? getStrengthColor() : undefined,
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {Array.from({ length: 4 }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="strength-bar-segment"
-                      style={{
-                        background: idx < strengthScore ? getStrengthColor() : undefined,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+              <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>
+                Must be at least 8 characters with uppercase (A-Z), lowercase (a-z), number (0-9), and special character.
+              </p>
+            </div>
 
-            <div className="form-checkbox-row" style={{ justifyContent: 'flex-start' }}>
-              <label className="checkbox-label">
+            <div className="form-checkbox-row" style={{ justifyContent: 'flex-start', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="checkbox"
                   checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  onChange={(e) => {
+                    setTermsAccepted(e.target.checked);
+                    if (fieldErrors.terms) {
+                      setFieldErrors((prev) => ({ ...prev, terms: '' }));
+                    }
+                    if (error) setError('');
+                  }}
                 />
                 <span style={{ fontSize: '0.82rem' }}>
                   I accept the <a href="#" style={{ color: 'var(--gold)' }}>Terms of Service</a> &{' '}
                   <a href="#" style={{ color: 'var(--gold)' }}>Privacy Policy</a>
+                  <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>
                 </span>
               </label>
+              {fieldErrors.terms && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', marginTop: '2px' }}>
+                  {fieldErrors.terms}
+                </span>
+              )}
             </div>
 
             <Button
@@ -393,7 +463,7 @@ export const RegisterPage: React.FC = () => {
               type="submit"
               glow
               disabled={isLoading}
-              style={{ gap: '10px' }}
+              style={{ gap: '10px', marginTop: '16px' }}
             >
               {isLoading ? (
                 <>

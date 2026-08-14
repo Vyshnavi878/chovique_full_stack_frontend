@@ -21,6 +21,9 @@ export const ForgotPasswordPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Field level error state
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   // Lock States for Attempt/Resend limits
   const [isVerificationLocked, setIsVerificationLocked] = useState(false);
   const [isResendLocked, setIsResendLocked] = useState(false);
@@ -59,22 +62,21 @@ export const ForgotPasswordPage: React.FC = () => {
       setStrengthText('');
       return;
     }
-    if (newPassword.length < 6) {
-      setStrengthScore(1);
-      setStrengthText('Weak');
-      return;
-    }
 
-    let score = 1;
+    let score = 0;
+    if (newPassword.length >= 8) score++;
     if (/[A-Z]/.test(newPassword)) score++;
+    if (/[a-z]/.test(newPassword)) score++;
     if (/[0-9]/.test(newPassword)) score++;
     if (/[^A-Za-z0-9]/.test(newPassword)) score++;
 
-    setStrengthScore(score);
+    const displayScore = score === 0 ? 0 : score <= 2 ? 1 : score === 3 ? 2 : score === 4 ? 3 : 4;
+    setStrengthScore(displayScore);
 
-    if (score === 2) setStrengthText('Fair');
-    else if (score === 3) setStrengthText('Good');
-    else if (score === 4) setStrengthText('Strong & Secure');
+    if (displayScore === 1) setStrengthText('Weak');
+    else if (displayScore === 2) setStrengthText('Fair');
+    else if (displayScore === 3) setStrengthText('Good');
+    else if (displayScore === 4) setStrengthText('Strong & Secure');
   }, [newPassword]);
 
   const getStrengthColor = () => {
@@ -85,21 +87,70 @@ export const ForgotPasswordPage: React.FC = () => {
     return 'rgba(255,255,255,0.1)';
   };
 
+  // Step 1 Validation: Email
+  const validateEmailForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      errors.email = 'Registered Email Address is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Step 2 Validation: OTP & Reset Password
+  const validateResetForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const trimmedOtp = otp.trim();
+
+    if (!trimmedOtp) {
+      errors.otp = 'Verification code (OTP) is required.';
+    } else if (!/^\d{6}$/.test(trimmedOtp)) {
+      errors.otp = 'Please enter a valid 6-digit numeric OTP code.';
+    }
+
+    if (!newPassword) {
+      errors.newPassword = 'New Password is required.';
+    } else if (newPassword.length < 8) {
+      errors.newPassword = 'New Password must be at least 8 characters long.';
+    } else if (!/[A-Z]/.test(newPassword)) {
+      errors.newPassword = 'New Password must include at least one uppercase letter (A-Z).';
+    } else if (!/[a-z]/.test(newPassword)) {
+      errors.newPassword = 'New Password must include at least one lowercase letter (a-z).';
+    } else if (!/[0-9]/.test(newPassword)) {
+      errors.newPassword = 'New Password must include at least one number (0-9).';
+    } else if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      errors.newPassword = 'New Password must include at least one special character (!@#$%^&*).';
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password.';
+    } else if (confirmPassword !== newPassword) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // Step 1: Send Forgot Password OTP
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessInfo('');
 
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter a valid registered email address.');
+    if (!validateEmailForm()) {
       return;
     }
 
     setIsLoading(true);
     try {
       const res = await authService.forgotPassword(email.trim());
-      setSuccessInfo(res.message || 'OTP sent successfully to your email.');
+      setSuccessInfo(res.message || 'If an account exists for this email, an OTP has been sent.');
       setStep('RESET');
       setTimeLeft(30);
     } catch (err: unknown) {
@@ -127,8 +178,8 @@ export const ForgotPasswordPage: React.FC = () => {
     setError('');
     setIsResending(true);
     try {
-      const res = await authService.resendForgotOtp(email);
-      setSuccessInfo(res.message || 'A new 6-digit OTP code has been sent to your email.');
+      const res = await authService.resendForgotOtp(email.trim());
+      setSuccessInfo(res.message || 'OTP has been resent successfully.');
       setTimeLeft(30);
     } catch (err: unknown) {
       let msg = 'Failed to resend OTP.';
@@ -158,22 +209,19 @@ export const ForgotPasswordPage: React.FC = () => {
       setError('You have reached the maximum number of OTP verification attempts. Please try again later.');
       return;
     }
-    if (!otp.trim() || otp.trim().length < 4) {
-      setError('Please enter the verification code sent to your email.');
+
+    if (!validateResetForm()) {
       return;
     }
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters long.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+
+    if (timeLeft === 0) {
+      setError('OTP has expired. Please click "Resend Code" to request a new OTP.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await authService.resetPassword(email, otp.trim(), newPassword, confirmPassword);
+      await authService.resetPassword(email.trim(), otp.trim(), newPassword, confirmPassword);
       setStep('SUCCESS');
     } catch (err: unknown) {
       let msg = 'Password reset failed. Please check your OTP.';
@@ -289,8 +337,12 @@ export const ForgotPasswordPage: React.FC = () => {
               type="email"
               placeholder="connoisseur@chovique.com"
               value={email}
+              error={fieldErrors.email}
               onChange={(e) => {
                 setEmail(e.target.value);
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => ({ ...prev, email: '' }));
+                }
                 if (error) setError('');
               }}
               required
@@ -375,9 +427,14 @@ export const ForgotPasswordPage: React.FC = () => {
               placeholder="123456"
               maxLength={6}
               value={otp}
+              error={fieldErrors.otp}
               disabled={isVerificationLocked}
               onChange={(e) => {
-                setOtp(e.target.value.trim());
+                const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setOtp(cleaned);
+                if (fieldErrors.otp) {
+                  setFieldErrors((prev) => ({ ...prev, otp: '' }));
+                }
                 if (error) setError('');
               }}
               required
@@ -426,51 +483,65 @@ export const ForgotPasswordPage: React.FC = () => {
             <Input
               label="New Password"
               type="password"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               value={newPassword}
+              error={fieldErrors.newPassword}
               disabled={isVerificationLocked}
               onChange={(e) => {
                 setNewPassword(e.target.value);
+                if (fieldErrors.newPassword) {
+                  setFieldErrors((prev) => ({ ...prev, newPassword: '' }));
+                }
                 if (error) setError('');
               }}
               required
               autoComplete="new-password"
             />
 
-            {newPassword.length > 0 && (
-              <div style={{ marginBottom: '16px', marginTop: '-8px' }}>
-                <div
-                  style={{
-                    height: '4px',
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '2px',
-                    overflow: 'hidden',
-                  }}
-                >
+            {/* Password Strength Meter */}
+            <div style={{ marginBottom: '16px', marginTop: '-6px' }}>
+              {newPassword.length > 0 && (
+                <div style={{ marginBottom: '6px' }}>
                   <div
                     style={{
-                      height: '100%',
-                      width: `${(strengthScore / 4) * 100}%`,
-                      background: getStrengthColor(),
-                      transition: 'all 0.3s ease',
+                      height: '4px',
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.1)',
+                      borderRadius: '2px',
+                      overflow: 'hidden',
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${(strengthScore / 4) * 100}%`,
+                        background: getStrengthColor(),
+                        transition: 'all 0.3s ease',
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: '0.73rem', color: getStrengthColor(), marginTop: '4px', display: 'block' }}>
+                    Password Strength: {strengthText}
+                  </span>
                 </div>
-                <span style={{ fontSize: '0.73rem', color: getStrengthColor(), marginTop: '4px', display: 'block' }}>
-                  Password Strength: {strengthText}
-                </span>
-              </div>
-            )}
+              )}
+              <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>
+                Must be at least 8 characters with uppercase (A-Z), lowercase (a-z), number (0-9), and special character.
+              </p>
+            </div>
 
             <Input
               label="Confirm New Password"
               type="password"
               placeholder="Re-enter your new password"
               value={confirmPassword}
+              error={fieldErrors.confirmPassword}
               disabled={isVerificationLocked}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+                }
                 if (error) setError('');
               }}
               required

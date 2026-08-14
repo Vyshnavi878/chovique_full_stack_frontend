@@ -15,6 +15,7 @@ export const SetPasswordPage: React.FC = () => {
 
   const [password, setPasswordState] = useState('');
   const [confirmPassword, setConfirmPasswordState] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,22 +30,21 @@ export const SetPasswordPage: React.FC = () => {
       setStrengthText('');
       return;
     }
-    if (password.length < 6) {
-      setStrengthScore(1);
-      setStrengthText('Weak');
-      return;
-    }
 
-    let score = 1;
+    let score = 0;
+    if (password.length >= 8) score++;
     if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    setStrengthScore(score);
+    const displayScore = score === 0 ? 0 : score <= 2 ? 1 : score === 3 ? 2 : score === 4 ? 3 : 4;
+    setStrengthScore(displayScore);
 
-    if (score === 2) setStrengthText('Fair');
-    else if (score === 3) setStrengthText('Good');
-    else if (score === 4) setStrengthText('Strong & Secure');
+    if (displayScore === 1) setStrengthText('Weak');
+    else if (displayScore === 2) setStrengthText('Fair');
+    else if (displayScore === 3) setStrengthText('Good');
+    else if (displayScore === 4) setStrengthText('Strong & Secure');
   }, [password]);
 
   const getStrengthColor = () => {
@@ -55,16 +55,38 @@ export const SetPasswordPage: React.FC = () => {
     return 'rgba(255,255,255,0.1)';
   };
 
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!password) {
+      errors.password = 'New Password is required.';
+    } else if (password.length < 8) {
+      errors.password = 'New Password must be at least 8 characters long.';
+    } else if (!/[A-Z]/.test(password)) {
+      errors.password = 'New Password must include at least one uppercase letter (A-Z).';
+    } else if (!/[a-z]/.test(password)) {
+      errors.password = 'New Password must include at least one lowercase letter (a-z).';
+    } else if (!/[0-9]/.test(password)) {
+      errors.password = 'New Password must include at least one number (0-9).';
+    } else if (!/[^A-Za-z0-9]/.test(password)) {
+      errors.password = 'New Password must include at least one special character (!@#$%^&*).';
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password.';
+    } else if (confirmPassword !== password) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (!validateForm()) {
       return;
     }
 
@@ -159,56 +181,70 @@ export const SetPasswordPage: React.FC = () => {
             <Input
               label="New Password"
               type="password"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               value={password}
+              error={fieldErrors.password}
               onChange={(e) => {
                 setPasswordState(e.target.value);
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: '' }));
+                }
                 if (error) setError('');
               }}
               required
               autoComplete="new-password"
             />
 
-            {password.length > 0 && (
-              <div style={{ marginBottom: '16px', marginTop: '-8px' }}>
-                <div
-                  style={{
-                    height: '4px',
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '2px',
-                    overflow: 'hidden',
-                  }}
-                >
+            {/* Password Strength Meter */}
+            <div style={{ marginBottom: '16px', marginTop: '-6px' }}>
+              {password.length > 0 && (
+                <div style={{ marginBottom: '6px' }}>
                   <div
                     style={{
-                      height: '100%',
-                      width: `${(strengthScore / 4) * 100}%`,
-                      background: getStrengthColor(),
-                      transition: 'all 0.3s ease',
+                      height: '4px',
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.1)',
+                      borderRadius: '2px',
+                      overflow: 'hidden',
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${(strengthScore / 4) * 100}%`,
+                        background: getStrengthColor(),
+                        transition: 'all 0.3s ease',
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.73rem',
+                      color: getStrengthColor(),
+                      marginTop: '4px',
+                      display: 'block',
+                    }}
+                  >
+                    Password Strength: {strengthText}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    fontSize: '0.73rem',
-                    color: getStrengthColor(),
-                    marginTop: '4px',
-                    display: 'block',
-                  }}
-                >
-                  Password Strength: {strengthText}
-                </span>
-              </div>
-            )}
+              )}
+              <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>
+                Must be at least 8 characters with uppercase (A-Z), lowercase (a-z), number (0-9), and special character.
+              </p>
+            </div>
 
             <Input
               label="Confirm New Password"
               type="password"
               placeholder="Re-enter your new password"
               value={confirmPassword}
+              error={fieldErrors.confirmPassword}
               onChange={(e) => {
                 setConfirmPasswordState(e.target.value);
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+                }
                 if (error) setError('');
               }}
               required

@@ -30,9 +30,11 @@ import {
   Truck,
   Package,
   Clock,
-  PackageCheck
+  PackageCheck,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { pageTransition } from '../../lib/framer';
@@ -100,6 +102,24 @@ export const CustomerDashboard: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
+  };
 
   const handleCopyCouponCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -218,6 +238,11 @@ export const CustomerDashboard: React.FC = () => {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const [imgLoadError, setImgLoadError] = useState(false);
+
+  useEffect(() => {
+    setImgLoadError(false);
+  }, [avatarPreviewUrl, user?.profile?.avatarUrl, (user?.profile as any)?.avatar_url]);
 
   // --- Profile save state ---
   const [isProfileSaving, setIsProfileSaving] = useState(false);
@@ -748,6 +773,34 @@ export const CustomerDashboard: React.FC = () => {
               })}
             </div>
           ))}
+
+          {/* Session & Logout Group */}
+          <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(201, 168, 76, 0.2)' }}>
+            <div className="sidebar-group-title" style={{ marginTop: 0 }}>SESSION</div>
+            <button
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleLogoutClick();
+              }}
+              className="dashboard-menu-btn"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                color: '#ff4d4f',
+                background: 'rgba(255, 77, 79, 0.08)',
+                border: '1px solid rgba(255, 77, 79, 0.25)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <LogOut size={18} />
+              <span style={{ fontWeight: 600 }}>Log Out</span>
+            </button>
+          </div>
         </aside>
 
         {/* Right Main Content Workspace Panel */}
@@ -1173,38 +1226,46 @@ export const CustomerDashboard: React.FC = () => {
                       Profile Image
                     </span>
 
-                    {avatarPreviewUrl || user.profile.avatarUrl ? (
-                      <img
-                        src={avatarPreviewUrl || user.profile.avatarUrl!}
-                        alt="Profile Preview"
-                        style={{
-                          width: '120px',
-                          height: '120px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '2px solid #c9a84c',
-                          boxShadow: '0 0 20px rgba(201, 168, 76, 0.3)',
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: '120px',
-                          height: '120px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
-                          color: '#0f0c0a',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '2.5rem',
-                          fontWeight: 800,
-                          boxShadow: '0 0 20px rgba(201, 168, 76, 0.35)',
-                        }}
-                      >
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    {(() => {
+                      const profileAvatarRaw = avatarPreviewUrl || user.profile.avatarUrl || (user.profile as any)?.avatar_url;
+                      const formattedAvatarUrl = profileAvatarRaw && !profileAvatarRaw.startsWith('http') && !profileAvatarRaw.startsWith('data:')
+                        ? profileAvatarRaw.startsWith('/') ? `${BASE_URL}${profileAvatarRaw}` : `${BASE_URL}/${profileAvatarRaw}`
+                        : profileAvatarRaw;
+
+                      return formattedAvatarUrl && !imgLoadError ? (
+                        <img
+                          src={formattedAvatarUrl}
+                          alt="Profile Preview"
+                          onError={() => setImgLoadError(true)}
+                          style={{
+                            width: '120px',
+                            height: '120px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #c9a84c',
+                            boxShadow: '0 0 20px rgba(201, 168, 76, 0.3)',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '120px',
+                            height: '120px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                            color: '#0f0c0a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '2.5rem',
+                            fontWeight: 800,
+                            boxShadow: '0 0 20px rgba(201, 168, 76, 0.35)',
+                          }}
+                        >
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    })()}
 
                     <input
                       type="file"
@@ -3964,6 +4025,32 @@ export const CustomerDashboard: React.FC = () => {
                     </button>
                   </div>
                  </form>
+
+                 {/* Session Management & Logout Block */}
+                 <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                   <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#f5efe6', marginBottom: '8px' }}>
+                     Session Management
+                   </h4>
+                   <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                     Log out of your current customer session on this device.
+                   </p>
+                   <Button
+                     variant="secondary"
+                     type="button"
+                     onClick={handleLogoutClick}
+                     style={{
+                       borderColor: 'rgba(255, 77, 79, 0.4)',
+                       color: '#ff4d4f',
+                       background: 'rgba(255, 77, 79, 0.08)',
+                       display: 'inline-flex',
+                       alignItems: 'center',
+                       gap: '8px',
+                     }}
+                   >
+                     <LogOut size={16} />
+                     <span>Log Out of Account</span>
+                   </Button>
+                 </div>
               </div>
             )}
 
@@ -4184,6 +4271,19 @@ export const CustomerDashboard: React.FC = () => {
             )}
           </main>
         </div>
+
+        {/* Logout Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showLogoutModal}
+          title="Confirm Logout"
+          message="Are you sure you want to log out of your account?"
+          confirmText={isLoggingOut ? 'Logging out...' : 'Log Out'}
+          cancelText="Cancel"
+          isConfirming={isLoggingOut}
+          variant="danger"
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
     </motion.div>
   );
 };

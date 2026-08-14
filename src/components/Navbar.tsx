@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, User, LogOut, ChevronDown, Menu, X, Bell } from 'lucide-react';
 import { useApp } from '../app/providers';
 import { Button } from './ui/Button';
+import { BASE_URL } from '../lib/api';
 
 export const Navbar: React.FC = () => {
   const { role, cart, wishlist, logout, user, notifications, removeNotification } = useApp();
@@ -14,7 +15,23 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isProfileHovered, setIsProfileHovered] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  const rawAvatar = user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
+
+  const getAvatarSrc = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    return url.startsWith('/') ? `${BASE_URL}${url}` : `${BASE_URL}/${url}`;
+  };
+
+  const avatarSrc = rawAvatar ? getAvatarSrc(rawAvatar) : '';
 
   // Close notifications and mobile menu on page/section navigation
   useEffect(() => {
@@ -286,10 +303,11 @@ export const Navbar: React.FC = () => {
                     padding: 0,
                   }}
                 >
-                  {user?.profile?.avatarUrl ? (
+                  {avatarSrc && !avatarError ? (
                     <img
-                      src={user.profile.avatarUrl}
+                      src={avatarSrc}
                       alt={user.name}
+                      onError={() => setAvatarError(true)}
                       style={{
                         width: '28px',
                         height: '28px',
