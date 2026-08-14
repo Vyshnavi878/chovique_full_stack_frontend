@@ -76,8 +76,10 @@ export const AdminProfileView: React.FC = () => {
     }
     if (field === 'phone') {
       if (!val) return 'Phone Number is required.';
-      const digits = val.replace(/\D/g, '');
-      if (digits.length < 7 || digits.length > 15) return 'Please enter a valid phone number (7–15 digits).';
+      const indianPhoneRegex = /^[6-9][0-9]{9}$/;
+      if (!indianPhoneRegex.test(val)) {
+        return 'Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+      }
     }
     if (field === 'address') {
       if (!val) return 'Address is required.';
@@ -132,6 +134,10 @@ export const AdminProfileView: React.FC = () => {
       });
 
       setProfile(updated);
+      setFullName(updated.full_name || '');
+      setEmail(updated.email || '');
+      setPhone(updated.phone || '');
+      setAddress(updated.address || '');
       setSuccessMsg('Profile updated successfully!');
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {

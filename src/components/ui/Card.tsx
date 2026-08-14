@@ -18,6 +18,8 @@ export const Card: React.FC<CardProps> = ({ product }) => {
 
   const isLiked = wishlist.some((p) => p.id === product.id);
   const cartItem = cart.find((item) => item.product.id === product.id);
+  const stockQty = product.stock ?? 0;
+  const isOutOfStock = (product.is_available === false) || stockQty <= 0;
 
   const primaryImg = getImageUrl(product.image);
   const hoverImg = product.hoverImage ? getImageUrl(product.hoverImage) : null;
@@ -61,15 +63,6 @@ export const Card: React.FC<CardProps> = ({ product }) => {
     }
   };
 
-  const handleCartClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (cartItem) {
-      navigate('/cart');
-    } else {
-      addToCart(product, 1);
-    }
-  };
-
   return (
     <motion.div
       variants={hoverLift}
@@ -101,12 +94,13 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             objectFit: 'cover',
             objectPosition: 'center center',
             transition: 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease',
-            opacity: isHovered && hasHover ? 0 : 1,
+            opacity: isHovered && hasHover && !isOutOfStock ? 0 : 1,
             transform: isHovered ? 'scale(1.06)' : 'scale(1)',
+            filter: isOutOfStock ? 'brightness(0.7)' : 'none',
           }}
           className="product-card-img-element"
         />
-        {hasHover && hoverImg && (
+        {hasHover && hoverImg && !isOutOfStock && (
           <img
             src={hoverImg}
             alt={`${product.name} alternate view`}
@@ -125,6 +119,38 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             }}
           />
         )}
+
+        {/* OUT OF STOCK OVERLAY */}
+        {isOutOfStock && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.55)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 3,
+            }}
+          >
+            <span
+              style={{
+                background: 'rgba(217, 83, 79, 0.95)',
+                color: '#ffffff',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '1.5px',
+                padding: '6px 14px',
+                borderRadius: '3px',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+              }}
+            >
+              OUT OF STOCK
+            </span>
+          </div>
+        )}
         
         {/* Overlay Action Buttons */}
         <div
@@ -136,7 +162,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            zIndex: 2,
+            zIndex: 4,
           }}
         >
           <button
@@ -174,7 +200,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
               letterSpacing: '1px',
               padding: '4px 10px',
               borderRadius: '2px',
-              zIndex: 2,
+              zIndex: 4,
             }}
           >
             {product.badge}
@@ -260,23 +286,41 @@ export const Card: React.FC<CardProps> = ({ product }) => {
                 </span>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-              {(product.ratingsCount || (product as any).ratings_count) ? (
-                <>
-                  <span style={{ color: 'var(--gold)' }}>★</span>
-                  <span style={{ color: 'var(--cream)', fontWeight: 600 }}>{product.rating}</span>
-                  <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem' }}>({product.ratingsCount || (product as any).ratings_count})</span>
-                </>
-              ) : (
-                <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                  No reviews yet
-                </span>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--gold)' }}>★</span>
+              <span style={{ color: 'var(--cream)', fontWeight: 600 }}>
+                {product.rating !== undefined && product.rating !== null ? Number(product.rating).toFixed(1) : '0.0'}
+              </span>
             </div>
           </div>
 
         <div style={{ marginTop: '16px' }}>
-          {cartItem ? (
+          {isOutOfStock ? (
+            <button
+              disabled
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                padding: '8px 0',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'rgba(255, 255, 255, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                cursor: 'not-allowed',
+              }}
+            >
+              <ShoppingBag size={14} />
+              OUT OF STOCK
+            </button>
+          ) : cartItem ? (
             <div
               style={{
                 width: '100%',
@@ -316,15 +360,18 @@ export const Card: React.FC<CardProps> = ({ product }) => {
                 {cartItem.quantity}
               </span>
               <button
+                disabled={cartItem.quantity >= stockQty}
                 onClick={(e) => {
                   e.stopPropagation();
-                  updateCartQuantity(product.id, cartItem.quantity + 1);
+                  if (cartItem.quantity < stockQty) {
+                    updateCartQuantity(product.id, cartItem.quantity + 1);
+                  }
                 }}
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--gold)',
-                  cursor: 'pointer',
+                  color: cartItem.quantity >= stockQty ? 'rgba(255,255,255,0.3)' : 'var(--gold)',
+                  cursor: cartItem.quantity >= stockQty ? 'not-allowed' : 'pointer',
                   padding: '4px',
                   display: 'flex',
                   alignItems: 'center',

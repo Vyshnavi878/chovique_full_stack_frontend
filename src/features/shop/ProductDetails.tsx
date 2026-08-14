@@ -9,12 +9,12 @@ import { pageTransition } from '../../lib/framer';
 
 import { getImageUrl } from '../../utils/imageUrl';
 
-type TabType = 'description' | 'ingredients' | 'nutrition';
+type TabType = 'description' | 'ingredients' | 'nutrition' | 'reviews';
 
 export const ProductDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, cart, addToCart, updateCartQuantity, removeFromCart, wishlist, toggleWishlist, role } = useApp();
+  const { products, cart, addToCart, updateCartQuantity, removeFromCart, wishlist, toggleWishlist, role, user } = useApp();
 
   const [product, setProduct] = useState(products.find((p) => p.id === id));
   const [activeTab, setActiveTab] = useState<TabType>('description');
@@ -239,10 +239,7 @@ export const ProductDetails: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--gold)' }}>
                   <Star size={16} fill="currentColor" />
                   <span style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.95rem' }}>
-                    {product.rating}
-                  </span>
-                  <span style={{ color: 'var(--grey-light)', fontSize: '0.9rem' }}>
-                    ({product.ratingsCount} reviews)
+                    {product.rating !== undefined && product.rating !== null ? Number(product.rating).toFixed(1) : '0.0'}
                   </span>
                 </div>
                 <span style={{ color: 'var(--glass-border)' }}>|</span>
@@ -328,14 +325,21 @@ export const ProductDetails: React.FC = () => {
                   variant={inCart ? "secondary" : "gold"} 
                   size="lg" 
                   fullWidth 
+                  disabled={product?.is_available === false || (product?.stock ?? 0) <= 0}
                   onClick={() => inCart ? navigate('/cart') : handleAddToCart()} 
-                  glow={!inCart}
+                  glow={!inCart && product?.is_available !== false && (product?.stock ?? 0) > 0}
                 >
                   <ShoppingBag size={18} />
-                  {inCart ? 'Go to Cart' : 'Add to Cart'}
+                  {product?.is_available === false || (product?.stock ?? 0) <= 0 ? 'OUT OF STOCK' : (inCart ? 'Go to Cart' : 'Add to Cart')}
                 </Button>
-                <Button variant="glass" size="lg" fullWidth onClick={handleBuyNow}>
-                  Buy Now
+                <Button 
+                  variant="glass" 
+                  size="lg" 
+                  fullWidth 
+                  disabled={product?.is_available === false || (product?.stock ?? 0) <= 0}
+                  onClick={handleBuyNow}
+                >
+                  {product?.is_available === false || (product?.stock ?? 0) <= 0 ? 'UNAVAILABLE' : 'Buy Now'}
                 </Button>
               </div>
 
@@ -369,7 +373,7 @@ export const ProductDetails: React.FC = () => {
         {/* Collapsible Tabs details */}
         <div>
           <div className="details-tabs-header">
-            {(['description', 'ingredients', 'nutrition'] as TabType[]).map((tab) => (
+            {(['description', 'ingredients', 'nutrition', 'reviews'] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -432,6 +436,16 @@ export const ProductDetails: React.FC = () => {
                 ))}
               </div>
             )}
+
+            {activeTab === 'reviews' && (
+              <ReviewsTabSection
+                productId={product.id}
+                user={user}
+                role={role}
+                onReviewAdded={() => {}}
+                productRating={product.rating}
+              />
+            )}
           </div>
         </div>
 
@@ -473,9 +487,10 @@ interface ReviewsTabSectionProps {
   user: any;
   role: string;
   onReviewAdded: () => void;
+  productRating?: number;
 }
 
-const ReviewsTabSection: React.FC<ReviewsTabSectionProps> = ({ productId, user, role, onReviewAdded }) => {
+const ReviewsTabSection: React.FC<ReviewsTabSectionProps> = ({ productId, user, role, onReviewAdded, productRating = 0 }) => {
   const navigate = useNavigate();
   const [reviewsData, setReviewsData] = useState<{
     reviews: any[];
@@ -580,7 +595,7 @@ const ReviewsTabSection: React.FC<ReviewsTabSectionProps> = ({ productId, user, 
             ))}
           </div>
           <span style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>
-            {total_reviews > 0 ? `Based on ${total_reviews} review${total_reviews > 1 ? 's' : ''}` : 'No reviews yet'}
+            {total_reviews > 0 ? `Based on ${total_reviews} review${total_reviews > 1 ? 's' : ''}` : `Product Rating: ${(productRating ?? 0).toFixed(1)} ★`}
           </span>
         </div>
 

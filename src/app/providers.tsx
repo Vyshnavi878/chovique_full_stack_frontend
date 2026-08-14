@@ -589,6 +589,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ---------------------------------------------------------------------------
 
   const addToCart = useCallback(async (product: Product, quantity: number): Promise<void> => {
+    const stockQty = product.stock ?? 0;
+    if (stockQty <= 0) {
+      alert(`"${product.name}" is currently out of stock.`);
+      return;
+    }
     // Optimistic update
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);

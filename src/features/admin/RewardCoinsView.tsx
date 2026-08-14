@@ -28,33 +28,6 @@ const DEFAULT_SETTINGS: RewardSettings = {
   max_redemption_percentage: 20,
 };
 
-const INITIAL_HISTORY: RecentAdjustment[] = [
-  {
-    id: '1',
-    date: '2025-08-11',
-    customer_name: 'Vyahnavi Gampa',
-    coins: 100,
-    reason: 'Customer goodwill',
-    performed_by: 'Admin',
-  },
-  {
-    id: '2',
-    date: '2025-08-10',
-    customer_name: 'Rahul Sharma',
-    coins: -50,
-    reason: 'Order cancellation',
-    performed_by: 'Admin',
-  },
-  {
-    id: '3',
-    date: '2025-08-08',
-    customer_name: 'Priya Mehta',
-    coins: 50,
-    reason: 'Promo bonus',
-    performed_by: 'Admin',
-  },
-];
-
 export const RewardCoinsView: React.FC = () => {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -77,7 +50,7 @@ export const RewardCoinsView: React.FC = () => {
   const [isSubmittingAdjustment, setIsSubmittingAdjustment] = useState(false);
 
   // History State
-  const [history, setHistory] = useState<RecentAdjustment[]>(INITIAL_HISTORY);
+  const [history, setHistory] = useState<RecentAdjustment[]>([]);
 
   // Fetch Settings & History
   useEffect(() => {
@@ -114,9 +87,11 @@ export const RewardCoinsView: React.FC = () => {
           performed_by: h.performed_by || 'Admin',
         }));
         setHistory(formatted);
+      } else {
+        setHistory([]);
       }
     } catch (err) {
-      console.warn('Using default reward history:', err);
+      setHistory([]);
     }
   };
 
@@ -662,28 +637,36 @@ export const RewardCoinsView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {history.map((row) => (
-                <tr
-                  key={row.id}
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#f5efe6', fontSize: '0.88rem' }}
-                >
-                  <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace', fontSize: '0.82rem' }}>
-                    {row.date}
-                  </td>
-                  <td style={{ padding: '14px 16px', fontWeight: 600 }}>
-                    {row.customer_name}
-                  </td>
-                  <td style={{ padding: '14px 16px', fontWeight: 700, fontFamily: 'monospace', color: row.coins >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                    {row.coins >= 0 ? `+${row.coins}` : row.coins}
-                  </td>
-                  <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.85)' }}>
-                    {row.reason}
-                  </td>
-                  <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontSize: '0.82rem' }}>
-                    {row.performed_by}
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                    No recent coin adjustments available.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                history.map((row) => (
+                  <tr
+                    key={row.id}
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#f5efe6', fontSize: '0.88rem' }}
+                  >
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                      {row.date}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: 600 }}>
+                      {row.customer_name}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: 700, fontFamily: 'monospace', color: row.coins >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      {row.coins >= 0 ? `+${row.coins}` : row.coins}
+                    </td>
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.85)' }}>
+                      {row.reason}
+                    </td>
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontSize: '0.82rem' }}>
+                      {row.performed_by}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

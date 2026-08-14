@@ -70,7 +70,8 @@ export interface Product {
   id: string;
   sku?: string;
   name: string;
-  category: 'dark' | 'milk' | 'white' | 'gift' | 'beverage';
+  category_id?: string;
+  category: string;
   price: number;
   originalPrice?: number;
   weight: string;
@@ -86,6 +87,8 @@ export interface Product {
   images?: string[];
   reviews: Review[];
   stock?: number;
+  is_available?: boolean;
+  isAvailable?: boolean;
 }
 
 export interface CartItem {
@@ -106,19 +109,27 @@ export interface Order {
   coin_discount?: number;
   coins_earned?: number;
   shipping: number;
+  tax: number;
+  status: 'Processing' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  payment_status?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
   date: string;
-  status: 'Processing' | 'Confirmed' | 'Shipped' | 'Out_For_Delivery' | 'Delivered' | 'Cancelled' | string;
-  payment_status?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | string;
-  shippingAddress: {
-    name: string;
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    phone: string;
-  };
+  created_at?: string;
+  shippingAddress: CustomerAddress;
   deliveryOption: string;
   paymentMethod: string;
+  customerName?: string;
+  customerEmail?: string;
+  invoice_url?: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+}
+
+export interface ProductUpdatePayload {
+  name?: string;
+  category_id?: string;
+  category?: string;
+  is_available?: boolean;
+  isAvailable?: boolean;
   invoice_url?: string;
   razorpay_order_id?: string;
   razorpay_payment_id?: string;

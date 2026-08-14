@@ -71,6 +71,51 @@ import { Pagination } from '../../components/ui/Pagination';
 import { DashboardKpiSkeleton, DashboardCardSkeleton } from '../../components/ui/DashboardSkeleton';
 import { NotificationHeaderDropdown } from '../../components/NotificationHeaderDropdown';
 import { AdminUserDropdown } from '../../components/AdminUserDropdown';
+import { AuditLogDetailModal } from '../../components/AuditLogDetailModal';
+import { AdminProfileView } from '../admin/AdminProfileView';
+import { ChangePasswordView } from '../admin/ChangePasswordView';
+
+const formatActionLabel = (action?: string | null): string => {
+  if (!action) return 'Activity Event';
+  const act = action.trim().toUpperCase();
+  const MAPPING: Record<string, string> = {
+    'LOGGED_IN': 'Logged In',
+    'LOGIN': 'Logged In',
+    'LOGGED_OUT': 'Logged Out',
+    'LOGOUT': 'Logged Out',
+    'LOGIN_FAILED': 'Login Failed',
+    'CREATE_PRODUCT': 'Product Created',
+    'CREATED PRODUCT': 'Product Created',
+    'UPDATE_PRODUCT': 'Product Updated',
+    'UPDATED PRODUCT': 'Product Updated',
+    'DELETE_PRODUCT': 'Product Deleted',
+    'DELETED PRODUCT': 'Product Deleted',
+    'CREATE_COUPON': 'Coupon Created',
+    'CREATED COUPON': 'Coupon Created',
+    'UPDATE_COUPON': 'Coupon Updated',
+    'UPDATED COUPON': 'Coupon Updated',
+    'DELETE_COUPON': 'Coupon Deleted',
+    'DELETED COUPON': 'Coupon Deleted',
+    'CREATE_ADMIN': 'Admin Created',
+    'UPDATE_ADMIN': 'Admin Updated',
+    'DISABLE_ADMIN': 'Admin Disabled',
+    'UPDATE_ORDER': 'Order Updated',
+    'UPDATED ORDER STATUS': 'Order Status Updated',
+    'PLACE_ORDER': 'Order Placed',
+    'UPDATE_CUSTOMER': 'Customer Updated',
+    'UPDATE_SETTINGS': 'Settings Updated',
+    'PLATFORM_SETTINGS_UPDATED': 'Platform Settings Updated',
+    'MAINTENANCE_MODE_ENABLED': 'Maintenance Mode Enabled',
+    'MAINTENANCE_MODE_DISABLED': 'Maintenance Mode Disabled',
+    'UPDATE_ADMIN_PROFILE': 'Admin Profile Updated',
+    'UPDATED_PROFILE': 'Admin Profile Updated',
+    'CHANGE_ADMIN_PASSWORD': 'Admin Password Changed',
+    'CHANGED_PASSWORD': 'Admin Password Changed',
+    'OFFLINE SALE RECORDED': 'Offline Sale Recorded',
+  };
+  if (MAPPING[act]) return MAPPING[act];
+  return act.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+};
 import {
   adminService,
   type DashboardStats,
@@ -2329,7 +2374,7 @@ export const SuperadminDashboard: React.FC = () => {
         {/* Top-Right Admin Header Bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
           {/* Notification Bell Dropdown */}
-          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} />
+          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={true} />
 
           {/* View Home Button */}
           <button
@@ -4218,7 +4263,7 @@ export const SuperadminDashboard: React.FC = () => {
                   <Search size={16} color="#c9a84c" />
                   <input
                     type="text"
-                    placeholder="Search user, action, endpoint or entity ID..."
+                    placeholder="Search user, action, details..."
                     value={auditSearch}
                     onChange={(e) => {
                       setAuditSearch(e.target.value);
@@ -4259,22 +4304,6 @@ export const SuperadminDashboard: React.FC = () => {
                   {displayAdmins.items.map((u) => (
                     <option key={u.id} value={u.id}>{u.full_name}</option>
                   ))}
-                </select>
-
-                {/* Module Filter */}
-                <select
-                  value={auditModuleFilter}
-                  onChange={(e) => { setAuditModuleFilter(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
-                >
-                  <option value="ALL">All Modules</option>
-                  <option value="system">System</option>
-                  <option value="products">Products</option>
-                  <option value="orders">Orders</option>
-                  <option value="coupons">Coupons</option>
-                  <option value="platform settings">Platform Settings</option>
-                  <option value="admin_management">Admin Management</option>
-                  <option value="offline sales">Offline Sales</option>
                 </select>
 
                 {/* Status Filter */}
@@ -4336,66 +4365,13 @@ export const SuperadminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Detail Drawer Modal */}
-            <AnimatePresence>
-              {selectedAuditLog && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  style={{ marginBottom: '24px' }}
-                >
-                  <div className="admin-form-panel" style={{ border: '1px solid rgba(201, 168, 76, 0.6)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
-                        <Activity size={18} /> Audit Action Detail — {selectedAuditLog.action}
-                      </h3>
-                      <button onClick={() => setSelectedAuditLog(null)} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <X size={18} />
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px', background: 'rgba(0,0,0,0.4)', padding: '16px', borderRadius: '8px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>TIMESTAMP</span>
-                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.created_at}</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>USER</span>
-                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.user_name} ({selectedAuditLog.user_role})</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>MODULE & ENTITY</span>
-                        <strong style={{ fontSize: '0.88rem', color: '#c9a84c' }}>{selectedAuditLog.module} {selectedAuditLog.entity_id ? `[${selectedAuditLog.entity_id}]` : ''}</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>HTTP METHOD & ENDPOINT</span>
-                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.request_method} {selectedAuditLog.endpoint}</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>IP ADDRESS</span>
-                        <strong style={{ fontSize: '0.88rem', color: '#f5efe6' }}>{selectedAuditLog.ip_address}</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', display: 'block' }}>STATUS</span>
-                        <strong style={{ fontSize: '0.88rem', color: selectedAuditLog.status === 'SUCCESS' ? '#2ecc71' : '#e74c3c' }}>{selectedAuditLog.status}</strong>
-                      </div>
-                    </div>
-
-                    {selectedAuditLog.metadata && Object.keys(selectedAuditLog.metadata).length > 0 && (
-                      <div style={{ background: 'rgba(0,0,0,0.6)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <span style={{ fontSize: '0.72rem', color: '#c9a84c', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
-                          REQUEST METADATA & CONTEXT
-                        </span>
-                        <pre style={{ margin: 0, fontSize: '0.8rem', color: '#f5efe6', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                          {JSON.stringify(selectedAuditLog.metadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Production View Details Modal */}
+            <AuditLogDetailModal
+              logId={selectedAuditLog?.id || null}
+              initialLog={selectedAuditLog}
+              onClose={() => setSelectedAuditLog(null)}
+              role="superadmin"
+            />
 
             {/* Main Audit Logs Datatable */}
             {auditLogsLoading ? (
@@ -4410,8 +4386,6 @@ export const SuperadminDashboard: React.FC = () => {
                         <th style={{ padding: '12px' }}>USER</th>
                         <th style={{ padding: '12px' }}>ROLE</th>
                         <th style={{ padding: '12px' }}>ACTION</th>
-                        <th style={{ padding: '12px' }}>MODULE</th>
-                        <th style={{ padding: '12px' }}>IP ADDRESS</th>
                         <th style={{ padding: '12px' }}>STATUS</th>
                         <th style={{ padding: '12px', textAlign: 'right' }}>DETAILS</th>
                       </tr>
@@ -4432,7 +4406,7 @@ export const SuperadminDashboard: React.FC = () => {
                               {log.created_at}
                             </td>
                             <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
-                              {log.user_name}
+                              {log.user_name && log.user_name !== 'System Process' ? log.user_name : 'Enterprise Chief'}
                             </td>
                             <td style={{ padding: '12px' }}>
                               <span
@@ -4447,17 +4421,11 @@ export const SuperadminDashboard: React.FC = () => {
                                   border: log.user_role === 'superadmin' ? '1px solid rgba(201, 168, 76, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
                                 }}
                               >
-                                {log.user_role === 'superadmin' ? 'Super Admin' : log.user_role === 'admin' ? 'Admin' : 'System'}
+                                {log.user_role === 'superadmin' ? 'Super Admin' : log.user_role === 'admin' ? 'Admin' : 'Super Admin'}
                               </span>
                             </td>
                             <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
-                              {log.action}
-                            </td>
-                            <td style={{ padding: '12px', color: '#c9a84c', fontWeight: 600 }}>
-                              {log.module}
-                            </td>
-                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', fontFamily: 'monospace' }}>
-                              {log.ip_address || '192.168.1.10'}
+                              {formatActionLabel(log.action)}
                             </td>
                             <td style={{ padding: '12px' }}>
                               <span
@@ -4494,7 +4462,7 @@ export const SuperadminDashboard: React.FC = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
                             No audit log records found matching search filters.
                           </td>
                         </tr>
@@ -5732,8 +5700,18 @@ export const SuperadminDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* PROFILE TAB */}
+        {activeTab === 'profile' && (
+          <AdminProfileView />
+        )}
+
+        {/* CHANGE PASSWORD TAB */}
+        {activeTab === 'change-password' && (
+          <ChangePasswordView />
+        )}
+
         {/* AUDIT LOG TAB FALLBACK */}
-        {!['enterprise', 'revenue', 'sales-comparison', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications'].includes(activeTab) && (
+        {!['enterprise', 'revenue', 'sales-comparison', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications', 'profile', 'change-password'].includes(activeTab) && (
           <div
             className="glass-panel"
             style={{

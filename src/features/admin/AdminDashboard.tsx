@@ -81,6 +81,7 @@ import { ReportsAnalyticsView } from './ReportsAnalyticsView';
 export const AdminDashboard: React.FC = () => {
   const {
     products,
+    setProducts,
     addProduct,
     updateProductInventory,
     deleteProduct,
@@ -295,7 +296,7 @@ export const AdminDashboard: React.FC = () => {
     if (activeTab === 'dashboard') {
       fetchDashboardData();
     }
-    if (activeTab === 'categories' && categoriesList.length === 0) {
+    if ((activeTab === 'categories' || activeTab === 'products') && categoriesList.length === 0) {
       fetchCategories();
     }
     if (activeTab === 'orders') {
@@ -370,6 +371,7 @@ export const AdminDashboard: React.FC = () => {
   const [productAddedSuccess, setProductAddedSuccess] = useState(false);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [updatingStockProductId, setUpdatingStockProductId] = useState<string | null>(null);
 
   // --- Dynamic local state for stock/units sold to keep them interactive ---
   // Stock is now stored in the Product object from backend (product.stock)
@@ -443,6 +445,10 @@ export const AdminDashboard: React.FC = () => {
       errors.weight = 'Weight unit is required (e.g. 100g).';
     }
 
+    if (!isNonEmpty(newProd.category as string) || !(newProd.category as string).trim()) {
+      errors.category = 'Category is required. Please select a valid category or create one in Admin → Categories.';
+    }
+
     if (!isNonEmpty(newProd.description)) {
       errors.description = 'Product description is required.';
     }
@@ -459,6 +465,7 @@ export const AdminDashboard: React.FC = () => {
     // Build FormData for multipart/form-data submission to backend
     const formData = new FormData();
     formData.append('name', nameTrimmed);
+    formData.append('category_id', newProd.category);
     formData.append('category', newProd.category);
     formData.append('price', String(newProd.price));
     formData.append('weight', trimValue(newProd.weight));
@@ -535,11 +542,12 @@ export const AdminDashboard: React.FC = () => {
 
     setIsUpdatingProduct(true);
     try {
-      await productService.updateProduct(editingProduct.id, {
+      const updated = await productService.updateProduct(editingProduct.id, {
         name: editingProduct.name,
         price: editingProduct.price,
         weight: editingProduct.weight,
         stock: editingProduct.stock,
+        category_id: editingProduct.category_id || editingProduct.category,
         category: editingProduct.category,
         badge: editingProduct.badge,
         description: editingProduct.description,
@@ -553,13 +561,22 @@ export const AdminDashboard: React.FC = () => {
         window.location.reload();
         return;
       }
-      updateProductInventory(editingProduct.id, editingProduct.weight, editingProduct.price, editingProduct.stock ?? 0);
+      if (updated && typeof updated === 'object' && updated.id) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...updated } : p))
+        );
+      } else {
+        const allProds: any = await productService.getProducts();
+        const list = Array.isArray(allProds) ? allProds : (allProds?.items || []);
+        setProducts(list);
+      }
       setEditingProduct(null);
       setEditingProductImageFiles([]);
       setEditingProductImagePreviews([]);
+      addToast('success', `Product "${editingProduct.name}" updated successfully.`, 'Product Updated');
     } catch (err: any) {
       console.error('Failed to update product:', err);
-      alert(err?.detail || err?.message || 'Failed to update product');
+      addToast('error', err?.detail || err?.message || 'Failed to update product.', 'Update Error');
     } finally {
       setIsUpdatingProduct(false);
     }
@@ -1184,27 +1201,27 @@ export const AdminDashboard: React.FC = () => {
     fetchAdminReviews();
   }, []);
 
-  // Compute dynamic category options from database categories
+  // Compute dynamic category options from database categories (single source of truth)
   const dynamicCategoryOptions = React.useMemo(() => {
-    if (categoriesList && categoriesList.length > 0) {
-      return categoriesList
-        .filter((cat) => cat.is_active !== false)
-        .map((cat) => ({
-          value: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
-          label: cat.name,
-        }));
+    const activeCategories = (categoriesList || []).filter((cat) => cat.is_active !== false);
+    if (activeCategories.length > 0) {
+      return activeCategories.map((cat) => ({
+        value: cat.id,
+        label: cat.name,
+      }));
     }
     return [
-      { value: 'dark-chocolate', label: 'Dark Chocolate' },
-      { value: 'milk-chocolate', label: 'Milk Chocolate' },
-      { value: 'gift-hamper', label: 'Gift Hamper' },
-      { value: 'white-chocolate', label: 'White Chocolate' },
+      { value: '', label: 'No categories available' }
     ];
   }, [categoriesList]);
 
   useEffect(() => {
-    if (dynamicCategoryOptions.length > 0 && (!newProd.category || !dynamicCategoryOptions.some(o => o.value === newProd.category))) {
-      setNewProd(prev => ({ ...prev, category: dynamicCategoryOptions[0].value as any }));
+    if (dynamicCategoryOptions.length > 0 && dynamicCategoryOptions[0].value) {
+      if (!newProd.category || !dynamicCategoryOptions.some(o => o.value === newProd.category)) {
+        setNewProd(prev => ({ ...prev, category: dynamicCategoryOptions[0].value as any }));
+      }
+    } else if (dynamicCategoryOptions.length > 0 && !dynamicCategoryOptions[0].value) {
+      setNewProd(prev => ({ ...prev, category: '' as any }));
     }
   }, [dynamicCategoryOptions]);
 
@@ -1477,7 +1494,7 @@ export const AdminDashboard: React.FC = () => {
         {/* Top-Right Admin Header Bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
           {/* Notification Bell Dropdown */}
-          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} />
+          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={false} />
 
           {/* View Home Button */}
           <button
@@ -1675,7 +1692,7 @@ export const AdminDashboard: React.FC = () => {
                     Total Revenue
                   </span>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
-                    ₹{((dashboardStats?.total_sales || 236450)).toLocaleString()}
+                    ₹{(dashboardStats?.total_sales ?? 0).toLocaleString()}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
                     <TrendingUp size={14} />
@@ -1699,7 +1716,7 @@ export const AdminDashboard: React.FC = () => {
                     Total Orders
                   </span>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
-                    {dashboardStats?.total_orders || (orders.length > 0 ? orders.length : 128)}
+                    {dashboardStats?.total_orders ?? (orders.length > 0 ? orders.length : 0)}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
                     <TrendingUp size={14} />
@@ -1723,7 +1740,7 @@ export const AdminDashboard: React.FC = () => {
                     Total Customers
                   </span>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
-                    {dashboardStats?.total_customers || (systemUsers.length > 0 ? systemUsers.length : 532)}
+                    {dashboardStats?.total_customers ?? (systemUsers.length > 0 ? systemUsers.length : 0)}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
                     <TrendingUp size={14} />
@@ -1747,7 +1764,7 @@ export const AdminDashboard: React.FC = () => {
                     Reward Coins Issued
                   </span>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--gold)', fontWeight: 700, margin: '8px 0 6px 0' }}>
-                    {(dashboardStats?.reward_coins_issued || 12450).toLocaleString()}
+                    {(dashboardStats?.reward_coins_issued ?? 0).toLocaleString()}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
                     <TrendingUp size={14} />
@@ -1792,15 +1809,13 @@ export const AdminDashboard: React.FC = () => {
                   <div style={{ width: '100%', height: '260px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
-                        data={[
-                          { name: '05 Aug', sales: 20000 },
-                          { name: '06 Aug', sales: 25000 },
-                          { name: '07 Aug', sales: 45000 },
-                          { name: '08 Aug', sales: 38000 },
-                          { name: '09 Aug', sales: 22000 },
-                          { name: '10 Aug', sales: 35000 },
-                          { name: '11 Aug', sales: 58000 },
-                        ]}
+                        data={
+                          dashboardStats?.daily_sales && dashboardStats.daily_sales.length > 0
+                            ? dashboardStats.daily_sales
+                            : (dashboardStats?.revenue_trend && dashboardStats.revenue_trend.length > 0
+                                ? dashboardStats.revenue_trend
+                                : [])
+                        }
                       >
                         <defs>
                           <linearGradient id="goldSalesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1908,78 +1923,76 @@ export const AdminDashboard: React.FC = () => {
                     </Button>
                   </div>
 
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="admin-table" style={{ fontSize: '0.85rem' }}>
-                      <thead>
-                        <tr>
-                          <th>Order ID</th>
-                          <th>Customer</th>
-                          <th>Amount</th>
-                          <th>Status</th>
-                          <th>Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(orders.length > 0 ? orders.slice(0, 5) : [
-                          { id: 'ORD-77511', name: 'Vyshnavi Gampa', amount: 2242, status: 'Processing', date: '11 Aug 2026' },
-                          { id: 'ORD-77510', name: 'Rahul Sharma', amount: 1034.5, status: 'Shipped', date: '11 Aug 2026' },
-                          { id: 'ORD-77509', name: 'Anjali Mehta', amount: 2699, status: 'Out for Delivery', date: '11 Aug 2026' },
-                          { id: 'ORD-77508', name: 'Karthik Reddy', amount: 1299, status: 'Delivered', date: '10 Aug 2026' },
-                          { id: 'ORD-77507', name: 'Priya Nair', amount: 899, status: 'Cancelled', date: '10 Aug 2026' },
-                        ]).map((ord: any, i) => {
-                          const orderId = ord.id || `ORD-${77511 - i}`;
-                          const custName = ord.name || ord.shippingAddress?.name || 'Customer';
-                          const totalAmt = ord.amount || ord.total || 1499;
-                          const ordStatus = ord.status || 'Processing';
-                          const ordDate = ord.date || '11 Aug 2026';
+                  {orders.length === 0 ? (
+                    <EmptyState title="No Recent Orders" description="No orders available yet." />
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orders.slice(0, 5).map((ord: any) => {
+                            const orderId = ord.id || ord.order_id || 'ORD-00000';
+                            const custName = ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
+                            const totalAmt = ord.total ?? ord.amount ?? 0;
+                            const ordStatus = ord.status || 'Processing';
+                            const ordDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : (ord.date || 'Today');
 
-                          let badgeBg = '#f39c12';
-                          if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
-                          if (ordStatus === 'Shipped') badgeBg = '#3498db';
-                          if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
-                          if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
+                            let badgeBg = '#f39c12';
+                            if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
+                            if (ordStatus === 'Shipped') badgeBg = '#3498db';
+                            if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
+                            if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
 
-                          return (
-                            <tr key={orderId} style={{ cursor: 'pointer' }}>
-                              <td
-                                onClick={() => setActiveTab('orders')}
-                                style={{ color: 'var(--gold)', fontWeight: 600 }}
-                              >
-                                {orderId}
-                              </td>
-                              <td
-                                onClick={() => {
-                                  setActiveTab('customers');
-                                  const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
-                                  if (matchingUser) handleSelectCustomer(matchingUser);
-                                }}
-                                style={{ color: 'var(--cream)' }}
-                              >
-                                {custName}
-                              </td>
-                              <td style={{ color: 'var(--cream)', fontWeight: 600 }}>₹{Number(totalAmt).toLocaleString()}</td>
-                              <td>
-                                <span
-                                  style={{
-                                    padding: '4px 10px',
-                                    borderRadius: '12px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    background: `${badgeBg}22`,
-                                    border: `1px solid ${badgeBg}`,
-                                    color: badgeBg,
-                                  }}
+                            return (
+                              <tr key={orderId} style={{ cursor: 'pointer' }}>
+                                <td
+                                  onClick={() => setActiveTab('orders')}
+                                  style={{ color: 'var(--gold)', fontWeight: 600 }}
                                 >
-                                  {ordStatus}
-                                </span>
-                              </td>
-                              <td style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>{ordDate}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                  {orderId}
+                                </td>
+                                <td
+                                  onClick={() => {
+                                    setActiveTab('customers');
+                                    const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
+                                    if (matchingUser) handleSelectCustomer(matchingUser);
+                                  }}
+                                  style={{ color: 'var(--cream)' }}
+                                >
+                                  {custName}
+                                </td>
+                                <td style={{ color: 'var(--cream)', fontWeight: 600 }}>₹{Number(totalAmt).toLocaleString()}</td>
+                                <td>
+                                  <span
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: '12px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      background: `${badgeBg}22`,
+                                      border: `1px solid ${badgeBg}`,
+                                      color: badgeBg,
+                                    }}
+                                  >
+                                    {ordStatus}
+                                  </span>
+                                </td>
+                                <td style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>{ordDate}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2328,7 +2341,7 @@ export const AdminDashboard: React.FC = () => {
                             ) : (
                               paginated.map((prod) => {
                                 const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                                const isAvailable = displayStock > 0;
+                                const isAvailable = (prod.isAvailable ?? prod.is_available ?? true) && displayStock > 0;
                                 const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
 
                                 return (
@@ -2348,11 +2361,12 @@ export const AdminDashboard: React.FC = () => {
                                       <div style={{ fontSize: '0.75rem', color: 'var(--beige)', marginTop: '2px' }}>SKU: {skuText}</div>
                                     </td>
                                     <td style={{ padding: '14px 18px', color: 'var(--beige)', fontSize: '0.88rem' }}>
-                                      {prod.category === 'dark' ? 'Dark Chocolate' :
-                                       prod.category === 'milk' ? 'Milk Chocolate' :
-                                       prod.category === 'white' ? 'White Chocolate' :
-                                       prod.category === 'gift' ? 'Gift Hamper' :
-                                       prod.category === 'beverage' ? 'Beverage' : prod.category}
+                                      {categoriesList.find(c => c.slug === prod.category || c.id === prod.category || c.name.toLowerCase() === (prod.category || '').toLowerCase())?.name ||
+                                       (prod.category === 'dark' ? 'Dark Chocolate' :
+                                        prod.category === 'milk' ? 'Milk Chocolate' :
+                                        prod.category === 'white' ? 'White Chocolate' :
+                                        prod.category === 'gift' ? 'Gift Hamper' :
+                                        prod.category === 'beverage' ? 'Beverage' : prod.category)}
                                     </td>
                                     <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.88rem' }}>{prod.weight}</td>
                                     <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>₹{prod.price}</td>
@@ -2400,14 +2414,22 @@ export const AdminDashboard: React.FC = () => {
                                         {isAvailable ? (
                                           <button
                                             type="button"
-                                            onClick={async () => {
+                                            disabled={updatingStockProductId === prod.id}
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              if (updatingStockProductId === prod.id) return;
+                                              setUpdatingStockProductId(prod.id);
                                               try {
-                                                await productService.updateProduct(prod.id, { stock: 0 });
-                                                updateProductInventory(prod.id, prod.weight, prod.price, 0);
-                                                addToast('info', `Marked "${prod.name}" as Out of Stock.`, 'Stock Updated');
-                                              } catch {
-                                                updateProductInventory(prod.id, prod.weight, prod.price, 0);
-                                                addToast('info', `Marked "${prod.name}" as Out of Stock.`, 'Stock Updated');
+                                                const updated = await productService.updateProduct(prod.id, { is_available: false, isAvailable: false });
+                                                setProducts((prev) =>
+                                                  prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
+                                                );
+                                                addToast('info', `Marked "${prod.name}" as Out of Stock.`, 'Availability Updated');
+                                              } catch (err: any) {
+                                                console.error('Stock Out failed:', err);
+                                                addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
+                                              } finally {
+                                                setUpdatingStockProductId(null);
                                               }
                                             }}
                                             style={{
@@ -2418,22 +2440,31 @@ export const AdminDashboard: React.FC = () => {
                                               color: '#e74c3c',
                                               fontSize: '0.75rem',
                                               fontWeight: 600,
-                                              cursor: 'pointer',
+                                              cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
+                                              opacity: updatingStockProductId === prod.id ? 0.6 : 1,
                                             }}
                                           >
-                                            Stock Out
+                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Stock Out'}
                                           </button>
                                         ) : (
                                           <button
                                             type="button"
-                                            onClick={async () => {
+                                            disabled={updatingStockProductId === prod.id}
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              if (updatingStockProductId === prod.id) return;
+                                              setUpdatingStockProductId(prod.id);
                                               try {
-                                                await productService.updateProduct(prod.id, { stock: 12 });
-                                                updateProductInventory(prod.id, prod.weight, prod.price, 12);
-                                                addToast('success', `Marked "${prod.name}" as In Stock (12 units).`, 'Stock Updated');
-                                              } catch {
-                                                updateProductInventory(prod.id, prod.weight, prod.price, 12);
-                                                addToast('success', `Marked "${prod.name}" as In Stock (12 units).`, 'Stock Updated');
+                                                const updated = await productService.updateProduct(prod.id, { is_available: true, isAvailable: true });
+                                                setProducts((prev) =>
+                                                  prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
+                                                );
+                                                addToast('success', `Marked "${prod.name}" as In Stock.`, 'Availability Updated');
+                                              } catch (err: any) {
+                                                console.error('Stock In failed:', err);
+                                                addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
+                                              } finally {
+                                                setUpdatingStockProductId(null);
                                               }
                                             }}
                                             style={{
@@ -2444,10 +2475,11 @@ export const AdminDashboard: React.FC = () => {
                                               color: '#2ecc71',
                                               fontSize: '0.75rem',
                                               fontWeight: 600,
-                                              cursor: 'pointer',
+                                              cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
+                                              opacity: updatingStockProductId === prod.id ? 0.6 : 1,
                                             }}
                                           >
-                                            Stock In
+                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Stock In'}
                                           </button>
                                         )}
 
@@ -2976,7 +3008,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <Input label="Stock Units" type="number" value={editingProduct.stock ?? 10} onChange={(e) => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })} required />
-                      <Select label="Category" options={dynamicCategoryOptions} value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value as any })} />
+                      <Select label="Category" options={dynamicCategoryOptions} value={editingProduct.category_id || editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category_id: e.target.value, category: e.target.value as any })} />
                     </div>
                     <Input label="Ingredients" value={editingProduct.ingredients || ''} onChange={(e) => setEditingProduct({ ...editingProduct, ingredients: e.target.value })} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

@@ -557,6 +557,7 @@ export const ShopPage: React.FC = () => {
               <div className="shop-list-layout" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {products.map((prod) => {
                   const inWish = wishlist.some((p) => p.id === prod.id);
+                  const isOut = (prod.is_available === false) || (prod.stock ?? 0) <= 0;
                   return (
                     <motion.div
                       key={prod.id}
@@ -568,11 +569,39 @@ export const ShopPage: React.FC = () => {
                         <img
                           src={getImageUrl(prod.image)}
                           alt={prod.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', filter: isOut ? 'brightness(0.7)' : 'none' }}
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=400&q=80';
                           }}
                         />
+                        {isOut && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              inset: 0,
+                              background: 'rgba(0,0,0,0.55)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              zIndex: 3,
+                            }}
+                          >
+                            <span
+                              style={{
+                                background: 'rgba(217, 83, 79, 0.95)',
+                                color: '#ffffff',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '1px',
+                                padding: '4px 10px',
+                                borderRadius: '3px',
+                              }}
+                            >
+                              OUT OF STOCK
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                         <div>
@@ -597,9 +626,14 @@ export const ShopPage: React.FC = () => {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '1.3rem', fontWeight: 700, color: '#f5efe6' }}>
-                            ₹{prod.price.toLocaleString()}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <span style={{ fontSize: '1.3rem', fontWeight: 700, color: '#f5efe6' }}>
+                              ₹{prod.price.toLocaleString()}
+                            </span>
+                            <span style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 600 }}>
+                              ★ {prod.rating !== undefined && prod.rating !== null ? Number(prod.rating).toFixed(1) : '0.0'}
+                            </span>
+                          </div>
 
                           <div style={{ display: 'flex', gap: '10px' }}>
                             <button
@@ -619,9 +653,14 @@ export const ShopPage: React.FC = () => {
                             >
                               <Heart size={16} fill={inWish ? 'currentColor' : 'none'} />
                             </button>
-                            <Button variant="gold" size="sm" onClick={(e) => { e.stopPropagation(); addToCart(prod, 1); }}>
+                            <Button
+                              variant="gold"
+                              size="sm"
+                              disabled={isOut}
+                              onClick={(e) => { e.stopPropagation(); if (!isOut) addToCart(prod, 1); }}
+                            >
                               <ShoppingBag size={14} style={{ marginRight: '6px' }} />
-                              Add to Cart
+                              {isOut ? 'OUT OF STOCK' : 'Add to Cart'}
                             </Button>
                           </div>
                         </div>

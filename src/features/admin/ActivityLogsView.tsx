@@ -2,23 +2,64 @@ import React, { useState, useEffect } from 'react';
 import {
   FileClock,
   Search,
-  Filter,
   RefreshCw,
   Loader2,
   Calendar,
-  ShieldCheck,
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
 import { adminService, ActivityLogItem } from '../../services/adminService';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
+import { Button } from '../../components/ui/Button';
+import { AuditLogDetailModal } from '../../components/AuditLogDetailModal';
+
+const formatActionLabel = (action?: string | null): string => {
+  if (!action) return 'Activity Event';
+  const act = action.trim().toUpperCase();
+  const MAPPING: Record<string, string> = {
+    'LOGGED_IN': 'Logged In',
+    'LOGIN': 'Logged In',
+    'LOGGED_OUT': 'Logged Out',
+    'LOGOUT': 'Logged Out',
+    'LOGIN_FAILED': 'Login Failed',
+    'CREATE_PRODUCT': 'Product Created',
+    'CREATED PRODUCT': 'Product Created',
+    'UPDATE_PRODUCT': 'Product Updated',
+    'UPDATED PRODUCT': 'Product Updated',
+    'DELETE_PRODUCT': 'Product Deleted',
+    'DELETED PRODUCT': 'Product Deleted',
+    'CREATE_COUPON': 'Coupon Created',
+    'CREATED COUPON': 'Coupon Created',
+    'UPDATE_COUPON': 'Coupon Updated',
+    'UPDATED COUPON': 'Coupon Updated',
+    'DELETE_COUPON': 'Coupon Deleted',
+    'DELETED COUPON': 'Coupon Deleted',
+    'CREATE_ADMIN': 'Admin Created',
+    'UPDATE_ADMIN': 'Admin Updated',
+    'DISABLE_ADMIN': 'Admin Disabled',
+    'UPDATE_ORDER': 'Order Updated',
+    'UPDATED ORDER STATUS': 'Order Status Updated',
+    'PLACE_ORDER': 'Order Placed',
+    'UPDATE_CUSTOMER': 'Customer Updated',
+    'UPDATE_SETTINGS': 'Settings Updated',
+    'PLATFORM_SETTINGS_UPDATED': 'Platform Settings Updated',
+    'UPDATE_ADMIN_PROFILE': 'Profile Updated',
+    'UPDATED_PROFILE': 'Profile Updated',
+    'CHANGE_ADMIN_PASSWORD': 'Password Changed',
+    'CHANGED_PASSWORD': 'Password Changed',
+    'OFFLINE SALE RECORDED': 'Offline Sale Recorded',
+  };
+  if (MAPPING[act]) return MAPPING[act];
+  return act.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 export const ActivityLogsView: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   // Filters State
   const [search, setSearch] = useState<string>('');
@@ -54,69 +95,11 @@ export const ActivityLogsView: React.FC = () => {
 
   useEffect(() => {
     fetchLogs(1);
-  }, [selectedModule, selectedAction, selectedStatus]);
+  }, [selectedModule, selectedAction, selectedStatus, startDate, endDate]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchLogs(1);
-  };
-
-  const getActionBadge = (action: string) => {
-    const actUpper = action.toUpperCase();
-    let bg = 'rgba(201, 168, 76, 0.12)';
-    let color = '#c9a84c';
-
-    if (actUpper.includes('CREATE') || actUpper.includes('ADD')) {
-      bg = 'rgba(46, 204, 113, 0.15)';
-      color = '#2ecc71';
-    } else if (actUpper.includes('UPDATE') || actUpper.includes('CHANGE') || actUpper.includes('EDIT')) {
-      bg = 'rgba(52, 152, 219, 0.15)';
-      color = '#3498db';
-    } else if (actUpper.includes('DELETE') || actUpper.includes('REMOVE') || actUpper.includes('REVOKE')) {
-      bg = 'rgba(231, 76, 60, 0.15)';
-      color = '#e74c3c';
-    } else if (actUpper.includes('LOGIN') || actUpper.includes('LOGOUT')) {
-      bg = 'rgba(155, 89, 182, 0.15)';
-      color = '#9b59b6';
-    }
-
-    return (
-      <span
-        style={{
-          padding: '4px 10px',
-          borderRadius: '12px',
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          background: bg,
-          color,
-          border: `1px solid ${color}40`,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {action}
-      </span>
-    );
-  };
-
-  const getModuleBadge = (moduleStr: string) => {
-    const modUpper = moduleStr.toUpperCase();
-    return (
-      <span
-        style={{
-          padding: '2px 8px',
-          borderRadius: '4px',
-          fontSize: '0.72rem',
-          fontWeight: 600,
-          background: 'rgba(255,255,255,0.08)',
-          color: 'rgba(255,255,255,0.75)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}
-      >
-        {modUpper}
-      </span>
-    );
   };
 
   return (
@@ -179,7 +162,7 @@ export const ActivityLogsView: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search description, action or admin..."
+                placeholder="Search user, action, details..."
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',
@@ -211,34 +194,6 @@ export const ActivityLogsView: React.FC = () => {
             </button>
           </form>
 
-          {/* Module Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Module:</span>
-            <select
-              value={selectedModule}
-              onChange={(e) => setSelectedModule(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                background: 'rgba(10, 8, 6, 0.8)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '6px',
-                color: '#f5efe6',
-                fontSize: '0.82rem',
-                outline: 'none',
-              }}
-            >
-              <option value="all">All Modules</option>
-              <option value="coupons">Coupons</option>
-              <option value="products">Products</option>
-              <option value="orders">Orders</option>
-              <option value="rewards">Rewards</option>
-              <option value="profile">Profile</option>
-              <option value="security">Security</option>
-              <option value="settings">Settings</option>
-              <option value="auth">Auth</option>
-            </select>
-          </div>
-
           {/* Action Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Action:</span>
@@ -256,12 +211,19 @@ export const ActivityLogsView: React.FC = () => {
               }}
             >
               <option value="all">All Actions</option>
-              <option value="CREATE">Create</option>
-              <option value="UPDATE">Update</option>
-              <option value="DELETE">Delete</option>
-              <option value="LOGGED_IN">Login</option>
-              <option value="CHANGED_PASSWORD">Changed Password</option>
-              <option value="UPDATED_PROFILE">Updated Profile</option>
+              <option value="LOGGED_IN">Logged In</option>
+              <option value="LOGGED_OUT">Logged Out</option>
+              <option value="CREATE_ADMIN">Admin Created</option>
+              <option value="UPDATED_PROFILE">Profile Updated</option>
+              <option value="CHANGED_PASSWORD">Password Changed</option>
+              <option value="CREATE_PRODUCT">Product Created</option>
+              <option value="UPDATE_PRODUCT">Product Updated</option>
+              <option value="DELETE_PRODUCT">Product Deleted</option>
+              <option value="CREATE_COUPON">Coupon Created</option>
+              <option value="UPDATE_COUPON">Coupon Updated</option>
+              <option value="DELETE_COUPON">Coupon Deleted</option>
+              <option value="UPDATE_ORDER">Order Status Updated</option>
+              <option value="PLATFORM_SETTINGS_UPDATED">Platform Settings Updated</option>
             </select>
           </div>
 
@@ -351,6 +313,24 @@ export const ActivityLogsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Production Audit Action Details Modal */}
+      <AuditLogDetailModal
+        logId={selectedLog?.id || null}
+        initialLog={selectedLog ? {
+          id: selectedLog.id,
+          created_at: selectedLog.created_at,
+          user_name: selectedLog.admin_name || 'Admin User',
+          user_email: selectedLog.admin_email || '',
+          user_role: selectedLog.user_role || 'Admin',
+          action: selectedLog.action,
+          status: selectedLog.status,
+          description: selectedLog.description,
+          details: selectedLog.description,
+        } : null}
+        onClose={() => setSelectedLog(null)}
+        role="admin"
+      />
+
       {/* Main Read-Only Logs Table */}
       <div
         style={{
@@ -379,16 +359,15 @@ export const ActivityLogsView: React.FC = () => {
               <thead>
                 <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>DATE &amp; TIME</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>ADMIN</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>MODULE</th>
+                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>USER</th>
+                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>ROLE</th>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>ACTION</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>DESCRIPTION</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>IP ADDRESS</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 700, textAlign: 'right' }}>STATUS</th>
+                  <th style={{ padding: '16px 20px', fontWeight: 700 }}>STATUS</th>
+                  <th style={{ padding: '16px 20px', fontWeight: 700, textAlign: 'right' }}>DETAILS</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
+                {logs.map((log: any) => (
                   <tr
                     key={log.id}
                     style={{
@@ -398,14 +377,7 @@ export const ActivityLogsView: React.FC = () => {
                   >
                     {/* Timestamp */}
                     <td style={{ padding: '16px 20px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.7)', fontSize: '0.82rem' }}>
-                      {new Date(log.created_at).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
+                      {log.created_at}
                     </td>
 
                     {/* Admin User */}
@@ -420,37 +392,30 @@ export const ActivityLogsView: React.FC = () => {
                       )}
                     </td>
 
-                    {/* Module */}
+                    {/* Role */}
                     <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
-                      {getModuleBadge(log.module)}
+                      <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', textTransform: 'capitalize' }}>
+                        {log.user_role || log.role || 'Admin'}
+                      </span>
                     </td>
 
                     {/* Action */}
-                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
-                      {getActionBadge(log.action)}
-                    </td>
-
-                    {/* Description */}
-                    <td style={{ padding: '16px 20px', maxWidth: '360px', color: '#f5efe6', lineHeight: 1.4 }}>
-                      {log.description}
-                    </td>
-
-                    {/* IP Address */}
-                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                      {log.ip_address || '127.0.0.1'}
+                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap', fontWeight: 600, color: '#f5efe6' }}>
+                      {formatActionLabel(log.action)}
                     </td>
 
                     {/* Status */}
+                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: log.status === 'SUCCESS' ? '#2ecc71' : '#e74c3c' }}>
+                        {log.status}
+                      </span>
+                    </td>
+
+                    {/* Details View Button */}
                     <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {log.status === 'SUCCESS' ? (
-                        <span style={{ color: '#2ecc71', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={14} /> Success
-                        </span>
-                      ) : (
-                        <span style={{ color: '#e74c3c', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <XCircle size={14} /> {log.status}
-                        </span>
-                      )}
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedLog(log)}>
+                        View Details
+                      </Button>
                     </td>
                   </tr>
                 ))}

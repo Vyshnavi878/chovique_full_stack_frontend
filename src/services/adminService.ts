@@ -1090,14 +1090,16 @@ export interface SuperadminAuditLogRecord {
   user_email?: string | null;
   user_role: string;
   action: string;
-  module: string;
+  module?: string;
   entity_type?: string | null;
   entity_id?: string | null;
-  ip_address: string;
+  ip_address?: string;
   user_agent?: string | null;
-  request_method: string;
-  endpoint: string;
+  request_method?: string;
+  endpoint?: string;
   status: string;
+  details?: string | null;
+  description?: string | null;
   metadata?: Record<string, any> | null;
   created_at: string;
 }

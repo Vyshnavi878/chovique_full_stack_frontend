@@ -165,7 +165,7 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ isEmbedded = false }
       >
         <AnimatePresence mode="popLayout">
           {wishlist.map((product) => {
-            const inStock = (product.stock ?? 1) > 0;
+            const inStock = (product.is_available !== false) && ((product.stock ?? 0) > 0);
             const shortDesc = product.description
               ? product.description.length > 80
                 ? `${product.description.slice(0, 80)}...`
@@ -321,7 +321,7 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ isEmbedded = false }
                         <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
                       ) : (
                         <>
-                          <ShoppingBag size={14} /> Add to Cart
+                          <ShoppingBag size={14} /> {inStock ? 'Add to Cart' : 'OUT OF STOCK'}
                         </>
                       )}
                     </Button>
