@@ -137,6 +137,7 @@ import {
 import { homeService } from '../../services/homeService';
 import { getImageUrl } from '../../utils/imageUrl';
 import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
+import { ReportsAnalyticsView } from '../admin/ReportsAnalyticsView';
 import {
   trimValue,
   isValidEmail,
@@ -1486,9 +1487,9 @@ export const SuperadminDashboard: React.FC = () => {
 
 
   // ─── Platform Settings State & Handlers ────────────────────────────────────
-  type PsSettingsTab = 'store' | 'payment' | 'customer-order' | 'system';
+  type PsSettingsTab = 'payment' | 'customer-order' | 'system';
 
-  const [psActiveTab, setPsActiveTab] = useState<PsSettingsTab>('store');
+  const [psActiveTab, setPsActiveTab] = useState<PsSettingsTab>('payment');
   const [psLoading, setPsLoading] = useState(false);
   const [psSaving, setPsSaving] = useState(false);
   const [psHasChanges, setPsHasChanges] = useState(false);
@@ -1585,19 +1586,6 @@ export const SuperadminDashboard: React.FC = () => {
 
   const validatePs = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!psForm.store_front_name?.trim()) errs.store_front_name = 'Store name is required.';
-    if (!psForm.support_email?.trim()) {
-      errs.support_email = 'Support email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(psForm.support_email)) {
-      errs.support_email = 'Enter a valid email address.';
-    }
-    if (!psForm.support_phone?.trim()) {
-      errs.support_phone = 'Support phone is required.';
-    } else if (!/^[\d\s\-\+\(\)]{7,20}$/.test(psForm.support_phone)) {
-      errs.support_phone = 'Enter a valid phone number.';
-    }
-    if (!psForm.country?.trim()) errs.country = 'Country is required.';
-    if (psForm.pincode && !/^\d{4,10}$/.test(psForm.pincode.trim())) errs.pincode = 'Pincode must be 4–10 digits.';
     if (psForm.gst_rate < 0 || psForm.gst_rate > 100) errs.gst_rate = 'GST must be between 0 and 100.';
     if (psForm.platform_fee < 0) errs.platform_fee = 'Platform fee cannot be negative.';
     if (psForm.standard_shipping_charge < 0) errs.standard_shipping_charge = 'Shipping charge cannot be negative.';
@@ -4952,7 +4940,6 @@ export const SuperadminDashboard: React.FC = () => {
               overflowX: 'auto',
             }}>
               {[
-                { id: 'store', label: 'Store Configuration' },
                 { id: 'payment', label: 'Payment & Shipping' },
                 { id: 'customer-order', label: 'Customer & Order Settings' },
                 { id: 'system', label: 'System & Security' },
@@ -4982,118 +4969,7 @@ export const SuperadminDashboard: React.FC = () => {
               <DashboardCardSkeleton height="400px" />
             ) : (
               <form onSubmit={handleSavePlatformSettings}>
-                {/* ── TAB 1: Store Configuration ── */}
-                {psActiveTab === 'store' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
-                          Store Identity
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <div>
-                            <Input label="Store Front Name *" value={psForm.store_front_name} onChange={(e) => updatePsField('store_front_name', e.target.value)} />
-                            {psErrors.store_front_name && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.store_front_name}</span>}
-                          </div>
-                          <div>
-                            <Input label="Customer Support Email *" type="email" value={psForm.support_email} onChange={(e) => updatePsField('support_email', e.target.value)} />
-                            {psErrors.support_email && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.support_email}</span>}
-                          </div>
-                          <div>
-                            <Input label="Customer Support Phone *" value={psForm.support_phone} onChange={(e) => updatePsField('support_phone', e.target.value)} />
-                            {psErrors.support_phone && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.support_phone}</span>}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
-                          Store Address
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <Input label="Address" value={psForm.store_address} onChange={(e) => updatePsField('store_address', e.target.value)} />
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                            <Input label="City" value={psForm.city} onChange={(e) => updatePsField('city', e.target.value)} />
-                            <Input label="State" value={psForm.state} onChange={(e) => updatePsField('state', e.target.value)} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                            <div>
-                              <Input label="Country *" value={psForm.country} onChange={(e) => updatePsField('country', e.target.value)} />
-                              {psErrors.country && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.country}</span>}
-                            </div>
-                            <div>
-                              <Input label="Pincode" value={psForm.pincode} onChange={(e) => updatePsField('pincode', e.target.value)} />
-                              {psErrors.pincode && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.pincode}</span>}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                      <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
-                          Regional Settings
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <Select
-                            label="Base Currency *"
-                            value={psForm.base_currency}
-                            onChange={(e) => updatePsField('base_currency', e.target.value)}
-                            options={[
-                              { value: 'INR', label: 'INR (₹)' },
-                              { value: 'USD', label: 'USD ($)' },
-                              { value: 'EUR', label: 'EUR (€)' },
-                              { value: 'GBP', label: 'GBP (£)' },
-                            ]}
-                          />
-                          <Select
-                            label="Time Zone *"
-                            value={psForm.timezone}
-                            onChange={(e) => updatePsField('timezone', e.target.value)}
-                            options={[
-                              { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST +05:30)' },
-                              { value: 'Asia/Dubai', label: 'Asia/Dubai (GST +04:00)' },
-                              { value: 'America/New_York', label: 'America/New_York (EST -05:00)' },
-                              { value: 'Europe/London', label: 'Europe/London (GMT +00:00)' },
-                              { value: 'UTC', label: 'UTC' },
-                            ]}
-                          />
-                          <Select
-                            label="Business / Store Status *"
-                            value={psForm.business_status}
-                            onChange={(e) => updatePsField('business_status', e.target.value)}
-                            options={[
-                              { value: 'active', label: 'Active' },
-                              { value: 'paused', label: 'Paused' },
-                              { value: 'closed', label: 'Closed' },
-                            ]}
-                          />
-                        </div>
-                      </div>
-
-                      {/* About Configuration Info Card */}
-                      <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(201, 168, 76, 0.06)', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
-                        <h4 style={{ color: '#c9a84c', fontFamily: 'var(--font-display)', fontSize: '0.95rem', margin: '0 0 12px 0' }}>About Configuration</h4>
-                        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: '0 0 10px 0', lineHeight: 1.5 }}>
-                          These settings will apply across the entire platform and customer-facing website.
-                        </p>
-                        {[
-                          'Changes reflect immediately after saving',
-                          'Ensure all details are accurate',
-                          'Contact support for any assistance',
-                        ].map((tip, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <Check size={13} color="#2ecc71" />
-                            <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.78rem' }}>{tip}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB 2: Payment & Shipping ── */}
+                {/* ── TAB 1: Payment & Shipping ── */}
                 {psActiveTab === 'payment' && (
                   <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
                     <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
@@ -5710,8 +5586,13 @@ export const SuperadminDashboard: React.FC = () => {
           <ChangePasswordView />
         )}
 
+        {/* REPORTS & ANALYTICS TAB */}
+        {activeTab === 'reports' && (
+          <ReportsAnalyticsView />
+        )}
+
         {/* AUDIT LOG TAB FALLBACK */}
-        {!['enterprise', 'revenue', 'sales-comparison', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications', 'profile', 'change-password'].includes(activeTab) && (
+        {!['enterprise', 'revenue', 'sales-comparison', 'reports', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications', 'profile', 'change-password'].includes(activeTab) && (
           <div
             className="glass-panel"
             style={{

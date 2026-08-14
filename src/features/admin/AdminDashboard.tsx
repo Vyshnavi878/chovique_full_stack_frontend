@@ -32,15 +32,6 @@ import {
   Search,
   Home
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from 'recharts';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
@@ -143,7 +134,6 @@ export const AdminDashboard: React.FC = () => {
   // --- Dashboard Data & Loading States ---
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [chartTimeframe, setChartTimeframe] = useState<'This Week' | 'This Month' | 'This Year'>('This Week');
 
   // --- Toast Notifications State ---
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -1677,30 +1667,6 @@ export const AdminDashboard: React.FC = () => {
                   marginBottom: '30px',
                 }}
               >
-                {/* Total Revenue Card */}
-                <div
-                  className="glass-panel"
-                  style={{
-                    padding: '22px 20px',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: '8px',
-                    background: 'rgba(26, 13, 0, 0.4)',
-                    boxShadow: 'var(--glass-shadow)',
-                  }}
-                >
-                  <span style={{ fontSize: '0.82rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-                    Total Revenue
-                  </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
-                    ₹{(dashboardStats?.total_sales ?? 0).toLocaleString()}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
-                    <TrendingUp size={14} />
-                    <span>+12.5%</span>
-                    <span style={{ color: 'var(--grey-mid)' }}>vs last 7 days</span>
-                  </div>
-                </div>
-
                 {/* Total Orders Card */}
                 <div
                   className="glass-panel"
@@ -1775,68 +1741,8 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Grid 1: Sales Overview Chart & Top Selling Products */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.4fr 1fr', gap: '25px', marginBottom: '30px' }}>
-              {/* Sales Overview Chart */}
-              {dashboardLoading ? (
-                <DashboardCardSkeleton height="360px" />
-              ) : (
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'rgba(26,13,0,0.4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                      Sales Overview
-                    </h3>
-                    <select
-                      value={chartTimeframe}
-                      onChange={(e) => setChartTimeframe(e.target.value as any)}
-                      style={{
-                        padding: '6px 12px',
-                        background: 'rgba(0,0,0,0.5)',
-                        border: '1px solid var(--gold)',
-                        borderRadius: '4px',
-                        color: 'var(--cream)',
-                        fontSize: '0.8rem',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="This Week" style={{ background: '#1A0D00' }}>This Week</option>
-                      <option value="This Month" style={{ background: '#1A0D00' }}>This Month</option>
-                      <option value="This Year" style={{ background: '#1A0D00' }}>This Year</option>
-                    </select>
-                  </div>
-
-                  <div style={{ width: '100%', height: '260px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={
-                          dashboardStats?.daily_sales && dashboardStats.daily_sales.length > 0
-                            ? dashboardStats.daily_sales
-                            : (dashboardStats?.revenue_trend && dashboardStats.revenue_trend.length > 0
-                                ? dashboardStats.revenue_trend
-                                : [])
-                        }
-                      >
-                        <defs>
-                          <linearGradient id="goldSalesGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#C9A84C" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#C9A84C" stopOpacity={0.0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-                        <XAxis dataKey="name" stroke="var(--grey-light)" tick={{ fontSize: 12 }} />
-                        <YAxis stroke="var(--grey-light)" tick={{ fontSize: 12 }} tickFormatter={(v) => `₹${v / 1000}k`} />
-                        <Tooltip
-                          contentStyle={{ background: '#1A0D00', border: '1px solid #C9A84C', borderRadius: '6px', color: '#F5E6D3' }}
-                          formatter={(val: any) => [`₹${Number(val).toLocaleString()}`, 'Revenue']}
-                        />
-                        <Area type="monotone" dataKey="sales" stroke="#C9A84C" strokeWidth={3} fillOpacity={1} fill="url(#goldSalesGradient)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-
+            {/* Grid 1: Top Selling Products */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '25px', marginBottom: '30px' }}>
               {/* Top Selling Products */}
               {dashboardLoading ? (
                 <DashboardCardSkeleton height="360px" />
