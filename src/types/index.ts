@@ -168,6 +168,8 @@ export interface SupportTicket {
     | 'Other';
   description: string;
   status: 'Pending' | 'Resolved';
+  orderId?: string;
+  order_id?: string;
   adminNotes?: string;
   customerResolutionFeedback?: 'Resolved' | 'Not Resolved';
   date: string;
@@ -422,6 +424,8 @@ export interface ProfileUpdatePayload {
 export interface CreateTicketPayload {
   category: SupportTicket['category'];
   description: string;
+  order_id?: string;
+  orderId?: string;
 }
 
 export interface TicketFeedbackPayload {

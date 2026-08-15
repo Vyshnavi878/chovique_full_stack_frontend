@@ -30,7 +30,8 @@ import {
   RefreshCw,
   ChevronDown,
   Search,
-  Home
+  Home,
+  ExternalLink
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
@@ -51,7 +52,8 @@ import { walletService, RewardSettings } from '../../services/walletService';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { categoryService, AdminCategory } from '../../services/categoryService';
-import { OrderManagement } from './OrderManagement';
+import { orderService } from '../../services/orderService';
+import { OrderManagement, OrderDetailModal } from './OrderManagement';
 import { CustomerDirectory } from './CustomerDirectory';
 import { OfflineSalesView } from './OfflineSalesView';
 import { CreateCouponView } from './CreateCouponView';
@@ -184,6 +186,8 @@ export const AdminDashboard: React.FC = () => {
       isConfirming: false,
     });
   };
+
+  const [viewingComplaintOrder, setViewingComplaintOrder] = useState<any | null>(null);
 
   // --- Form Inline Validation Error States ---
   const [productFormErrors, setProductFormErrors] = useState<Record<string, string>>({});
@@ -4730,6 +4734,48 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </div>
 
+                        {/* Stored Order Relationship Display */}
+                        {(() => {
+                          const relatedOrderId = t.orderId || t.order_id;
+                          return relatedOrderId ? (
+                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                              <span style={{ color: 'var(--beige)' }}>
+                                Related Order: <strong style={{ color: 'var(--gold)', fontFamily: 'monospace' }}>#{relatedOrderId}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const ord = await orderService.getOrder(relatedOrderId);
+                                    setViewingComplaintOrder(ord);
+                                  } catch (err: any) {
+                                    addToast('error', err?.detail || err?.message || 'Failed to load related order details.', 'Order Error');
+                                  }
+                                }}
+                                style={{
+                                  padding: '3px 10px',
+                                  fontSize: '0.75rem',
+                                  background: 'rgba(201, 168, 76, 0.15)',
+                                  color: 'var(--gold)',
+                                  border: '1px solid rgba(201, 168, 76, 0.35)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <ExternalLink size={12} /> View Related Order
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
+                              No related order
+                            </div>
+                          );
+                        })()}
+
                         <p style={{ fontSize: '0.9rem', color: 'var(--beige)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
                           {t.description}
                         </p>
@@ -5380,6 +5426,17 @@ export const AdminDashboard: React.FC = () => {
           onConfirm={handleConfirmLogout}
           onCancel={() => setShowLogoutConfirmModal(false)}
         />
+
+        {/* Complaint Related Order Detail Modal */}
+        {viewingComplaintOrder && (
+          <OrderDetailModal
+            order={viewingComplaintOrder}
+            onClose={() => setViewingComplaintOrder(null)}
+            onUpdateStatus={handleUpdateOrderStatus}
+            addToast={addToast}
+            onRefresh={() => {}}
+          />
+        )}
       </div>
     </div>
   );

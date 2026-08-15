@@ -72,7 +72,7 @@ const StatusBadge: React.FC<{ status: string; map: Record<string, { bg: string; 
 
 // ─── Order Detail Modal ───────────────────────────────────────────────────────
 
-const OrderDetailModal: React.FC<{
+export const OrderDetailModal: React.FC<{
   order: any;
   onClose: () => void;
   onUpdateStatus: (id: string, payload: { status?: string; payment_status?: string }) => void;
