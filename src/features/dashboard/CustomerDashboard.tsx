@@ -190,6 +190,24 @@ export const CustomerDashboard: React.FC = () => {
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
   const [orderSortOrder, setOrderSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [isPdfDownloading, setIsPdfDownloading] = useState<boolean>(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    setCancellingOrderId(orderId);
+    try {
+      const updatedOrder = await orderService.cancelOrder(orderId);
+      setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(updatedOrder);
+      }
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      alert('Failed to cancel order. Please try again.');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   const handleDownloadInvoice = async (orderId: string, e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -214,16 +232,7 @@ export const CustomerDashboard: React.FC = () => {
     }
   };
 
-  const handleCancelOrder = async (orderId: string) => {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
-    try {
-      const cancelledOrder = await orderService.cancelOrder(orderId);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Cancelled' } : o)));
-    } catch (err) {
-      console.error('Failed to cancel order', err);
-      alert('Could not cancel order. It may be too late to cancel.');
-    }
-  };
+
 
   // Keep profile form in sync if the user object changes (e.g. after rehydration from /users/me)
   useEffect(() => {
@@ -2043,8 +2052,8 @@ export const CustomerDashboard: React.FC = () => {
                     </div>
 
                     {/* 3 Cards Grid Bottom Section */}
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr', gap: '20px', marginBottom: '28px' }}>
-                      {/* Card 1: Shipping Address */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.5fr 1fr', gap: '20px', marginBottom: '28px' }}>
+                      {/* Card 1: Shipping & Billing Address */}
                       <div
                         style={{
                           background: 'rgba(18, 14, 11, 0.95)',
@@ -2054,7 +2063,7 @@ export const CustomerDashboard: React.FC = () => {
                           boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                         }}
                       >
-                        <h4 style={{ color: '#f5efe6', margin: '0 0 14px 0', fontSize: '1rem', fontWeight: 700 }}>Shipping Address</h4>
+                        <h4 style={{ color: '#f5efe6', margin: '0 0 14px 0', fontSize: '1rem', fontWeight: 700 }}>Shipping & Billing Address</h4>
                         <div style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: '0.86rem', lineHeight: 1.6 }}>
                           <p style={{ margin: '0 0 4px 0', fontWeight: 700, color: '#f5efe6' }}>
                             {selectedOrder.shippingAddress?.name || user.name}
@@ -2070,33 +2079,7 @@ export const CustomerDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Card 2: Billing Address */}
-                      <div
-                        style={{
-                          background: 'rgba(18, 14, 11, 0.95)',
-                          border: '1px solid rgba(201, 168, 76, 0.25)',
-                          borderRadius: '14px',
-                          padding: '22px',
-                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                        }}
-                      >
-                        <h4 style={{ color: '#f5efe6', margin: '0 0 14px 0', fontSize: '1rem', fontWeight: 700 }}>Billing Address</h4>
-                        <div style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: '0.86rem', lineHeight: 1.6 }}>
-                          <p style={{ margin: '0 0 4px 0', fontWeight: 700, color: '#f5efe6' }}>
-                            {selectedOrder.shippingAddress?.name || user.name}
-                          </p>
-                          <div>{selectedOrder.shippingAddress?.street || '12-34, MG Road, Block A'}</div>
-                          <div>
-                            {selectedOrder.shippingAddress?.city || 'Hyderabad'}, {selectedOrder.shippingAddress?.state || 'Telangana'} - {selectedOrder.shippingAddress?.zip || '500001'}
-                          </div>
-                          <div>India</div>
-                          <div style={{ marginTop: '6px', color: 'rgba(255, 255, 255, 0.6)' }}>
-                            {selectedOrder.shippingAddress?.phone || '9876543210'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card 3: Order Summary */}
+                      {/* Card 2: Order Summary */}
                       <div
                         style={{
                           background: 'rgba(18, 14, 11, 0.95)',
@@ -2126,6 +2109,14 @@ export const CustomerDashboard: React.FC = () => {
                               ₹{(selectedOrder.shipping || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
+                          {(selectedOrder.tax || 0) > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255, 255, 255, 0.7)' }}>
+                              <span>Tax (GST)</span>
+                              <span style={{ color: '#f5efe6', fontWeight: 600 }}>
+                                ₹{(selectedOrder.tax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
                           <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-baseline' }}>
                             <span style={{ fontSize: '1rem', fontWeight: 700, color: '#f5efe6' }}>Total</span>
                             <div style={{ textAlign: 'right' }}>
@@ -2142,7 +2133,29 @@ export const CustomerDashboard: React.FC = () => {
                     </div>
 
                     {/* Bottom Action Row */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', flexWrap: 'wrap' }}>
+                      {selectedOrder.status === 'Processing' && (
+                        <button
+                          type="button"
+                          disabled={cancellingOrderId === selectedOrder.id}
+                          onClick={() => handleCancelOrder(selectedOrder.id)}
+                          style={{
+                            padding: '11px 22px',
+                            borderRadius: '8px',
+                            background: 'rgba(231, 76, 60, 0.1)',
+                            border: '1px solid rgba(231, 76, 60, 0.5)',
+                            color: '#e74c3c',
+                            fontSize: '0.9rem',
+                            fontWeight: 700,
+                            cursor: cancellingOrderId === selectedOrder.id ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <X size={16} /> {cancellingOrderId === selectedOrder.id ? 'Cancelling...' : 'Cancel Order'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setOrderSubView('invoice')}
@@ -2265,26 +2278,16 @@ export const CustomerDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Bill To / Ship To Grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px', background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #e5dccb' }}>
-                          <div>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>BILL TO</span>
-                            <div style={{ fontSize: '0.85rem', color: '#333', lineHeight: 1.5 }}>
-                              <strong>{selectedOrder.shippingAddress?.name || user.name}</strong>
-                              <div>{user.email}</div>
-                              <div>{selectedOrder.shippingAddress?.phone || '9876543210'}</div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>SHIP TO</span>
-                            <div style={{ fontSize: '0.85rem', color: '#333', lineHeight: 1.5 }}>
-                              <strong>{selectedOrder.shippingAddress?.name || user.name}</strong>
-                              <div>{selectedOrder.shippingAddress?.street || '12-34, MG Road, Block A'}</div>
-                              <div>{selectedOrder.shippingAddress?.city || 'Hyderabad'}, {selectedOrder.shippingAddress?.state || 'Telangana'} - {selectedOrder.shippingAddress?.zip || '500001'}</div>
-                              <div>India</div>
-                              <div>{selectedOrder.shippingAddress?.phone || '9876543210'}</div>
-                            </div>
+                        {/* Bill To & Ship To Box */}
+                        <div style={{ marginBottom: '28px', background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #e5dccb' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>BILL & SHIP TO</span>
+                          <div style={{ fontSize: '0.85rem', color: '#333', lineHeight: 1.5 }}>
+                            <strong>{selectedOrder.shippingAddress?.name || user.name}</strong>
+                            <div>{user.email}</div>
+                            <div>{selectedOrder.shippingAddress?.street || '12-34, MG Road, Block A'}</div>
+                            <div>{selectedOrder.shippingAddress?.city || 'Hyderabad'}, {selectedOrder.shippingAddress?.state || 'Telangana'} - {selectedOrder.shippingAddress?.zip || '500001'}</div>
+                            <div>India</div>
+                            <div>{selectedOrder.shippingAddress?.phone || '9876543210'}</div>
                           </div>
                         </div>
 
@@ -2331,14 +2334,34 @@ export const CustomerDashboard: React.FC = () => {
                               <span>Subtotal</span>
                               <span>₹{(selectedOrder.subtotal || selectedOrder.total).toFixed(2)}</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e74c3c' }}>
-                              <span>Coupon Discount</span>
-                              <span>-₹{(selectedOrder.coupon_discount || selectedOrder.discount || 0).toFixed(2)}</span>
-                            </div>
+                            {(selectedOrder.coupon_discount || 0) > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e74c3c' }}>
+                                <span>Coupon Discount</span>
+                                <span>-₹{(selectedOrder.coupon_discount || 0).toFixed(2)}</span>
+                              </div>
+                            )}
+                            {(selectedOrder.coin_discount || 0) > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e74c3c' }}>
+                                <span>Coin Discount</span>
+                                <span>-₹{(selectedOrder.coin_discount || 0).toFixed(2)}</span>
+                              </div>
+                            )}
+                            {((selectedOrder.discount || 0) > 0 && !(selectedOrder.coupon_discount || 0) && !(selectedOrder.coin_discount || 0)) && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e74c3c' }}>
+                                <span>Promo Discount</span>
+                                <span>-₹{(selectedOrder.discount || 0).toFixed(2)}</span>
+                              </div>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555' }}>
                               <span>Shipping</span>
                               <span>₹{(selectedOrder.shipping || 0).toFixed(2)}</span>
                             </div>
+                            {(selectedOrder.tax || 0) > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555' }}>
+                                <span>Tax (GST)</span>
+                                <span>₹{(selectedOrder.tax || 0).toFixed(2)}</span>
+                              </div>
+                            )}
                             <div style={{ borderTop: '2px solid #1a0d00', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800 }}>
                               <span>Grand Total</span>
                               <div style={{ textAlign: 'right' }}>
@@ -2421,6 +2444,33 @@ export const CustomerDashboard: React.FC = () => {
                           >
                             <Printer size={16} /> Print Invoice
                           </button>
+
+                          {selectedOrder.status === 'Processing' && (
+                            <button
+                              type="button"
+                              disabled={cancellingOrderId === selectedOrder.id}
+                              onClick={() => handleCancelOrder(selectedOrder.id)}
+                              style={{
+                                width: '100%',
+                                padding: '12px 18px',
+                                borderRadius: '8px',
+                                background: 'rgba(231, 76, 60, 0.1)',
+                                border: '1px solid rgba(231, 76, 60, 0.5)',
+                                color: '#e74c3c',
+                                fontSize: '0.92rem',
+                                fontWeight: 700,
+                                cursor: cancellingOrderId === selectedOrder.id ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                marginTop: '4px',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              {cancellingOrderId === selectedOrder.id ? 'Cancelling...' : 'Cancel Order'}
+                            </button>
+                          )}
 
                           <div
                             style={{
@@ -2665,14 +2715,34 @@ export const CustomerDashboard: React.FC = () => {
                                       <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Subtotal</span>
                                       <span style={{ color: '#f5efe6' }}>₹{(ord.subtotal || ord.total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
-                                      <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Coupon Discount</span>
-                                      <span style={{ color: '#2ecc71' }}>- ₹{(ord.coupon_discount || ord.discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                    </div>
+                                    {(ord.coupon_discount || 0) > 0 && (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                        <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Coupon Discount</span>
+                                        <span style={{ color: '#2ecc71' }}>- ₹{(ord.coupon_discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      </div>
+                                    )}
+                                    {(ord.coin_discount || 0) > 0 && (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                        <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Coin Discount</span>
+                                        <span style={{ color: '#2ecc71' }}>- ₹{(ord.coin_discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      </div>
+                                    )}
+                                    {((ord.discount || 0) > 0 && !(ord.coupon_discount || 0) && !(ord.coin_discount || 0)) && (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                        <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Promo Discount</span>
+                                        <span style={{ color: '#2ecc71' }}>- ₹{(ord.discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      </div>
+                                    )}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
                                       <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Shipping</span>
                                       <span style={{ color: '#f5efe6' }}>₹{(ord.shipping || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
+                                    {(ord.tax || 0) > 0 && (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                        <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tax (GST)</span>
+                                        <span style={{ color: '#f5efe6' }}>₹{(ord.tax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Right: Total & Action Buttons */}
@@ -2687,7 +2757,30 @@ export const CustomerDashboard: React.FC = () => {
                                       </span>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: isMobileGrid ? 'flex-start' : 'flex-end', marginTop: '4px' }}>
+                                      {ord.status === 'Processing' && (
+                                        <button
+                                          type="button"
+                                          disabled={cancellingOrderId === ord.id}
+                                          onClick={() => handleCancelOrder(ord.id)}
+                                          style={{
+                                            padding: '8px 16px',
+                                            borderRadius: '6px',
+                                            background: 'rgba(231, 76, 60, 0.1)',
+                                            border: '1px solid rgba(231, 76, 60, 0.5)',
+                                            color: '#e74c3c',
+                                            fontSize: '0.82rem',
+                                            fontWeight: 700,
+                                            cursor: cancellingOrderId === ord.id ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                          }}
+                                        >
+                                          {cancellingOrderId === ord.id ? 'Cancelling...' : 'Cancel Order'}
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => { setSelectedOrder(ord); setOrderSubView('details'); }}

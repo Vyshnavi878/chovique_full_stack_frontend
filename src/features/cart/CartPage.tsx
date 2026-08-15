@@ -10,7 +10,7 @@ import { cartService } from '../../services/cartService';
 import type { CouponValidationResponse } from '../../types';
 
 export const CartPage: React.FC = () => {
-  const { cart, updateCartQuantity, removeFromCart, role } = useApp();
+  const { cart, updateCartQuantity, removeFromCart, role, storeConfig } = useApp();
   const navigate = useNavigate();
 
   const [couponCode, setCouponCode] = useState('');
@@ -32,8 +32,17 @@ export const CartPage: React.FC = () => {
   const discountAmount = couponData?.calculated_discount ?? 0;
   const discountPercent = couponData?.discount_percent ?? 0;
 
-  const shippingAmount = subtotal > 1500 || subtotal === 0 ? 0 : 150;
-  const totalAmount = subtotal - discountAmount + shippingAmount;
+  // Shipping
+  const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
+  const standardShipping = storeConfig?.standard_shipping_charge ?? 50;
+  const shippingAmount = subtotal > freeShippingMin || subtotal === 0 ? 0 : standardShipping;
+
+  // Tax
+  const gstRate = storeConfig?.gst_rate ?? 0;
+  const taxAmount = Math.round(subtotal * (gstRate / 100) * 100) / 100;
+
+  // Total
+  const totalAmount = Math.max(0, subtotal - discountAmount + shippingAmount + taxAmount);
 
   /**
    * Coupon validation: sends code to backend API.
@@ -294,8 +303,14 @@ export const CartPage: React.FC = () => {
               </div>
               {shippingAmount > 0 && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: '-8px 0 0 0' }}>
-                  Free shipping on orders above ₹1,500.
+                  Free shipping on orders above ₹{freeShippingMin.toLocaleString()}.
                 </p>
+              )}
+              {taxAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: 'var(--beige)', marginTop: '8px' }}>
+                  <span>Tax (GST)</span>
+                  <span>₹{taxAmount.toLocaleString()}</span>
+                </div>
               )}
               <div
                 style={{

@@ -273,6 +273,18 @@ export interface HomePageData {
   contact: ContactInfo;
 }
 
+export interface StoreConfig {
+  standard_shipping_charge: number;
+  free_shipping_min_order: number;
+  gst_rate: number;
+  cod_enabled: boolean;
+  minimum_order_value: number;
+  maximum_cod_order_value: number;
+  base_currency: string;
+  store_front_name: string;
+}
+
+
 // =============================================================================
 // CATEGORY TYPES
 // =============================================================================

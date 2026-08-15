@@ -10,6 +10,7 @@ import {
   SupportTicket,
   CustomerAddress,
   SupportNotification,
+  StoreConfig,
 } from '../types';
 import { authService } from '../services/authService';
 import { cartService, BackendCartItem } from '../services/cartService';
@@ -61,6 +62,9 @@ interface AppContextType {
     roseGold: string;
     black: string;
   };
+
+  // Store Configuration
+  storeConfig: StoreConfig | null;
 
   // Cart
   cart: CartItem[];
@@ -162,6 +166,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>('guest');
+  const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
+
+  useEffect(() => {
+    // Fetch public store configuration once on mount
+    homeService.getStoreConfig()
+      .then(config => setStoreConfig(config))
+      .catch(err => console.error("Failed to fetch store config:", err));
+  }, []);
 
   /**
    * On mount: attempt to rehydrate the session from httpOnly cookies.
@@ -1044,6 +1056,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        // Auth
         user,
         role,
         isAuthLoading,
@@ -1053,6 +1066,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         register,
         verifyOtp,
         logout,
+
+        // Config
+        storeConfig,
+
+        // Products
         products,
         banners,
         setProducts,

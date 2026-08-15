@@ -11,12 +11,16 @@
  */
 
 import { apiGet, apiPost } from '../lib/api';
-import type { Banner, Testimonial, HomeStats, ContactInfo, InstagramReel, HomePageData } from '../types';
+import type { Banner, Testimonial, HomeStats, ContactInfo, InstagramReel, HomePageData, StoreConfig } from '../types';
 
 export const homeService = {
   /** Aggregated home page data — banners + featured products + testimonials + stats + contact */
   getHomePage: (): Promise<HomePageData> =>
     apiGet<HomePageData>('/home'),
+
+  /** Store configuration (public settings like shipping, tax, etc.) */
+  getStoreConfig: (): Promise<StoreConfig> =>
+    apiGet<StoreConfig>('/home/store-config'),
 
   /** Active hero banner slides */
   getBanners: (): Promise<Banner[]> =>

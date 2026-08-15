@@ -39,7 +39,7 @@ interface CheckoutCouponData {
 }
 
 export const CheckoutPage: React.FC = () => {
-  const { cart, user, wallet, refreshWallet, placeOrderLocal } = useApp();
+  const { cart, user, wallet, refreshWallet, placeOrderLocal, storeConfig } = useApp();
   const navigate = useNavigate();
 
   const [activeStep, setActiveStep] = useState(1);
@@ -160,9 +160,18 @@ export const CheckoutPage: React.FC = () => {
   }, [wallet, useCoins, coinsToUse, subtotal, discountAmount]);
 
   const coinDiscountAmount = useCoins ? coinPreview.coin_discount : 0;
-  // Free delivery for orders >= ₹1500, else ₹99
-  const shippingFee = subtotal >= 1500 ? 0 : 99;
-  const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee);
+  
+  // Shipping
+  const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
+  const standardShipping = storeConfig?.standard_shipping_charge ?? 50;
+  const shippingFee = subtotal >= freeShippingMin || subtotal === 0 ? 0 : standardShipping;
+
+  // Tax
+  const gstRate = storeConfig?.gst_rate ?? 0;
+  const taxAmount = Math.round(subtotal * (gstRate / 100) * 100) / 100;
+
+  // Total
+  const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee + taxAmount);
 
   // Coupon handlers
   const handleApplyCouponCode = async (codeToApply: string) => {
@@ -603,8 +612,15 @@ export const CheckoutPage: React.FC = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
                     <span>Delivery Charges:</span>
-                    <span>{shippingFee === 0 ? 'Free (Order over ₹1,500)' : `₹${shippingFee}`}</span>
+                    <span>{shippingFee === 0 ? `Free (Order over ₹${freeShippingMin.toLocaleString()})` : `₹${shippingFee}`}</span>
                   </div>
+
+                  {taxAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
+                      <span>Tax (GST):</span>
+                      <span>₹{taxAmount.toLocaleString()}</span>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)', fontSize: '1.25rem', fontWeight: 700, marginTop: '8px', paddingTop: '10px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
                     <span>Total:</span>
@@ -844,7 +860,7 @@ export const CheckoutPage: React.FC = () => {
                     <p style={{ color: 'var(--cream)', fontSize: '0.9rem', margin: 0, lineHeight: 1.5 }}>
                       <strong>Payment Method:</strong> {paymentMethod}
                       <br />
-                      <strong>Delivery Charge:</strong> {shippingFee === 0 ? 'Free Standard Delivery' : 'Standard Delivery (₹99)'}
+                      <strong>Delivery Charge:</strong> {shippingFee === 0 ? 'Free Standard Delivery' : `Standard Delivery (₹${shippingFee})`}
                     </p>
                   </div>
                 </div>
@@ -872,8 +888,15 @@ export const CheckoutPage: React.FC = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
                     <span>Delivery Charges:</span>
-                    <span>{shippingFee === 0 ? 'Free (Order over ₹1,500)' : `₹${shippingFee}`}</span>
+                    <span>{shippingFee === 0 ? `Free (Order over ₹${freeShippingMin.toLocaleString()})` : `₹${shippingFee}`}</span>
                   </div>
+
+                  {taxAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--beige)', fontSize: '0.9rem' }}>
+                      <span>Tax (GST):</span>
+                      <span>₹{taxAmount.toLocaleString()}</span>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)', fontSize: '1.25rem', fontWeight: 700, marginTop: '8px', paddingTop: '10px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
                     <span>Final Payable Amount:</span>
@@ -1015,7 +1038,19 @@ export const CheckoutPage: React.FC = () => {
                       <span style={{ color: 'var(--beige)' }}>Items total:</span>
                       <span>₹{createdOrder.subtotal.toLocaleString()}</span>
                     </div>
-                    {createdOrder.discount > 0 && (
+                    {(createdOrder.coupon_discount || 0) > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
+                        <span>Coupon Discount:</span>
+                        <span>-₹{createdOrder.coupon_discount?.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {(createdOrder.coin_discount || 0) > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
+                        <span>Coin Discount:</span>
+                        <span>-₹{createdOrder.coin_discount?.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {(createdOrder.discount > 0 && !createdOrder.coupon_discount && !createdOrder.coin_discount) && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
                         <span>Promo Discount:</span>
                         <span>-₹{createdOrder.discount.toLocaleString()}</span>
@@ -1025,6 +1060,12 @@ export const CheckoutPage: React.FC = () => {
                       <span style={{ color: 'var(--beige)' }}>Shipping:</span>
                       <span>{createdOrder.shipping === 0 ? 'Free' : `₹${createdOrder.shipping}`}</span>
                     </div>
+                    {(createdOrder.tax || 0) > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--beige)' }}>Tax (GST):</span>
+                        <span>₹{createdOrder.tax.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', fontSize: '1rem', color: 'var(--gold)' }}>
                       <span>Charged Total:</span>
                       <span>₹{createdOrder.total.toLocaleString()}</span>
