@@ -37,7 +37,6 @@ import {
   UserPlus,
   Edit3,
   Power,
-  KeyRound,
   Eye,
   EyeOff,
   RotateCcw,
@@ -275,15 +274,7 @@ export const SuperadminDashboard: React.FC = () => {
       offline_revenue: 22660,
       offline_percentage: 29.4,
     },
-    top_selling_products: [
-      {
-        id: 'prod-1',
-        name: 'Belgian Dark Truffle Bar',
-        image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80',
-        units_sold: 45,
-        revenue: 10125,
-      },
-    ],
+    top_selling_products: [],
     recent_activities: [
       { id: 'act-1', action: 'NEW_ORDER', description: 'New order #ORD1245', timestamp: '12 Aug 2026, 10:45 AM', user_name: 'Customer' },
       { id: 'act-2', action: 'PRODUCT_UPDATE', description: 'Admin Vaishnavi updated product', timestamp: '12 Aug 2026, 09:15 AM', user_name: 'Admin Vaishnavi' },
@@ -296,12 +287,31 @@ export const SuperadminDashboard: React.FC = () => {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [overviewTimeframe, setOverviewTimeframe] = useState<string>('7days');
+  const [overviewStartDate, setOverviewStartDate] = useState<string>('');
+  const [overviewEndDate, setOverviewEndDate] = useState<string>('');
+  const [overviewDateError, setOverviewDateError] = useState<string | null>(null);
 
-  const fetchOverview = async (tf = overviewTimeframe) => {
+  const fetchOverview = async (
+    tf = overviewTimeframe,
+    startD = overviewStartDate,
+    endD = overviewEndDate
+  ) => {
+    if (tf === 'custom') {
+      if (!startD || !endD) return;
+      if (startD > endD) {
+        setOverviewDateError('Start date cannot be after end date.');
+        return;
+      }
+    }
+    setOverviewDateError(null);
     setOverviewLoading(true);
     setOverviewError(null);
     try {
-      const data = await adminService.getSuperadminOverview(tf);
+      const data = await adminService.getSuperadminOverview(
+        tf,
+        tf === 'custom' ? startD : undefined,
+        tf === 'custom' ? endD : undefined
+      );
       if (data) {
         setOverviewData(data);
       }
@@ -313,9 +323,47 @@ export const SuperadminDashboard: React.FC = () => {
     }
   };
 
+  const handleSelectOverviewTimeframe = (tfId: string) => {
+    setOverviewTimeframe(tfId);
+    if (tfId === 'custom') {
+      let s = overviewStartDate;
+      let e = overviewEndDate;
+      if (!s || !e) {
+        const today = new Date();
+        const past = new Date();
+        past.setFullYear(today.getFullYear() - 1);
+        e = today.toISOString().split('T')[0];
+        s = past.toISOString().split('T')[0];
+        setOverviewStartDate(s);
+        setOverviewEndDate(e);
+      }
+      if (s && e && s <= e) {
+        setOverviewDateError(null);
+        fetchOverview('custom', s, e);
+      } else if (s && e && s > e) {
+        setOverviewDateError('Start date cannot be after end date.');
+      }
+    } else {
+      setOverviewDateError(null);
+      fetchOverview(tfId);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'enterprise') {
-      fetchOverview(overviewTimeframe);
+      if (overviewTimeframe === 'custom') {
+        if (overviewStartDate && overviewEndDate) {
+          if (overviewStartDate > overviewEndDate) {
+            setOverviewDateError('Start date cannot be after end date.');
+          } else {
+            setOverviewDateError(null);
+            fetchOverview('custom', overviewStartDate, overviewEndDate);
+          }
+        }
+      } else {
+        setOverviewDateError(null);
+        fetchOverview(overviewTimeframe);
+      }
     }
   }, [activeTab, overviewTimeframe]);
 
@@ -619,13 +667,6 @@ export const SuperadminDashboard: React.FC = () => {
   const [editFormError, setEditFormError] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Password Reset Modal state
-  const [pwdResetAdmin, setPwdResetAdmin] = useState<AdminUserRecord | null>(null);
-  const [pwdNewPassword, setPwdNewPassword] = useState('');
-  const [pwdConfirmPassword, setPwdConfirmPassword] = useState('');
-  const [pwdFormError, setPwdFormError] = useState<string | null>(null);
-  const [pwdSubmitting, setPwdSubmitting] = useState(false);
-
   const fetchAdmins = async () => {
     setAdminsLoading(true);
     setAdminsError(null);
@@ -776,36 +817,7 @@ export const SuperadminDashboard: React.FC = () => {
     });
   };
 
-  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pwdResetAdmin) return;
-    setPwdFormError(null);
 
-    if (pwdNewPassword.length < 8) {
-      setPwdFormError('Password must be at least 8 characters long.');
-      return;
-    }
-    if (pwdNewPassword !== pwdConfirmPassword) {
-      setPwdFormError('Password confirmation does not match.');
-      return;
-    }
-
-    setPwdSubmitting(true);
-    try {
-      await adminService.updateSuperadminAdminPassword(pwdResetAdmin.id, {
-        new_password: pwdNewPassword,
-        confirm_password: pwdConfirmPassword,
-      });
-      addToast('success', `Password updated for '${pwdResetAdmin.full_name}' successfully!`, 'Password Changed');
-      setPwdResetAdmin(null);
-      setPwdNewPassword('');
-      setPwdConfirmPassword('');
-    } catch (err: any) {
-      setPwdFormError(err?.detail || err?.message || 'Failed to update password.');
-    } finally {
-      setPwdSubmitting(false);
-    }
-  };
 
   const handleDeleteAdmin = (adm: AdminUserRecord) => {
     if (user?.email === adm.email || user?.id === adm.id) {
@@ -1524,7 +1536,6 @@ export const SuperadminDashboard: React.FC = () => {
     admin_session_timeout: 60,
     max_login_attempts: 5,
     account_lockout_duration: 30,
-    require_admin_password_change: false,
   };
 
   const [psForm, setPsForm] = useState({ ...defaultPs });
@@ -1566,7 +1577,6 @@ export const SuperadminDashboard: React.FC = () => {
             admin_session_timeout: data.admin_session_timeout ?? prev.admin_session_timeout,
             max_login_attempts: data.max_login_attempts ?? prev.max_login_attempts,
             account_lockout_duration: data.account_lockout_duration ?? prev.account_lockout_duration,
-            require_admin_password_change: data.require_admin_password_change ?? prev.require_admin_password_change,
           }));
         }
         setPsHasChanges(false);
@@ -1708,6 +1718,15 @@ export const SuperadminDashboard: React.FC = () => {
     if (activeTab === 'notifications') {
       fetchSuperadminNotifications();
     }
+    const handleUpdate = () => {
+      if (activeTab === 'notifications') {
+        fetchSuperadminNotifications();
+      }
+    };
+    window.addEventListener('notification_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('notification_updated', handleUpdate);
+    };
   }, [activeTab, notifPage, notifCategoryTab, notifReadFilter, notifDateFrom, notifDateTo, notifSearch]);
 
   const handleMarkNotifAsRead = async (notif: any) => {
@@ -1721,6 +1740,7 @@ export const SuperadminDashboard: React.FC = () => {
       if (selectedNotif && selectedNotif.id === notif.id) {
         setSelectedNotif((prev: any) => prev ? { ...prev, is_read: true } : null);
       }
+      window.dispatchEvent(new CustomEvent('notification_updated'));
       addToast('success', 'Notification marked as read.', 'Success');
     } catch (err: any) {
       addToast('error', err?.detail || 'Failed to mark notification as read.', 'Error');
@@ -1732,6 +1752,7 @@ export const SuperadminDashboard: React.FC = () => {
       await (adminService as any).markAllSuperadminNotificationsAsRead();
       setNotifItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setNotifUnreadCount(0);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
       addToast('success', 'All notifications marked as read.', 'Success');
     } catch (err: any) {
       addToast('error', err?.detail || 'Failed to mark all as read.', 'Error');
@@ -1743,6 +1764,7 @@ export const SuperadminDashboard: React.FC = () => {
     setIsDeletingNotif(true);
     try {
       await (adminService as any).deleteSuperadminNotification(notifToDelete.id);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
       addToast('success', 'Notification deleted successfully.', 'Deleted');
       setNotifToDelete(null);
       if (selectedNotif && selectedNotif.id === notifToDelete.id) {
@@ -2417,41 +2439,104 @@ export const SuperadminDashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Timeframe Selector Pills */}
-              <div style={{ display: 'flex', background: 'rgba(20, 16, 13, 0.9)', border: '1px solid rgba(201, 168, 76, 0.3)', borderRadius: '8px', padding: '4px', gap: '4px' }}>
-                {[
-                  { id: 'today', label: 'Today' },
-                  { id: '7days', label: '7 Days' },
-                  { id: '30days', label: '30 Days' },
-                  { id: '3months', label: '3 Months' },
-                  { id: '1year', label: '1 Year' },
-                ].map((tf) => (
-                  <button
-                    key={tf.id}
-                    onClick={() => {
-                      setOverviewTimeframe(tf.id);
-                      fetchOverview(tf.id);
-                    }}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '6px',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: overviewTimeframe === tf.id ? 'var(--gradient-gold)' : 'transparent',
-                      color: overviewTimeframe === tf.id ? 'var(--dark-chocolate)' : 'var(--beige)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {tf.label}
-                  </button>
-                ))}
+              {/* Timeframe Selector Pills & Custom Date Range */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', background: 'rgba(20, 16, 13, 0.9)', border: '1px solid rgba(201, 168, 76, 0.3)', borderRadius: '8px', padding: '4px', gap: '4px' }}>
+                  {[
+                    { id: 'today', label: 'Today' },
+                    { id: '7days', label: '7 Days' },
+                    { id: '30days', label: '30 Days' },
+                    { id: '3months', label: '3 Months' },
+                    { id: '1year', label: '1 Year' },
+                    { id: 'custom', label: 'Custom Date' },
+                  ].map((tf) => (
+                    <button
+                      key={tf.id}
+                      onClick={() => handleSelectOverviewTimeframe(tf.id)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: overviewTimeframe === tf.id ? 'var(--gradient-gold)' : 'transparent',
+                        color: overviewTimeframe === tf.id ? 'var(--dark-chocolate)' : 'var(--beige)',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
+
+                {overviewTimeframe === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(20, 16, 13, 0.9)', border: '1px solid rgba(201, 168, 76, 0.3)', borderRadius: '8px', padding: '4px 10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--beige)', fontSize: '0.75rem', fontWeight: 600 }}>From:</span>
+                      <input
+                        type="date"
+                        value={overviewStartDate}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setOverviewStartDate(val);
+                          if (val && overviewEndDate) {
+                            if (val > overviewEndDate) {
+                              setOverviewDateError('Start date cannot be after end date.');
+                            } else {
+                              setOverviewDateError(null);
+                              fetchOverview('custom', val, overviewEndDate);
+                            }
+                          }
+                        }}
+                        style={{
+                          background: '#14100d',
+                          color: '#f5efe6',
+                          colorScheme: 'dark',
+                          border: '1px solid rgba(201, 168, 76, 0.4)',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--beige)', fontSize: '0.75rem', fontWeight: 600 }}>To:</span>
+                      <input
+                        type="date"
+                        value={overviewEndDate}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setOverviewEndDate(val);
+                          if (overviewStartDate && val) {
+                            if (overviewStartDate > val) {
+                              setOverviewDateError('Start date cannot be after end date.');
+                            } else {
+                              setOverviewDateError(null);
+                              fetchOverview('custom', overviewStartDate, val);
+                            }
+                          }
+                        }}
+                        style={{
+                          background: '#14100d',
+                          color: '#f5efe6',
+                          colorScheme: 'dark',
+                          border: '1px solid rgba(201, 168, 76, 0.4)',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Error Alert State */}
-            {overviewError && (
+            {(overviewError || overviewDateError) && (
               <div
                 style={{
                   padding: '16px 20px',
@@ -2467,11 +2552,13 @@ export const SuperadminDashboard: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <AlertTriangle size={20} color="#e74c3c" />
-                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{overviewError}</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{overviewDateError || overviewError}</span>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => fetchOverview(overviewTimeframe)}>
-                  Retry
-                </Button>
+                {overviewError && !overviewDateError && (
+                  <Button variant="secondary" size="sm" onClick={() => fetchOverview(overviewTimeframe, overviewStartDate, overviewEndDate)}>
+                    Retry
+                  </Button>
+                )}
               </div>
             )}
 
@@ -3880,60 +3967,7 @@ export const SuperadminDashboard: React.FC = () => {
               )}
             </AnimatePresence>
 
-            {/* Modal: Secure Password Reset */}
-            <AnimatePresence>
-              {pwdResetAdmin && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  style={{ marginBottom: '24px' }}
-                >
-                  <div className="admin-form-panel">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#c9a84c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
-                        <KeyRound size={18} /> Change Password — {pwdResetAdmin.full_name}
-                      </h3>
-                      <button onClick={() => setPwdResetAdmin(null)} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <X size={18} />
-                      </button>
-                    </div>
 
-                    {pwdFormError && (
-                      <div style={{ background: 'rgba(231, 76, 60, 0.15)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={16} /> {pwdFormError}
-                      </div>
-                    )}
-
-                    <form onSubmit={handlePasswordResetSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
-                        <Input
-                          label="New Strong Password *"
-                          type="password"
-                          value={pwdNewPassword}
-                          onChange={(e) => setPwdNewPassword(e.target.value)}
-                          placeholder="Min. 8 chars (A-Z, 0-9, !@#)"
-                          required
-                        />
-                        <Input
-                          label="Confirm New Password *"
-                          type="password"
-                          value={pwdConfirmPassword}
-                          onChange={(e) => setPwdConfirmPassword(e.target.value)}
-                          placeholder="Repeat password"
-                          required
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                        <Button variant="secondary" type="button" onClick={() => setPwdResetAdmin(null)}>Cancel</Button>
-                        <Button variant="gold" type="submit" glow disabled={pwdSubmitting}>{pwdSubmitting ? 'Updating...' : 'Update Password'}</Button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* Toolbar: Search & Filters */}
             <div
@@ -4136,27 +4170,6 @@ export const SuperadminDashboard: React.FC = () => {
                                   }}
                                 >
                                   <Power size={15} />
-                                </button>
-
-                                {/* Change Password */}
-                                <button
-                                  onClick={() => {
-                                    setPwdResetAdmin(adm);
-                                    setPwdNewPassword('');
-                                    setPwdConfirmPassword('');
-                                    setPwdFormError(null);
-                                  }}
-                                  title="Change Password"
-                                  style={{
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                                    color: '#f5efe6',
-                                    borderRadius: '6px',
-                                    padding: '6px',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <KeyRound size={15} />
                                 </button>
 
                                 {/* Delete */}
@@ -5137,14 +5150,6 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
                         <div>
                           <Input label="Account Lockout Duration (minutes)" type="number" value={psForm.account_lockout_duration} onChange={(e) => updatePsField('account_lockout_duration', parseInt(e.target.value) || 1)} />
-                          {psErrors.account_lockout_duration && <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{psErrors.account_lockout_duration}</span>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                          <div>
-                            <span style={{ color: '#f5efe6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>Require Admin Password Change</span>
-                            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Force admins to change passwords on next login</span>
-                          </div>
-                          <input type="checkbox" checked={psForm.require_admin_password_change} onChange={(e) => updatePsField('require_admin_password_change', e.target.checked)} style={{ accentColor: '#c9a84c', width: '18px', height: '18px', cursor: 'pointer' }} />
                         </div>
                       </div>
                     </div>

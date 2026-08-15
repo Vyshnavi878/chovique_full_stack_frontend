@@ -33,6 +33,7 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
     action();
   };
 
+  const avatarUrl = user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url || (user as any)?.avatar_url;
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : 'A';
   const roleLabel = role === 'superadmin' ? 'Super Admin' : 'Admin';
 
@@ -68,9 +69,15 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            overflow: 'hidden',
+            flexShrink: 0,
           }}
         >
-          {initial}
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={user?.name || 'Admin'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            initial
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f5efe6', lineHeight: 1.2 }}>

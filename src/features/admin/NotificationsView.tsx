@@ -71,6 +71,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new CustomEvent('notification_updated'));
       setActionSuccess('Notification marked as read');
       setTimeout(() => setActionSuccess(null), 2500);
     } catch (err) {
@@ -83,6 +84,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       await adminService.markAllNotificationsAsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
       setActionSuccess('All notifications marked as read');
       setTimeout(() => setActionSuccess(null), 2500);
     } catch (err) {

@@ -17,6 +17,7 @@ import type {
   ResolveTicketPayload,
   CustomerDetailsResponse,
   Review,
+  AvatarUploadResponse,
 } from '../types';
 
 /** Payload for /admin/offline-sales POST — matches backend OfflineSalePayload */
@@ -60,6 +61,7 @@ export interface AdminProfile {
   phone: string;
   address: string;
   role: string;
+  avatar_url?: string | null;
   created_at: string;
   last_login_at?: string | null;
 }
@@ -293,6 +295,10 @@ export const adminService = {
   /** Update current admin profile */
   updateAdminProfile: (payload: UpdateAdminProfilePayload): Promise<AdminProfile> =>
     apiPut<AdminProfile>('/admin/profile', payload),
+
+  /** Upload current admin avatar image */
+  uploadAdminAvatar: (formData: FormData): Promise<AvatarUploadResponse> =>
+    apiPostFormData<AvatarUploadResponse>('/admin/profile/avatar', formData),
 
   /** Change admin password */
   changeAdminPassword: (payload: {
@@ -1195,7 +1201,6 @@ export interface PlatformSettingsRecord {
   admin_session_timeout: number;
   max_login_attempts: number;
   account_lockout_duration: number;
-  require_admin_password_change: boolean;
 
   updated_at: string;
   updated_by?: string | null;
