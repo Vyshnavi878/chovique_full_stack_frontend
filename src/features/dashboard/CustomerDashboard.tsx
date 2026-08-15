@@ -1101,19 +1101,19 @@ export const CustomerDashboard: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       {orders.slice(0, 4).map((ord) => {
                         const statusBg =
-                          ord.status === 'Delivered'
+                          ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                             ? 'rgba(46, 204, 113, 0.15)'
                             : ord.status === 'Cancelled'
                             ? 'rgba(231, 76, 60, 0.15)'
                             : 'rgba(241, 196, 15, 0.15)';
                         const statusColor =
-                          ord.status === 'Delivered'
+                          ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                             ? '#2ecc71'
                             : ord.status === 'Cancelled'
                             ? '#e74c3c'
                             : '#f1c40f';
                         const statusBorder =
-                          ord.status === 'Delivered'
+                          ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                             ? '1px solid rgba(46, 204, 113, 0.3)'
                             : ord.status === 'Cancelled'
                             ? '1px solid rgba(231, 76, 60, 0.3)'
@@ -1160,6 +1160,7 @@ export const CustomerDashboard: React.FC = () => {
                                   borderRadius: '4px',
                                   display: 'inline-block',
                                   whiteSpace: 'nowrap',
+                                  marginTop: '4px',
                                   background: statusBg,
                                   color: statusColor,
                                   border: statusBorder,
@@ -2631,19 +2632,19 @@ export const CustomerDashboard: React.FC = () => {
                                           letterSpacing: '0.5px',
                                           display: 'inline-block',
                                           background:
-                                            ord.status === 'Delivered'
+                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                                               ? 'rgba(46, 204, 113, 0.18)'
                                               : ord.status === 'Cancelled'
                                               ? 'rgba(231, 76, 60, 0.18)'
                                               : 'rgba(241, 196, 15, 0.18)',
                                           color:
-                                            ord.status === 'Delivered'
+                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                                               ? '#2ecc71'
                                               : ord.status === 'Cancelled'
                                               ? '#e74c3c'
                                               : '#f1c40f',
                                           border:
-                                            ord.status === 'Delivered'
+                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
                                               ? '1px solid rgba(46, 204, 113, 0.4)'
                                               : ord.status === 'Cancelled'
                                               ? '1px solid rgba(231, 76, 60, 0.4)'
@@ -4396,15 +4397,20 @@ export const CustomerDashboard: React.FC = () => {
                       Our Atelier support desk will inspect and resolve your issue within 24-48 business hours.
                     </p>
 
-                    <form onSubmit={(e) => {
+                    <form onSubmit={async (e) => {
                       e.preventDefault();
                       const form = e.currentTarget;
                       const cat = (form.elements.namedItem('category') as HTMLSelectElement).value as any;
                       const desc = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
+                      const orderIdVal = (form.elements.namedItem('order_id') as HTMLSelectElement)?.value || undefined;
                       if (!desc.trim()) return;
-                      addSupportTicket(cat, desc);
-                      form.reset();
-                      alert('Complaint raised successfully. You can track its status in the history log.');
+                      try {
+                        await addSupportTicket(cat, desc, orderIdVal);
+                        form.reset();
+                        alert('Support complaint raised successfully. You can view its status and related order details in your history log.');
+                      } catch (err: any) {
+                        alert(err?.detail || err?.message || 'Failed to submit support complaint.');
+                      }
                     }}>
                       <div style={{ marginBottom: '15px' }}>
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--grey-light)', marginBottom: '6px', fontWeight: 600 }}>
@@ -4431,6 +4437,32 @@ export const CustomerDashboard: React.FC = () => {
                         </select>
                       </div>
 
+                      <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--grey-light)', marginBottom: '6px', fontWeight: 600 }}>
+                          Select Related Order (Optional)
+                        </label>
+                        <select
+                          name="order_id"
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '4px',
+                            color: 'var(--cream)',
+                            fontSize: '0.9rem',
+                            outline: 'none',
+                          }}
+                        >
+                          <option value="">-- General / No Specific Order --</option>
+                          {orders.map((ord: any) => (
+                            <option key={ord.id} value={ord.id}>
+                              Order #{ord.id} ({ord.date || (ord.created_at ? new Date(ord.created_at).toLocaleDateString() : '')}) — ₹{ord.total?.toLocaleString('en-IN') || 0}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div style={{ marginBottom: '20px' }}>
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--grey-light)', marginBottom: '6px', fontWeight: 600 }}>
                           Describe the Problem
@@ -4438,8 +4470,8 @@ export const CustomerDashboard: React.FC = () => {
                         <textarea
                           name="description"
                           required
-                          placeholder="Please provide details such as Order Reference and exact description of the issue..."
-                          rows={5}
+                          placeholder="Please provide details about the issue..."
+                          rows={4}
                           style={{
                             width: '100%',
                             padding: '10px 14px',
@@ -4475,6 +4507,7 @@ export const CustomerDashboard: React.FC = () => {
                         ) : (
                           tickets.filter(t => t.customerId === user.id).map(ticket => {
                             const isResolved = ticket.status === 'Resolved';
+                            const relatedOrderId = ticket.orderId || ticket.order_id;
                             return (
                               <div
                                 key={ticket.id}
@@ -4506,9 +4539,45 @@ export const CustomerDashboard: React.FC = () => {
                                   </span>
                                 </div>
                                 
-                                <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', display: 'block', marginBottom: '8px' }}>
-                                  Category: <strong>{ticket.category}</strong> · Opened: {ticket.date}
-                                </span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                                    Category: <strong style={{ color: 'var(--cream)' }}>{ticket.category}</strong> · Opened: {ticket.date}
+                                  </span>
+                                  {relatedOrderId ? (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const relOrd = await orderService.getOrder(relatedOrderId);
+                                          setSelectedOrder(relOrd);
+                                          setOrderSubView('details');
+                                          setActiveTab('orders');
+                                        } catch (err: any) {
+                                          alert(err?.detail || err?.message || 'Failed to load related order.');
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '3px 10px',
+                                        fontSize: '0.75rem',
+                                        background: 'rgba(201, 168, 76, 0.15)',
+                                        color: 'var(--gold)',
+                                        border: '1px solid rgba(201, 168, 76, 0.35)',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                    >
+                                      View Related Order (#{relatedOrderId})
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
+                                      No related order
+                                    </span>
+                                  )}
+                                </div>
                                 
                                 <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--cream)', lineHeight: '1.4' }}>
                                   {ticket.description}

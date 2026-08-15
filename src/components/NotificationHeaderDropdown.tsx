@@ -36,12 +36,14 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   const fetchNotifications = async () => {
     try {
       if (isSuperadmin) {
-        const res = await (adminService as any).getSuperadminNotifications({ limit: 6 });
-        setNotifications(res.items || []);
+        const res = await (adminService as any).getSuperadminNotifications({ limit: 6, is_read: false });
+        const unreadItems = (res.items || []).filter((n: any) => !n.is_read);
+        setNotifications(unreadItems);
         setUnreadCount(res.unread_count || 0);
       } else {
-        const res = await adminService.getAdminNotifications({ limit: 6 });
-        setNotifications(res.items || []);
+        const res = await adminService.getAdminNotifications({ limit: 6, is_read: false });
+        const unreadItems = (res.items || []).filter((n: any) => !n.is_read);
+        setNotifications(unreadItems);
         setUnreadCount(res.unread_count || 0);
       }
     } catch (err) {
@@ -52,7 +54,12 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 15000); // Polling every 15s
-    return () => clearInterval(interval);
+    const handleUpdate = () => fetchNotifications();
+    window.addEventListener('notification_updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notification_updated', handleUpdate);
+    };
   }, [isSuperadmin]);
 
   useEffect(() => {
@@ -73,8 +80,9 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
       } else {
         await adminService.markAllNotificationsAsRead();
       }
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications([]);
       setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }
@@ -88,10 +96,9 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
         } else {
           await adminService.markNotificationAsRead(notif.id);
         }
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
-        );
+        setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        window.dispatchEvent(new CustomEvent('notification_updated'));
       } catch (err) {
         console.error('Failed to mark notification read:', err);
       }
@@ -322,7 +329,7 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
             {notifications.length === 0 ? (
               <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
-                No notifications right now.
+                No unread notifications.
               </div>
             ) : (
               notifications.map((notif) => (

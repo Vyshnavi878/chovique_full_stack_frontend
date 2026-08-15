@@ -101,7 +101,7 @@ interface AppContextType {
 
   // Support Tickets
   tickets: SupportTicket[];
-  addSupportTicket: (category: SupportTicket['category'], description: string) => Promise<void>;
+  addSupportTicket: (category: SupportTicket['category'], description: string, orderId?: string) => Promise<void>;
   resolveSupportTicket: (ticketId: string, adminNotes?: string) => Promise<void>;
   submitTicketFeedback: (ticketId: string, feedback: 'Resolved' | 'Not Resolved') => Promise<void>;
   acknowledgeTicketNotification: (ticketId: string) => void;
@@ -874,9 +874,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Support Tickets — wired to ticketService
   // ---------------------------------------------------------------------------
 
-  const addSupportTicket = async (category: SupportTicket['category'], description: string): Promise<void> => {
+  const addSupportTicket = async (category: SupportTicket['category'], description: string, orderId?: string): Promise<void> => {
     try {
-      const newTicket = await ticketService.createTicket({ category, description });
+      const newTicket = await ticketService.createTicket({ category, description, order_id: orderId, orderId });
       setTickets((prev) => [newTicket, ...prev]);
     } catch (err) {
       console.error('Failed to create support ticket:', err);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User as UserIcon,
   Mail,
@@ -12,15 +12,21 @@ import {
   Lock,
   CheckCircle2,
   AlertCircle,
+  Camera,
 } from 'lucide-react';
 import { adminService, AdminProfile } from '../../services/adminService';
 import { useApp } from '../../app/providers';
 
 export const AdminProfileView: React.FC = () => {
-  const { user } = useApp();
+  const { user, updateUserProfilePicture } = useApp();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Avatar Upload State
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [fullName, setFullName] = useState<string>('');
@@ -61,6 +67,53 @@ export const AdminProfileView: React.FC = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAvatarError(null);
+    setSuccessMsg(null);
+    setErrorMsg(null);
+
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const fileName = file.name.toLowerCase();
+    const ext = fileName.split('.').pop() || '';
+    if (!allowedMimes.includes(file.type.toLowerCase()) && !['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      setAvatarError('Invalid image format. Only JPG, JPEG, PNG, and WebP images are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('File size exceeds maximum limit of 5 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await adminService.uploadAdminAvatar(formData);
+      if (res && res.avatar_url) {
+        setProfile((prev) => (prev ? { ...prev, avatar_url: res.avatar_url } : null));
+        updateUserProfilePicture(res.avatar_url);
+        setSuccessMsg('Profile avatar updated successfully!');
+        setTimeout(() => setSuccessMsg(null), 4000);
+      }
+    } catch (err: any) {
+      console.error('Failed to upload profile avatar:', err);
+      setAvatarError(err?.detail || err?.message || 'Failed to upload avatar image.');
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = '';
+    }
+  };
+
+  const rawAvatar = profile?.avatar_url || user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
+  const initials = fullName ? fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'SA';
 
   // Validation functions
   const validateField = (field: string, value: string): string | undefined => {
@@ -410,8 +463,114 @@ export const AdminProfileView: React.FC = () => {
             </div>
           </form>
 
-          {/* Sidebar Meta Card (Read-Only Info) */}
+          {/* Sidebar Meta Card (Read-Only Info & Avatar) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Profile Avatar Card */}
+            <div
+              style={{
+                background: 'rgba(20, 16, 13, 0.85)',
+                border: '1px solid rgba(201, 168, 76, 0.2)',
+                borderRadius: '14px',
+                padding: '24px',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+              }}
+            >
+              <h4 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.05rem', color: '#f5efe6', margin: '0 0 16px 0', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', paddingBottom: '10px', width: '100%', textAlign: 'left' }}>
+                Profile Avatar
+              </h4>
+
+              {/* Avatar Circle Container */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                  border: '2px solid #c9a84c',
+                  boxShadow: '0 0 20px rgba(201, 168, 76, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0f0c0a',
+                  fontWeight: 800,
+                  fontSize: '1.8rem',
+                  overflow: 'hidden',
+                  marginBottom: '16px',
+                }}
+              >
+                {rawAvatar ? (
+                  <img src={rawAvatar} alt="Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  initials
+                )}
+
+                {isUploadingAvatar && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#c9a84c',
+                    }}
+                  >
+                    <Loader2 size={24} className="animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleAvatarSelect}
+                style={{ display: 'none' }}
+              />
+
+              {/* Upload Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                style={{
+                  padding: '8px 18px',
+                  background: 'rgba(201, 168, 76, 0.12)',
+                  border: '1px solid rgba(201, 168, 76, 0.4)',
+                  borderRadius: '8px',
+                  color: '#c9a84c',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  opacity: isUploadingAvatar ? 0.6 : 1,
+                }}
+              >
+                <Camera size={16} />
+                {isUploadingAvatar ? 'Uploading...' : rawAvatar ? 'Change Image' : 'Upload Image'}
+              </button>
+
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '8px', display: 'block' }}>
+                JPG, PNG, or WebP (Max 5 MB)
+              </span>
+
+              {avatarError && (
+                <span style={{ fontSize: '0.76rem', color: '#e74c3c', marginTop: '8px', display: 'block', fontWeight: 600 }}>
+                  {avatarError}
+                </span>
+              )}
+            </div>
+
             <div
               style={{
                 background: 'rgba(20, 16, 13, 0.85)',

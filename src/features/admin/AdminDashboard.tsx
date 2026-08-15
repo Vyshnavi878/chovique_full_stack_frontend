@@ -30,7 +30,8 @@ import {
   RefreshCw,
   ChevronDown,
   Search,
-  Home
+  Home,
+  ExternalLink
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
@@ -51,8 +52,10 @@ import { walletService, RewardSettings } from '../../services/walletService';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { categoryService, AdminCategory } from '../../services/categoryService';
-import { OrderManagement } from './OrderManagement';
+import { orderService } from '../../services/orderService';
+import { OrderManagement, OrderDetailModal } from './OrderManagement';
 import { CustomerDirectory } from './CustomerDirectory';
+import { OfflineSalesView } from './OfflineSalesView';
 import { CreateCouponView } from './CreateCouponView';
 import { Product, OfflineSale, SystemUser, Banner } from '../../types';
 import { getImageUrl } from '../../utils/imageUrl';
@@ -134,6 +137,10 @@ export const AdminDashboard: React.FC = () => {
   // --- Dashboard Data & Loading States ---
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+  const [pendingBatchProducts, setPendingBatchProducts] = useState<any[]>([]);
 
   // --- Toast Notifications State ---
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -180,6 +187,8 @@ export const AdminDashboard: React.FC = () => {
     });
   };
 
+  const [viewingComplaintOrder, setViewingComplaintOrder] = useState<any | null>(null);
+
   // --- Form Inline Validation Error States ---
   const [productFormErrors, setProductFormErrors] = useState<Record<string, string>>({});
   const [categoryFormErrors, setCategoryFormErrors] = useState<Record<string, string>>({});
@@ -202,8 +211,21 @@ export const AdminDashboard: React.FC = () => {
     setDashboardLoading(true);
     setDashboardError(null);
     try {
-      const stats = await adminService.getStats();
-      setDashboardStats(stats);
+      const params = {
+        preset: dateRangePreset,
+        start_date: customStartDate || undefined,
+        end_date: customEndDate || undefined,
+      };
+      const [statsRes, topRes, recentRes, lowStockRes] = await Promise.all([
+        adminService.getStats(params),
+        adminService.getTopProducts(5),
+        adminService.getRecentOrders(5),
+        adminService.getLowStockProducts(10, 10),
+      ]);
+      setDashboardStats(statsRes);
+      setTopProducts(topRes?.products || []);
+      setRecentOrders(recentRes?.orders || []);
+      setLowStockProducts(lowStockRes?.products || []);
     } catch (err: any) {
       console.error('Failed to fetch dashboard stats:', err);
       setDashboardError(err?.detail || err?.message || 'Failed to load dashboard analytics. Please verify backend connection and try again.');
@@ -409,16 +431,45 @@ export const AdminDashboard: React.FC = () => {
     }));
   };
 
-  // Handle adding product — calls productService.createProduct with real FormData
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errors: Record<string, string> = {};
+  const resetProductForm = () => {
+    setProductFormErrors({});
+    setNewProd({
+      name: '',
+      category: (dynamicCategoryOptions[0]?.value as Product['category']) || 'dark',
+      price: 0,
+      weight: '100g',
+      description: '',
+      ingredients: '',
+      badge: '',
+      imageFiles: [],
+      imagePreviewUrls: [],
+      stock: 10,
+      rating: 4.0,
+      servingSize: '100g',
+      calories: '550 kcal',
+      totalFat: '35g',
+      saturatedFat: '20g',
+      transFat: '0g',
+      cholesterol: '0mg',
+      sodium: '15mg',
+      totalCarb: '50g',
+      dietaryFiber: '8g',
+      totalSugars: '40g',
+      addedSugars: '35g',
+      protein: '7g',
+    });
+  };
 
+  const validateCurrentProductForm = () => {
+    const errors: Record<string, string> = {};
     const nameTrimmed = trimValue(newProd.name);
     if (!isNonEmpty(nameTrimmed)) {
       errors.name = 'Product name is required and cannot be empty.';
-    } else if (isDuplicate(products, 'name', nameTrimmed)) {
-      errors.name = 'A product with this name already exists.';
+    } else if (
+      isDuplicate(products, 'name', nameTrimmed) ||
+      pendingBatchProducts.some((p) => p.name.toLowerCase() === nameTrimmed.toLowerCase())
+    ) {
+      errors.name = 'A product with this name already exists in catalog or queue.';
     }
 
     const priceCheck = isValidNumber(newProd.price, 0.01);
@@ -436,7 +487,7 @@ export const AdminDashboard: React.FC = () => {
     }
 
     if (!isNonEmpty(newProd.category as string) || !(newProd.category as string).trim()) {
-      errors.category = 'Category is required. Please select a valid category or create one in Admin → Categories.';
+      errors.category = 'Category is required. Please select a valid category.';
     }
 
     if (!isNonEmpty(newProd.description)) {
@@ -444,84 +495,188 @@ export const AdminDashboard: React.FC = () => {
     }
 
     setProductFormErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      addToast('error', 'Please fix the inline validation errors before submitting.', 'Validation Error');
+    return { isValid: Object.keys(errors).length === 0, errors, nameTrimmed };
+  };
+
+  const handleAddToBatch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const { isValid, nameTrimmed } = validateCurrentProductForm();
+    if (!isValid) {
+      addToast('error', 'Please fix validation errors before adding to batch queue.', 'Validation Error');
+      return;
+    }
+
+    const batchItem = {
+      tempId: `batch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: nameTrimmed,
+      category: newProd.category,
+      price: newProd.price,
+      weight: trimValue(newProd.weight),
+      description: trimValue(newProd.description),
+      ingredients: trimValue(newProd.ingredients),
+      badge: newProd.badge,
+      stock: newProd.stock,
+      rating: newProd.rating,
+      imageFiles: [...newProd.imageFiles],
+      imagePreviewUrls: [...newProd.imagePreviewUrls],
+      servingSize: trimValue(newProd.servingSize),
+      calories: trimValue(newProd.calories),
+      totalFat: trimValue(newProd.totalFat),
+      saturatedFat: trimValue(newProd.saturatedFat),
+      transFat: trimValue(newProd.transFat),
+      cholesterol: trimValue(newProd.cholesterol),
+      sodium: trimValue(newProd.sodium),
+      totalCarb: trimValue(newProd.totalCarb),
+      dietaryFiber: trimValue(newProd.dietaryFiber),
+      totalSugars: trimValue(newProd.totalSugars),
+      addedSugars: trimValue(newProd.addedSugars),
+      protein: trimValue(newProd.protein),
+    };
+
+    setPendingBatchProducts((prev) => [...prev, batchItem]);
+    addToast('info', `Added "${nameTrimmed}" to pending batch list (${pendingBatchProducts.length + 1} queued).`, 'Product Queued');
+    resetProductForm();
+  };
+
+  const handleRemoveFromBatch = (tempId: string) => {
+    setPendingBatchProducts((prev) => prev.filter((p) => p.tempId !== tempId));
+    addToast('info', 'Product removed from pending batch list.', 'Removed');
+  };
+
+  const handleEditBatchItem = (item: any) => {
+    setNewProd({
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      weight: item.weight,
+      description: item.description,
+      ingredients: item.ingredients,
+      badge: item.badge || '',
+      imageFiles: [...item.imageFiles],
+      imagePreviewUrls: [...item.imagePreviewUrls],
+      stock: item.stock,
+      rating: item.rating,
+      servingSize: item.servingSize,
+      calories: item.calories,
+      totalFat: item.totalFat,
+      saturatedFat: item.saturatedFat,
+      transFat: item.transFat,
+      cholesterol: item.cholesterol,
+      sodium: item.sodium,
+      totalCarb: item.totalCarb,
+      dietaryFiber: item.dietaryFiber,
+      totalSugars: item.totalSugars,
+      addedSugars: item.addedSugars,
+      protein: item.protein,
+    });
+    setPendingBatchProducts((prev) => prev.filter((p) => p.tempId !== item.tempId));
+    addToast('info', `Loaded "${item.name}" into form for editing.`, 'Editing Queued Item');
+  };
+
+  // Handle adding product(s) — creates single or batch products sequentially via productService.createProduct
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const currentBatch = [...pendingBatchProducts];
+    const nameTrimmed = trimValue(newProd.name);
+
+    if (nameTrimmed) {
+      const { isValid } = validateCurrentProductForm();
+      if (!isValid) {
+        addToast('error', 'Please fix validation errors in the form before submitting.', 'Validation Error');
+        return;
+      }
+      currentBatch.push({
+        tempId: `batch-curr-${Date.now()}`,
+        name: nameTrimmed,
+        category: newProd.category,
+        price: newProd.price,
+        weight: trimValue(newProd.weight),
+        description: trimValue(newProd.description),
+        ingredients: trimValue(newProd.ingredients),
+        badge: newProd.badge,
+        stock: newProd.stock,
+        rating: newProd.rating,
+        imageFiles: [...newProd.imageFiles],
+        imagePreviewUrls: [...newProd.imagePreviewUrls],
+        servingSize: trimValue(newProd.servingSize),
+        calories: trimValue(newProd.calories),
+        totalFat: trimValue(newProd.totalFat),
+        saturatedFat: trimValue(newProd.saturatedFat),
+        transFat: trimValue(newProd.transFat),
+        cholesterol: trimValue(newProd.cholesterol),
+        sodium: trimValue(newProd.sodium),
+        totalCarb: trimValue(newProd.totalCarb),
+        dietaryFiber: trimValue(newProd.dietaryFiber),
+        totalSugars: trimValue(newProd.totalSugars),
+        addedSugars: trimValue(newProd.addedSugars),
+        protein: trimValue(newProd.protein),
+      });
+    }
+
+    if (currentBatch.length === 0) {
+      addToast('error', 'Please fill out product details or add products to batch before submitting.', 'Validation Error');
       return;
     }
 
     if (isCreatingProduct) return;
     setIsCreatingProduct(true);
 
-    // Build FormData for multipart/form-data submission to backend
-    const formData = new FormData();
-    formData.append('name', nameTrimmed);
-    formData.append('category_id', newProd.category);
-    formData.append('category', newProd.category);
-    formData.append('price', String(newProd.price));
-    formData.append('weight', trimValue(newProd.weight));
-    formData.append('description', trimValue(newProd.description));
-    formData.append('ingredients', trimValue(newProd.ingredients));
-    formData.append('stock', String(newProd.stock));
-    if (newProd.badge) formData.append('badge', newProd.badge);
-    if (newProd.imageFiles.length > 0) {
-      formData.append('image', newProd.imageFiles[0]);
-      newProd.imageFiles.forEach(file => formData.append('gallery_images', file));
-    }
-    // Nutrition fields
-    formData.append('nutrition_serving_size', trimValue(newProd.servingSize));
-    formData.append('nutrition_calories', trimValue(newProd.calories));
-    formData.append('nutrition_total_fat', trimValue(newProd.totalFat));
-    formData.append('nutrition_saturated_fat', trimValue(newProd.saturatedFat));
-    formData.append('nutrition_trans_fat', trimValue(newProd.transFat));
-    formData.append('nutrition_cholesterol', trimValue(newProd.cholesterol));
-    formData.append('nutrition_sodium', trimValue(newProd.sodium));
-    formData.append('nutrition_total_carb', trimValue(newProd.totalCarb));
-    formData.append('nutrition_dietary_fiber', trimValue(newProd.dietaryFiber));
-    formData.append('nutrition_total_sugars', trimValue(newProd.totalSugars));
-    formData.append('nutrition_added_sugars', trimValue(newProd.addedSugars));
-    formData.append('nutrition_protein', trimValue(newProd.protein));
+    let successCount = 0;
 
-    try {
-      const created = await productService.createProduct(formData);
-      addProduct(created);
-      addToast('success', `Product "${nameTrimmed}" created successfully!`, 'Product Added');
+    for (let i = 0; i < currentBatch.length; i++) {
+      const item = currentBatch[i];
+      try {
+        const formData = new FormData();
+        formData.append('name', item.name);
+        formData.append('category_id', item.category);
+        formData.append('category', item.category);
+        formData.append('price', String(item.price));
+        formData.append('weight', item.weight);
+        formData.append('description', item.description);
+        formData.append('ingredients', item.ingredients);
+        formData.append('stock', String(item.stock));
+        if (item.badge) formData.append('badge', item.badge);
+        if (item.imageFiles.length > 0) {
+          formData.append('image', item.imageFiles[0]);
+          item.imageFiles.forEach((file: File) => formData.append('gallery_images', file));
+        }
+        formData.append('nutrition_serving_size', item.servingSize);
+        formData.append('nutrition_calories', item.calories);
+        formData.append('nutrition_total_fat', item.totalFat);
+        formData.append('nutrition_saturated_fat', item.saturatedFat);
+        formData.append('nutrition_trans_fat', item.transFat);
+        formData.append('nutrition_cholesterol', item.cholesterol);
+        formData.append('nutrition_sodium', item.sodium);
+        formData.append('nutrition_total_carb', item.totalCarb);
+        formData.append('nutrition_dietary_fiber', item.dietaryFiber);
+        formData.append('nutrition_total_sugars', item.totalSugars);
+        formData.append('nutrition_added_sugars', item.addedSugars);
+        formData.append('nutrition_protein', item.protein);
+
+        const created = await productService.createProduct(formData);
+        addProduct(created);
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to create product "${item.name}":`, err);
+        const detail = err?.detail || err?.message || 'Failed to create product.';
+        addToast('error', `Product #${i + 1} ("${item.name}") failed: ${detail}`, 'Validation / Server Error');
+        setIsCreatingProduct(false);
+        return;
+      }
+    }
+
+    setIsCreatingProduct(false);
+
+    if (successCount > 0) {
+      addToast('success', `${successCount} chocolate product${successCount > 1 ? 's' : ''} created and saved successfully!`, 'Products Added');
       setProductAddedSuccess(true);
-      setProductFormErrors({});
-      setNewProd({
-        name: '',
-        category: (dynamicCategoryOptions[0]?.value as Product['category']) || 'dark',
-        price: 0,
-        weight: '100g',
-        description: '',
-        ingredients: '',
-        badge: '',
-        imageFiles: [],
-        imagePreviewUrls: [],
-        stock: 10,
-        rating: 4.0,
-        servingSize: '100g',
-        calories: '550 kcal',
-        totalFat: '35g',
-        saturatedFat: '20g',
-        transFat: '0g',
-        cholesterol: '0mg',
-        sodium: '15mg',
-        totalCarb: '50g',
-        dietaryFiber: '8g',
-        totalSugars: '40g',
-        addedSugars: '35g',
-        protein: '7g',
-      });
+      setPendingBatchProducts([]);
+      resetProductForm();
       setTimeout(() => {
         setProductAddedSuccess(false);
         setShowAddProductForm(false);
       }, 1200);
-    } catch (err: any) {
-      console.error('Failed to create product:', err);
-      const detail = err?.detail || err?.message || 'Failed to create product. Please try again.';
-      addToast('error', detail, 'Error Creating Product');
-    } finally {
-      setIsCreatingProduct(false);
     }
   };
 
@@ -653,6 +808,7 @@ export const AdminDashboard: React.FC = () => {
   const [editCategoryImageFile, setEditCategoryImageFile] = useState<File | null>(null);
   const [editCategoryImagePreview, setEditCategoryImagePreview] = useState<string>('');
   const [categorySuccess, setCategorySuccess] = useState(false);
+  const [pendingBatchCategories, setPendingBatchCategories] = useState<any[]>([]);
   const categoryImageRef = useRef<HTMLInputElement>(null);
   const editCategoryImageRef = useRef<HTMLInputElement>(null);
 
@@ -676,46 +832,132 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateCategoryForm = (categoryData: { name: string; slug?: string }) => {
     const errors: Record<string, string> = {};
-    const nameTrimmed = trimValue(newCategory.name);
+    const nameTrimmed = trimValue(categoryData.name);
 
     if (!isNonEmpty(nameTrimmed)) {
       errors.name = 'Category name is required and cannot be empty.';
-    } else if (isDuplicate(categoriesList, 'name', nameTrimmed)) {
-      errors.name = 'A category with this name already exists.';
+    } else if (
+      isDuplicate(categoriesList, 'name', nameTrimmed) ||
+      pendingBatchCategories.some((c) => c.name.toLowerCase() === nameTrimmed.toLowerCase())
+    ) {
+      errors.name = 'A category with this name already exists in database or queue.';
     }
 
     setCategoryFormErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      addToast('error', 'Please fix category inline validation errors.', 'Validation Error');
+    return { isValid: Object.keys(errors).length === 0, errors, nameTrimmed };
+  };
+
+  const handleAddCategoryToBatch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const { isValid, nameTrimmed } = validateCategoryForm(newCategory);
+    if (!isValid) {
+      addToast('error', 'Please fix validation errors before adding category to batch list.', 'Validation Error');
       return;
     }
 
-    try {
-      const formData = new FormData();
-      formData.append('name', nameTrimmed);
-      if (newCategory.slug) formData.append('slug', trimValue(newCategory.slug));
-      if (newCategory.description) formData.append('description', trimValue(newCategory.description));
-      formData.append('sort_order', String(newCategory.sort_order));
-      formData.append('is_active', String(newCategory.is_active));
-      if (categoryImageFile) formData.append('image', categoryImageFile);
+    const generatedSlug = newCategory.slug || nameTrimmed.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
 
-      const created = await categoryService.adminCreateCategory(formData);
+    const item = {
+      tempId: `cat-batch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: nameTrimmed,
+      slug: generatedSlug,
+      description: trimValue(newCategory.description || ''),
+      sort_order: newCategory.sort_order || 0,
+      is_active: newCategory.is_active,
+    };
+
+    setPendingBatchCategories((prev) => [...prev, item]);
+    addToast('info', `Added "${nameTrimmed}" to pending category list (${pendingBatchCategories.length + 1} queued).`, 'Category Queued');
+    setNewCategory({ name: '', slug: '', description: '', sort_order: 0, is_active: true });
+    setCategoryImageFile(null);
+    setCategoryImagePreview('');
+  };
+
+  const handleRemoveCategoryFromBatch = (tempId: string) => {
+    setPendingBatchCategories((prev) => prev.filter((c) => c.tempId !== tempId));
+    addToast('info', 'Category removed from batch list.', 'Removed');
+  };
+
+  const handleEditCategoryBatchItem = (item: any) => {
+    setNewCategory({
+      name: item.name,
+      slug: item.slug,
+      description: item.description,
+      sort_order: item.sort_order,
+      is_active: item.is_active,
+    });
+    setPendingBatchCategories((prev) => prev.filter((c) => c.tempId !== item.tempId));
+    addToast('info', `Loaded "${item.name}" into form for editing.`, 'Editing Queued Item');
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const currentBatch = [...pendingBatchCategories];
+    const nameTrimmed = trimValue(newCategory.name);
+
+    if (nameTrimmed) {
+      const { isValid } = validateCategoryForm(newCategory);
+      if (!isValid) {
+        addToast('error', 'Please fix category validation errors before submitting.', 'Validation Error');
+        return;
+      }
+      const generatedSlug = newCategory.slug || nameTrimmed.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+      currentBatch.push({
+        tempId: `cat-curr-${Date.now()}`,
+        name: nameTrimmed,
+        slug: generatedSlug,
+        description: trimValue(newCategory.description || ''),
+        sort_order: newCategory.sort_order || 0,
+        is_active: newCategory.is_active,
+      });
+    }
+
+    if (currentBatch.length === 0) {
+      addToast('error', 'Please fill in category details or add categories to batch list before submitting.', 'Validation Error');
+      return;
+    }
+
+    let successCount = 0;
+
+    for (let i = 0; i < currentBatch.length; i++) {
+      const item = currentBatch[i];
+      try {
+        const formData = new FormData();
+        formData.append('name', item.name);
+        if (item.slug) formData.append('slug', item.slug);
+        if (item.description) formData.append('description', item.description);
+        formData.append('sort_order', String(item.sort_order));
+        formData.append('is_active', String(item.is_active));
+        if (categoryImageFile && i === currentBatch.length - 1) {
+          formData.append('image', categoryImageFile);
+        }
+
+        await categoryService.adminCreateCategory(formData);
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to create category "${item.name}":`, err);
+        const detail = err?.detail || err?.message || 'Failed to create category.';
+        addToast('error', `Category #${i + 1} ("${item.name}") failed: ${detail}`, 'Validation / Server Error');
+        return;
+      }
+    }
+
+    if (successCount > 0) {
       await fetchCategories();
       setNewCategory({ name: '', slug: '', description: '', sort_order: 0, is_active: true });
       setCategoryImageFile(null);
       setCategoryImagePreview('');
+      setPendingBatchCategories([]);
       setCategorySuccess(true);
       setCategoryFormErrors({});
-      addToast('success', `Category "${nameTrimmed}" created successfully!`, 'Category Added');
+      addToast('success', `${successCount} categor${successCount > 1 ? 'ies' : 'y'} created and saved successfully!`, 'Categories Added');
       setTimeout(() => {
         setCategorySuccess(false);
         setShowAddCategoryForm(false);
       }, 1200);
-    } catch (err: any) {
-      addToast('error', err?.detail || err?.message || 'Failed to create category.', 'Error');
     }
   };
 
@@ -988,14 +1230,16 @@ export const AdminDashboard: React.FC = () => {
       setIsAdjustingCoins(false);
     }
   };
+
   const [siteStats, setSiteStats] = useState({
-    happy_customers: 26000,
-    unique_flavors: 120,
-    countries_shipped: 15,
-    five_star_reviews_percent: 98,
+    happy_customers: 50000,
+    products_available: 120,
+    orders_delivered: 1500,
+    customer_rating_percent: 98,
   });
   const [isSavingStats, setIsSavingStats] = useState(false);
   const [statsSavedSuccess, setStatsSavedSuccess] = useState(false);
+  const [isReplacingBannerImage, setIsReplacingBannerImage] = useState(false);
 
   const fetchSiteStats = () => {
     fetch('http://localhost:8000/api/v1/home/stats')
@@ -1003,10 +1247,10 @@ export const AdminDashboard: React.FC = () => {
       .then((data) => {
         if (data && typeof data === 'object') {
           setSiteStats({
-            happy_customers: data.happy_customers ?? 26000,
-            unique_flavors: data.unique_flavors ?? 120,
-            countries_shipped: data.countries_shipped ?? 15,
-            five_star_reviews_percent: data.five_star_reviews_percent ?? 98,
+            happy_customers: data.happy_customers ?? 50000,
+            products_available: data.products_available ?? data.unique_flavors ?? 120,
+            orders_delivered: data.orders_delivered ?? data.countries_shipped ?? 1500,
+            customer_rating_percent: data.customer_rating_percent ?? data.five_star_reviews_percent ?? 98,
           });
         }
       })
@@ -1017,13 +1261,72 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     setIsSavingStats(true);
     try {
-      await adminService.updateSiteStats(siteStats);
+      const payload = {
+        happy_customers: siteStats.happy_customers,
+        products_available: siteStats.products_available,
+        orders_delivered: siteStats.orders_delivered,
+        customer_rating_percent: siteStats.customer_rating_percent,
+        unique_flavors: siteStats.products_available,
+        countries_shipped: siteStats.orders_delivered,
+        five_star_reviews_percent: siteStats.customer_rating_percent,
+      };
+      await adminService.updateSiteStats(payload);
       setStatsSavedSuccess(true);
+      addToast('success', 'Platform Counter Stats updated and saved to database!', 'Stats Updated');
       setTimeout(() => setStatsSavedSuccess(false), 3000);
     } catch (err: any) {
-      alert(err?.message || 'Failed to save site stats');
+      addToast('error', err?.message || 'Failed to save counter stats', 'Error');
     } finally {
       setIsSavingStats(false);
+    }
+  };
+
+  const handleBannerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      addToast('error', 'Please select a valid image file (JPEG, PNG, WEBP, GIF).', 'Invalid Format');
+      if (bannerFileRef.current) bannerFileRef.current.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('error', 'Image size must be under 10MB.', 'File Too Large');
+      if (bannerFileRef.current) bannerFileRef.current.value = '';
+      return;
+    }
+
+    const currentBanner = banners[selectedSlideIdx];
+    if (!currentBanner || !currentBanner.id) {
+      addToast('error', 'Please select a valid hero slide to replace image.', 'Error');
+      if (bannerFileRef.current) bannerFileRef.current.value = '';
+      return;
+    }
+
+    setIsReplacingBannerImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await adminService.uploadBannerImage(currentBanner.id, formData);
+
+      // Immediately update local banner image state
+      if (updateBanner) {
+        updateBanner(currentBanner.id, { image: res.image_url });
+      }
+
+      addToast('success', 'Hero slide image replaced and saved to database successfully!', 'Image Replaced');
+
+      // Refresh banners list from backend DB
+      if (refreshBanners) {
+        await refreshBanners();
+      }
+    } catch (err: any) {
+      console.error('Failed to replace banner image:', err);
+      addToast('error', err?.detail || err?.message || 'Failed to replace banner slide image.', 'Upload Error');
+    } finally {
+      setIsReplacingBannerImage(false);
+      if (bannerFileRef.current) bannerFileRef.current.value = '';
     }
   };
 
@@ -1093,24 +1396,6 @@ export const AdminDashboard: React.FC = () => {
   const [isCreatingBanner, setIsCreatingBanner] = useState(false);
   const [bannerCreateError, setBannerCreateError] = useState('');
   const newBannerFileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleBannerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const currentBanner = banners[selectedSlideIdx];
-    if (currentBanner) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await adminService.uploadBannerImage(currentBanner.id, formData);
-        if (updateBanner) updateBanner(currentBanner.id, { image: res.image_url });
-        alert('Banner image uploaded successfully!');
-      } catch (err: any) {
-        alert(err?.message || 'Failed to upload banner image.');
-      }
-    }
-    if (bannerFileRef.current) bannerFileRef.current.value = '';
-  };
 
   const handleCreateNewBanner = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1755,14 +2040,18 @@ export const AdminDashboard: React.FC = () => {
                       </h3>
                     </div>
 
-                    {products.length === 0 ? (
+                    {topProducts.length === 0 ? (
                       <EmptyState title="No Products" description="No top selling products available yet." />
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {products.slice(0, 5).map((prod, idx) => (
+                        {topProducts.slice(0, 5).map((prod, idx) => (
                           <div
                             key={prod.id || idx}
-                            onClick={() => setEditingProduct(prod)}
+                            onClick={() => {
+                              const matched = products.find((p) => p.id === prod.id);
+                              if (matched) setEditingProduct(matched);
+                              setActiveTab('products');
+                            }}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -1786,16 +2075,16 @@ export const AdminDashboard: React.FC = () => {
                               />
                               <div>
                                 <div style={{ fontSize: '0.9rem', color: 'var(--cream)', fontWeight: 600 }}>{prod.name}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{prod.weight}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{prod.weight || ''}</div>
                               </div>
                             </div>
 
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: '0.9rem', color: 'var(--gold)', fontWeight: 600 }}>
-                                ₹{(prod.price * (idx === 0 ? 212 : idx === 1 ? 178 : idx === 2 ? 145 : 100)).toLocaleString()}
+                                ₹{Number(prod.total_revenue || (prod.price * (prod.units_sold || 0))).toLocaleString()}
                               </div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--beige)' }}>
-                                {idx === 0 ? '212' : idx === 1 ? '178' : idx === 2 ? '145' : '121'} orders
+                                {prod.units_sold || 0} {prod.units_sold === 1 ? 'unit sold' : 'units sold'}
                               </div>
                             </div>
                           </div>
@@ -1829,7 +2118,7 @@ export const AdminDashboard: React.FC = () => {
                     </Button>
                   </div>
 
-                  {orders.length === 0 ? (
+                  {recentOrders.length === 0 ? (
                     <EmptyState title="No Recent Orders" description="No orders available yet." />
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
@@ -1844,12 +2133,12 @@ export const AdminDashboard: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {orders.slice(0, 5).map((ord: any) => {
+                          {recentOrders.slice(0, 5).map((ord: any) => {
                             const orderId = ord.id || ord.order_id || 'ORD-00000';
-                            const custName = ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
-                            const totalAmt = ord.total ?? ord.amount ?? 0;
+                            const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
+                            const totalAmt = ord.amount ?? ord.total ?? 0;
                             const ordStatus = ord.status || 'Processing';
-                            const ordDate = ord.created_at ? new Date(ord.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : (ord.date || 'Today');
+                            const ordDate = ord.created_at || (ord.date || 'Today');
 
                             let badgeBg = '#f39c12';
                             if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
@@ -1917,50 +2206,50 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    {products.filter((p) => (p.stock !== undefined ? p.stock : 10) <= 10).length === 0 ? (
+                    {lowStockProducts.length === 0 ? (
                       <EmptyState title="Stock Healthy" description="All products currently have sufficient inventory stock." />
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {products
-                          .filter((p) => (p.stock !== undefined ? p.stock : 10) <= 10)
-                          .slice(0, 4)
-                          .map((prod) => (
-                            <div
-                              key={prod.id}
-                              onClick={() => {
-                                setEditingProduct(prod);
+                        {lowStockProducts.slice(0, 4).map((prod: any) => (
+                          <div
+                            key={prod.id}
+                            onClick={() => {
+                              const matched = products.find((p) => p.id === prod.id);
+                              if (matched) {
+                                setEditingProduct(matched);
                                 setEditingProductImageFiles([]);
                                 setEditingProductImagePreviews([]);
-                                setActiveTab('products');
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '10px 14px',
-                                borderRadius: '6px',
-                                background: 'rgba(183, 110, 121, 0.1)',
-                                border: '1px solid rgba(183, 110, 121, 0.3)',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <img
-                                  src={getImageUrl(prod.image)}
-                                  alt={prod.name}
-                                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--rose-gold)' }}
-                                />
-                                <div>
-                                  <div style={{ fontSize: '0.9rem', color: 'var(--cream)', fontWeight: 600 }}>{prod.name}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', fontWeight: 600 }}>
-                                    {prod.stock !== undefined ? prod.stock : 2} units left
-                                  </div>
+                              }
+                              setActiveTab('products');
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              borderRadius: '6px',
+                              background: 'rgba(183, 110, 121, 0.1)',
+                              border: '1px solid rgba(183, 110, 121, 0.3)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <img
+                                src={getImageUrl(prod.image)}
+                                alt={prod.name}
+                                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--rose-gold)' }}
+                              />
+                              <div>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--cream)', fontWeight: 600 }}>{prod.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--rose-gold)', fontWeight: 600 }}>
+                                  {prod.stock !== undefined ? prod.stock : 0} units left
                                 </div>
                               </div>
-
-                              <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>Manage &rarr;</span>
                             </div>
-                          ))}
+
+                            <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>Manage &rarr;</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -2247,7 +2536,8 @@ export const AdminDashboard: React.FC = () => {
                             ) : (
                               paginated.map((prod) => {
                                 const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                                const isAvailable = (prod.isAvailable ?? prod.is_available ?? true) && displayStock > 0;
+                                const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
+                                const isAvailable = isAdminAvailable && displayStock > 0;
                                 const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
 
                                 return (
@@ -2310,14 +2600,14 @@ export const AdminDashboard: React.FC = () => {
                                           fontWeight: 600
                                         }}>
                                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
-                                          Out of Stock
+                                          Stock Out
                                         </span>
                                       )}
                                     </td>
                                     <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                         {/* Stock Out / Stock In Quick Toggle */}
-                                        {isAvailable ? (
+                                        {isAdminAvailable ? (
                                           <button
                                             type="button"
                                             disabled={updatingStockProductId === prod.id}
@@ -2330,7 +2620,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setProducts((prev) =>
                                                   prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
                                                 );
-                                                addToast('info', `Marked "${prod.name}" as Out of Stock.`, 'Availability Updated');
+                                                addToast('info', `Marked "${prod.name}" as Stock Out (unavailable to customers). Physical stock remains ${displayStock} units.`, 'Availability Updated');
                                               } catch (err: any) {
                                                 console.error('Stock Out failed:', err);
                                                 addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
@@ -2365,7 +2655,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setProducts((prev) =>
                                                   prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
                                                 );
-                                                addToast('success', `Marked "${prod.name}" as In Stock.`, 'Availability Updated');
+                                                addToast('success', `Marked "${prod.name}" as Enabled / Available. Physical stock: ${displayStock} units.`, 'Availability Updated');
                                               } catch (err: any) {
                                                 console.error('Stock In failed:', err);
                                                 addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
@@ -2385,7 +2675,7 @@ export const AdminDashboard: React.FC = () => {
                                               opacity: updatingStockProductId === prod.id ? 0.6 : 1,
                                             }}
                                           >
-                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Stock In'}
+                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Enable'}
                                           </button>
                                         )}
 
@@ -2524,7 +2814,7 @@ export const AdminDashboard: React.FC = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div>
                           <Input
-                            label="Chocolate Name *"
+                            label="Chocolate Name"
                             placeholder="Enter chocolate name"
                             required
                             value={newProd.name}
@@ -2539,14 +2829,15 @@ export const AdminDashboard: React.FC = () => {
 
                         <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
                           <Select
-                            label="Category *"
+                            label="Category"
+                            required
                             options={dynamicCategoryOptions}
                             value={newProd.category}
                             onChange={(e) => setNewProd({ ...newProd, category: e.target.value as any })}
                           />
 
                           <Select
-                            label="Badge / Section Tag *"
+                            label="Badge / Section Tag"
                             options={[
                               { value: '', label: 'Select badge / section tag' },
                               { value: 'New', label: 'New (Shows in New Arrivals section)' },
@@ -2564,7 +2855,7 @@ export const AdminDashboard: React.FC = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
                           <div>
                             <Input
-                              label="Price (₹) *"
+                              label="Price (₹)"
                               type="number"
                               placeholder="Enter price"
                               required
@@ -2580,7 +2871,7 @@ export const AdminDashboard: React.FC = () => {
 
                           <div>
                             <Input
-                              label="Weight *"
+                              label="Weight"
                               placeholder="Enter weight (e.g. 100g, 250g)"
                               required
                               value={newProd.weight}
@@ -2599,7 +2890,7 @@ export const AdminDashboard: React.FC = () => {
                     {/* 2. Product Images */}
                     <div>
                       <h3 style={{ fontSize: '1.05rem', color: 'var(--gold)', fontFamily: 'var(--font-display)', marginBottom: '16px', fontWeight: 600 }}>
-                        2. Product Images *
+                        2. Product Images
                       </h3>
                       <div
                         onClick={() => imageInputRef.current?.click()}
@@ -2684,7 +2975,7 @@ export const AdminDashboard: React.FC = () => {
                       </h3>
                       <div>
                         <Input
-                          label="Initial Stock Units *"
+                          label="Initial Stock Units"
                           type="number"
                           placeholder="Enter stock quantity"
                           required
@@ -2708,7 +2999,7 @@ export const AdminDashboard: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
-                            Ingredients *
+                            Ingredients <span style={{ color: '#e74c3c' }}>*</span>
                           </label>
                           <textarea
                             rows={4}
@@ -2731,7 +3022,7 @@ export const AdminDashboard: React.FC = () => {
 
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
-                            Product Description *
+                            Product Description <span style={{ color: '#e74c3c' }}>*</span>
                           </label>
                           <textarea
                             rows={4}
@@ -2757,7 +3048,7 @@ export const AdminDashboard: React.FC = () => {
                     {/* 5. Initial Rating */}
                     <div>
                       <h3 style={{ fontSize: '1.05rem', color: 'var(--gold)', fontFamily: 'var(--font-display)', marginBottom: '6px', fontWeight: 600 }}>
-                        5. Initial Rating *
+                        5. Initial Rating
                       </h3>
                       <p style={{ fontSize: '0.8rem', color: 'var(--beige)', margin: '0 0 12px 0' }}>
                         Set the initial rating for this product.
@@ -2800,15 +3091,28 @@ export const AdminDashboard: React.FC = () => {
                     )}
 
                     {/* Bottom Action Buttons */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', flexWrap: 'wrap' }}>
                       <Button
                         type="button"
                         variant="glass"
-                        onClick={() => setShowAddProductForm(false)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px' }}
+                        onClick={() => {
+                          setShowAddProductForm(false);
+                          setPendingBatchProducts([]);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
                       >
                         <X size={16} />
                         Cancel
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddToBatch}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.4)', color: '#c9a84c' }}
+                      >
+                        <Plus size={16} />
+                        Add Another Product
                       </Button>
 
                       <Button
@@ -2816,17 +3120,19 @@ export const AdminDashboard: React.FC = () => {
                         variant="gold"
                         disabled={isCreatingProduct}
                         glow
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 28px', fontWeight: 600 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', fontWeight: 600 }}
                       >
                         {isCreatingProduct ? (
                           <>
-                            <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                            Creating Product...
+                            <Loader2 size={16} className="animate-spin" />
+                            Saving Products...
                           </>
                         ) : (
                           <>
                             <ShoppingBag size={16} />
-                            Create Product
+                            {pendingBatchProducts.length > 0
+                              ? `Save All Products (${pendingBatchProducts.length + (trimValue(newProd.name) ? 1 : 0)})`
+                              : 'Create Product'}
                           </>
                         )}
                       </Button>
@@ -2834,59 +3140,132 @@ export const AdminDashboard: React.FC = () => {
                   </form>
                 </div>
 
-                {/* Right Sidebar Guide Card (Screenshot 2) */}
-                <div
-                  className="glass-panel"
-                  style={{
-                    padding: '24px',
-                    border: '1px solid var(--glass-border)',
-                    background: 'rgba(15, 10, 5, 0.4)',
-                    borderRadius: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', color: 'var(--gold)' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,215,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      ⓘ
-                    </div>
-                    <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', margin: 0, fontWeight: 600 }}>
-                      About This Form
-                    </h4>
-                  </div>
+                {/* Right Sidebar Guide Card & Batch Queue Card */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Pending Batch Queue Card */}
+                  {pendingBatchProducts.length > 0 && (
+                    <div
+                      className="glass-panel"
+                      style={{
+                        padding: '20px',
+                        border: '1px solid var(--gold)',
+                        background: 'rgba(201, 168, 76, 0.08)',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--gold)', margin: 0, fontWeight: 700 }}>
+                          Pending Batch Queue ({pendingBatchProducts.length})
+                        </h4>
+                        <Button variant="text" size="sm" onClick={() => setPendingBatchProducts([])} style={{ color: '#e74c3c', fontSize: '0.75rem', padding: '2px 6px' }}>
+                          Clear Queue
+                        </Button>
+                      </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.85rem', color: 'var(--beige)' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>ⓘ</span>
-                      <span>All fields marked with <strong style={{ color: 'var(--rose-gold)' }}>*</strong> are mandatory.</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
+                        {pendingBatchProducts.map((p, idx) => (
+                          <div
+                            key={p.tempId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              background: 'rgba(0,0,0,0.4)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {p.imagePreviewUrls.length > 0 ? (
+                                <img src={p.imagePreviewUrls[0]} alt={p.name} style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: 'rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c', fontSize: '0.8rem', fontWeight: 700 }}>
+                                  #{idx + 1}
+                                </div>
+                              )}
+                              <div>
+                                <div style={{ fontSize: '0.88rem', color: 'var(--cream)', fontWeight: 600 }}>{p.name}</div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--grey-light)' }}>
+                                  ₹{p.price} • {p.weight} • {p.stock} units
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleEditBatchItem(p)}
+                                style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', padding: '4px' }}
+                                title="Edit Item"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFromBatch(p.tempId)}
+                                style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', padding: '4px' }}
+                                title="Remove Item"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sidebar Guide Card */}
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '24px',
+                      border: '1px solid var(--glass-border)',
+                      background: 'rgba(15, 10, 5, 0.4)',
+                      borderRadius: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', color: 'var(--gold)' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,215,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ⓘ
+                      </div>
+                      <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', margin: 0, fontWeight: 600 }}>
+                        About This Form
+                      </h4>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>🖼</span>
-                      <span>Upload high-quality images that showcase your chocolate best.</span>
-                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.85rem', color: 'var(--beige)' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>ⓘ</span>
+                        <span>All fields marked with <strong style={{ color: 'var(--rose-gold)' }}>*</strong> are mandatory.</span>
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>⚖</span>
-                      <span>Weight should include the unit (e.g. 100g, 250g, 500g).</span>
-                    </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>🖼</span>
+                        <span>Upload high-quality images that showcase your chocolate best.</span>
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📦</span>
-                      <span>Initial stock will be used for inventory and order management.</span>
-                    </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>⚖</span>
+                        <span>Weight should include the unit (e.g. 100g, 250g, 500g).</span>
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📋</span>
-                      <span>Ingredients will be visible to customers on the product page.</span>
-                    </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📦</span>
+                        <span>Initial stock will be used for inventory and order management.</span>
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>✏</span>
-                      <span>You can update product details anytime after creation.</span>
-                    </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📋</span>
+                        <span>Ingredients will be visible to customers on the product page.</span>
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>⭐</span>
-                      <span>Initial rating can be updated later from the product details page.</span>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>✏</span>
+                        <span>You can add multiple products to a batch before saving.</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3453,13 +3832,13 @@ export const AdminDashboard: React.FC = () => {
               );
             })()}
 
-            {/* Add Category Modal (Matching Screenshot UI) */}
+            {/* Add Category Modal (Matching Screenshot UI with Symmetrical Fields & Batch Queue) */}
             {showAddCategoryForm && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                 <div
                   style={{
                     padding: '28px 30px',
-                    maxWidth: '480px',
+                    maxWidth: '520px',
                     width: '100%',
                     border: '1px solid rgba(255, 215, 0, 0.45)',
                     borderRadius: '12px',
@@ -3476,7 +3855,10 @@ export const AdminDashboard: React.FC = () => {
                     </h2>
                     <button
                       type="button"
-                      onClick={() => setShowAddCategoryForm(false)}
+                      onClick={() => {
+                        setShowAddCategoryForm(false);
+                        setPendingBatchCategories([]);
+                      }}
                       style={{ background: 'none', border: 'none', color: 'var(--beige)', cursor: 'pointer', padding: '4px' }}
                     >
                       <X size={18} />
@@ -3508,6 +3890,54 @@ export const AdminDashboard: React.FC = () => {
                           fontSize: '0.9rem',
                           outline: 'none',
                           boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* SLUG */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--beige)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        SLUG
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="dark-chocolate"
+                        value={newCategory.slug}
+                        onChange={(e) => setNewCategory((p) => ({ ...p, slug: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '11px 14px',
+                          background: '#160c06',
+                          border: '1px solid rgba(255, 215, 0, 0.45)',
+                          borderRadius: '6px',
+                          color: 'var(--beige)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* DESCRIPTION */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.85rem', color: '#f5e6d3' }}>Description</label>
+                      <textarea
+                        value={newCategory.description}
+                        onChange={(e) => setNewCategory((p) => ({ ...p, description: e.target.value }))}
+                        rows={3}
+                        placeholder="Enter optional category description"
+                        style={{
+                          width: '100%',
+                          padding: '11px 14px',
+                          background: '#140a04',
+                          border: '1px solid rgba(255, 215, 0, 0.2)',
+                          borderRadius: '6px',
+                          color: '#f5e6d3',
+                          fontSize: '0.9rem',
+                          resize: 'vertical',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          fontFamily: 'var(--font-body)',
                         }}
                       />
                     </div>
@@ -3560,13 +3990,101 @@ export const AdminDashboard: React.FC = () => {
                       </button>
                     </div>
 
+                    {/* Pending Batch Categories Queue */}
+                    {pendingBatchCategories.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          padding: '14px',
+                          borderRadius: '8px',
+                          background: 'rgba(201,168,76,0.08)',
+                          border: '1px solid rgba(201,168,76,0.3)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--gold)', fontWeight: 700 }}>
+                            Pending Categories Queue ({pendingBatchCategories.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPendingBatchCategories([])}
+                            style={{ background: 'none', border: 'none', color: '#e74c3c', fontSize: '0.72rem', cursor: 'pointer' }}
+                          >
+                            Clear Queue
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                          {pendingBatchCategories.map((c, idx) => (
+                            <div
+                              key={c.tempId}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '8px 10px',
+                                background: 'rgba(0,0,0,0.5)',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: '0.85rem', color: '#f5e6d3', fontWeight: 600 }}>
+                                  {idx + 1}. {c.name}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--beige)' }}>
+                                  Slug: {c.slug} • Sort Order: {c.sort_order} • {c.is_active ? 'Active' : 'Inactive'}
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditCategoryBatchItem(c)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer' }}
+                                  title="Edit"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCategoryFromBatch(c.tempId)}
+                                  style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer' }}
+                                  title="Remove"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Modal Action Buttons */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-                      <Button type="button" variant="glass" onClick={() => setShowAddCategoryForm(false)}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
+                      <Button
+                        type="button"
+                        variant="glass"
+                        onClick={() => {
+                          setShowAddCategoryForm(false);
+                          setPendingBatchCategories([]);
+                        }}
+                      >
                         Cancel
                       </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddCategoryToBatch}
+                        style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.4)', color: '#c9a84c' }}
+                      >
+                        <Plus size={16} /> Add Another Category
+                      </Button>
                       <Button variant="gold" type="submit" glow>
-                        <Plus size={16} /> Create Category
+                        {pendingBatchCategories.length > 0
+                          ? `Save All Categories (${pendingBatchCategories.length + (trimValue(newCategory.name) ? 1 : 0)})`
+                          : 'Create Category'}
                       </Button>
                     </div>
                   </form>
@@ -3731,169 +4249,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* OFFLINE SALES TAB */}
         {activeTab === 'offline-sales' && (
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Boutique Offline Sales Ledger
-            </h1>
-
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '40px', alignItems: 'flex-start' }}>
-              {/* Sales ledger list */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', overflowX: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)' }}>
-                    Ledger Entries
-                  </h3>
-                  {/* File Upload Hidden form */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUploadChange}
-                    accept=".csv, .txt, .xlsx"
-                    style={{ display: 'none' }}
-                  />
-                  <Button variant="glass" size="sm" onClick={triggerFileSelect} disabled={importing}>
-                    <UploadCloud size={16} />
-                    {importing ? 'Parsing CSV...' : 'Import CSV Sheet'}
-                  </Button>
-                </div>
-
-                {importSuccess && (
-                  <div style={{ padding: '12px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', marginBottom: '15px', fontSize: '0.85rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <CheckCircle size={16} /> File upload parsed! Boutique sales ledger synchronized.
-                  </div>
-                )}
-
-                <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '450px' }}>
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Receipt ID</th>
-                        <th>Product</th>
-                        <th>Qty</th>
-                        <th>Payment</th>
-                        <th>Price</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {offlineSales.map((sale) => (
-                        <tr key={sale.id}>
-                          <td style={{ fontSize: '0.8rem', color: 'var(--gold)' }}>{sale.id}</td>
-                          <td>{sale.productName}</td>
-                          <td>{sale.quantity}</td>
-                          <td>{sale.paymentMethod}</td>
-                          <td style={{ fontWeight: 600 }}>₹{sale.totalPrice}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Manual Entry Form */}
-              <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--glass-border)', background: 'rgba(26,13,0,0.4)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  Record Offline Sale
-                </h3>
-
-                {/* Form to add item to basket */}
-                <form onSubmit={handleAddToBasket} style={{ marginBottom: '25px', paddingBottom: '20px', borderBottom: '1px dashed var(--glass-border)' }}>
-                  <Select
-                    label="Select Product Sold"
-                    value={manualSale.productName}
-                    options={products.map((p) => ({ value: p.name, label: p.name }))}
-                    onChange={(e) => {
-                      const prodName = e.target.value;
-                      const selectedProd = products.find((p) => p.name === prodName);
-                      const price = selectedProd ? selectedProd.price * manualSale.quantity : 0;
-                      setManualSale({ ...manualSale, productName: prodName, totalPrice: price });
-                    }}
-                  />
-
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '15px', alignItems: 'end', marginBottom: '15px' }}>
-                    <Input
-                      label="Quantity"
-                      type="number"
-                      value={manualSale.quantity}
-                      min={1}
-                      onChange={(e) => {
-                        const qty = parseInt(e.target.value) || 1;
-                        const selectedProd = products.find((p) => p.name === manualSale.productName);
-                        const price = selectedProd ? selectedProd.price * qty : 0;
-                        setManualSale({ ...manualSale, quantity: qty, totalPrice: price });
-                      }}
-                      style={{ marginBottom: 0 }}
-                    />
-                    <Button variant="secondary" type="submit" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      Add to Basket
-                    </Button>
-                  </div>
-
-                  <div style={{ fontSize: '0.85rem', color: 'var(--beige)', textAlign: 'right' }}>
-                    Item Total: <strong style={{ color: 'var(--gold)' }}>₹{manualSale.totalPrice}</strong>
-                  </div>
-                </form>
-
-                {/* Basket List & Final Submission */}
-                <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--cream)', marginBottom: '12px' }}>
-                    Basket Items ({saleBasket.length})
-                  </h4>
-                  {saleBasket.length === 0 ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--grey-light)', fontStyle: 'italic', marginBottom: '20px' }}>
-                      No items added yet. Use the selector above.
-                    </p>
-                  ) : (
-                    <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {saleBasket.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '4px', fontSize: '0.85rem' }}>
-                          <div>
-                            <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{item.productName}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Qty: {item.quantity} × ₹{item.totalPrice / item.quantity}</div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <strong style={{ color: 'var(--gold)' }}>₹{item.totalPrice}</strong>
-                            <button type="button" onClick={() => handleRemoveFromBasket(idx)} style={{ color: 'var(--rose-gold)', fontSize: '0.75rem' }}>Remove</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.05)', marginBottom: '15px' }} />
-
-                  <form onSubmit={handleLogTransaction}>
-                    <Select
-                      label="Payment Method"
-                      value={manualSale.paymentMethod}
-                      options={[
-                        { value: 'Cash', label: 'Cash payment' },
-                        { value: 'Card', label: 'Card Swiped' },
-                        { value: 'UPI', label: 'UPI / Scan code' },
-                      ]}
-                      onChange={(e) => setManualSale({ ...manualSale, paymentMethod: e.target.value })}
-                    />
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '15px 0 20px 0' }}>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--beige)' }}>Total Transaction Amount:</span>
-                      <strong style={{ fontSize: '1.2rem', color: 'var(--gold)' }}>
-                        ₹{saleBasket.reduce((sum, item) => sum + item.totalPrice, 0).toLocaleString()}
-                      </strong>
-                    </div>
-
-                    {saleAddedSuccess && (
-                      <div style={{ padding: '10px', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', borderRadius: '4px', marginBottom: '15px', fontSize: '0.85rem' }}>
-                        ✓ Offline sales transaction logged successfully!
-                      </div>
-                    )}
-
-                    <Button variant="gold" fullWidth type="submit" glow disabled={saleBasket.length === 0}>
-                      Log Transaction
-                    </Button>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
+          <OfflineSalesView addToast={addToast} />
         )}
 
         {/* COUPONS TAB */}
@@ -3915,19 +4271,28 @@ export const AdminDashboard: React.FC = () => {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {couponsList.map((c: any) => {
-                      const isExpired = c.expires_at ? new Date(c.expires_at) < new Date() : false;
-                      const isInactive = !c.is_active || isExpired;
+                      const isExpired = c.status === 'EXPIRED' || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
+                      const isInactive = !c.is_active || c.status === 'INACTIVE';
+                      const cType = c.coupon_type || 'CUSTOMER';
+
                       return (
                         <div key={c.id || c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
-                              {isInactive ? (
-                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(255,0,0,0.2)', color: '#ff6b6b', borderRadius: '4px', fontWeight: 700 }}>
-                                  {isExpired ? 'INACTIVE (EXPIRED)' : 'INACTIVE'}
+                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: cType === 'INFLUENCER' ? 'rgba(155,89,182,0.2)' : 'rgba(52,152,219,0.2)', color: cType === 'INFLUENCER' ? '#9b59b6' : '#3498db', borderRadius: '4px', fontWeight: 700 }}>
+                                {cType}
+                              </span>
+                              {isExpired ? (
+                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(231,76,60,0.2)', color: '#e74c3c', borderRadius: '4px', fontWeight: 700 }}>
+                                  EXPIRED
+                                </span>
+                              ) : isInactive ? (
+                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(149,165,166,0.2)', color: '#95a5a6', borderRadius: '4px', fontWeight: 700 }}>
+                                  INACTIVE
                                 </span>
                               ) : (
-                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
+                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
                                   ACTIVE
                                 </span>
                               )}
@@ -3935,7 +4300,7 @@ export const AdminDashboard: React.FC = () => {
                             <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
                               {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
-                              {c.usage_count !== undefined && <span style={{color: 'var(--grey-light)', marginLeft: '10px'}}>(Used: {c.usage_count})</span>}
+                              <span style={{ color: 'var(--grey-light)', marginLeft: '12px' }}>(Times Used: {c.usage_count || 0})</span>
                             </div>
                             {c.expires_at && (
                               <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
@@ -4080,15 +4445,8 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'orders' && (
           <div>
             <OrderManagement
-              adminOrders={adminOrders}
-              adminOrdersLoading={adminOrdersLoading}
-              orderFulfillmentFilter={orderFulfillmentFilter}
-              orderPaymentFilter={orderPaymentFilter}
-              setOrderFulfillmentFilter={setOrderFulfillmentFilter}
-              setOrderPaymentFilter={setOrderPaymentFilter}
-              fetchAdminOrders={fetchAdminOrders}
-              handleUpdateOrderStatus={handleUpdateOrderStatus}
               addToast={addToast}
+              handleUpdateOrderStatus={handleUpdateOrderStatus}
             />
           </div>
         )}
@@ -4213,9 +4571,9 @@ export const AdminDashboard: React.FC = () => {
                   )}
 
                   <input ref={bannerFileRef} type="file" accept="image/*" onChange={handleBannerFileUpload} style={{ display: 'none' }} />
-                  <Button variant="gold" glow onClick={() => bannerFileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <UploadCloud size={16} />
-                    Replace Slide Image
+                  <Button variant="gold" glow onClick={() => bannerFileRef.current?.click()} disabled={isReplacingBannerImage} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <UploadCloud size={16} className={isReplacingBannerImage ? 'animate-spin' : ''} />
+                    {isReplacingBannerImage ? 'Uploading & Replacing...' : 'Replace Slide Image'}
                   </Button>
                 </div>
               ) : (
@@ -4235,9 +4593,9 @@ export const AdminDashboard: React.FC = () => {
               </p>
               <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
                 <Input label="Happy Customers" type="number" value={siteStats.happy_customers} onChange={(e) => setSiteStats({ ...siteStats, happy_customers: parseInt(e.target.value) || 0 })} />
-                <Input label="Unique Flavors" type="number" value={siteStats.unique_flavors} onChange={(e) => setSiteStats({ ...siteStats, unique_flavors: parseInt(e.target.value) || 0 })} />
-                <Input label="Countries Shipped" type="number" value={siteStats.countries_shipped} onChange={(e) => setSiteStats({ ...siteStats, countries_shipped: parseInt(e.target.value) || 0 })} />
-                <Input label="5-Star Reviews %" type="number" value={siteStats.five_star_reviews_percent} onChange={(e) => setSiteStats({ ...siteStats, five_star_reviews_percent: parseInt(e.target.value) || 0 })} />
+                <Input label="Products Available" type="number" value={siteStats.products_available} onChange={(e) => setSiteStats({ ...siteStats, products_available: parseInt(e.target.value) || 0 })} />
+                <Input label="Orders Delivered" type="number" value={siteStats.orders_delivered} onChange={(e) => setSiteStats({ ...siteStats, orders_delivered: parseInt(e.target.value) || 0 })} />
+                <Input label="Customer Rating %" type="number" value={siteStats.customer_rating_percent} onChange={(e) => setSiteStats({ ...siteStats, customer_rating_percent: parseInt(e.target.value) || 0 })} />
                 <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
                   <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px' }}>
                     {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? '✓ Counter Stats Saved!' : 'Save Counter Stats'}
@@ -4375,6 +4733,48 @@ export const AdminDashboard: React.FC = () => {
                             {t.status}
                           </span>
                         </div>
+
+                        {/* Stored Order Relationship Display */}
+                        {(() => {
+                          const relatedOrderId = t.orderId || t.order_id;
+                          return relatedOrderId ? (
+                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                              <span style={{ color: 'var(--beige)' }}>
+                                Related Order: <strong style={{ color: 'var(--gold)', fontFamily: 'monospace' }}>#{relatedOrderId}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const ord = await orderService.getOrder(relatedOrderId);
+                                    setViewingComplaintOrder(ord);
+                                  } catch (err: any) {
+                                    addToast('error', err?.detail || err?.message || 'Failed to load related order details.', 'Order Error');
+                                  }
+                                }}
+                                style={{
+                                  padding: '3px 10px',
+                                  fontSize: '0.75rem',
+                                  background: 'rgba(201, 168, 76, 0.15)',
+                                  color: 'var(--gold)',
+                                  border: '1px solid rgba(201, 168, 76, 0.35)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <ExternalLink size={12} /> View Related Order
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
+                              No related order
+                            </div>
+                          );
+                        })()}
 
                         <p style={{ fontSize: '0.9rem', color: 'var(--beige)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
                           {t.description}
@@ -5026,6 +5426,17 @@ export const AdminDashboard: React.FC = () => {
           onConfirm={handleConfirmLogout}
           onCancel={() => setShowLogoutConfirmModal(false)}
         />
+
+        {/* Complaint Related Order Detail Modal */}
+        {viewingComplaintOrder && (
+          <OrderDetailModal
+            order={viewingComplaintOrder}
+            onClose={() => setViewingComplaintOrder(null)}
+            onUpdateStatus={handleUpdateOrderStatus}
+            addToast={addToast}
+            onRefresh={() => {}}
+          />
+        )}
       </div>
     </div>
   );

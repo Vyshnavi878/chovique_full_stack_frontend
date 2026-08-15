@@ -56,7 +56,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     { id: 'categories', label: 'Categories', icon: FolderTree },
     { id: 'orders', label: 'Order Management', icon: ListOrdered },
     { id: 'customers', label: 'Customer Directory', icon: Users },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'offline-sales', label: 'Offline Sales', icon: Coins },
     { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
     { id: 'reward-settings', label: 'Reward Coins System', icon: Coins },
