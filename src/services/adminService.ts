@@ -164,14 +164,27 @@ export const adminService = {
   getUsers: (): Promise<SystemUser[]> =>
     apiGet<SystemUser[]>('/admin/users'),
 
-  /** Fetch paginated customers with optional search */
-  getCustomers: (params?: { page?: number; limit?: number; search?: string }): Promise<{ customers: any[]; total: number }> => {
+  /** Fetch paginated customers with optional search and status filter */
+  getCustomers: (params?: { page?: number; limit?: number; search?: string; status?: string }): Promise<{
+    items: any[];
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+    summary: {
+      total_customers: number;
+      active_accounts: number;
+      total_orders_placed: number;
+      lifetime_spend: number;
+    };
+  }> => {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', String(params.page));
     if (params?.limit) query.append('limit', String(params.limit));
-    if (params?.search) query.append('search', params.search);
+    if (params?.search && params.search.trim()) query.append('search', params.search.trim());
+    if (params?.status && params.status !== 'ALL') query.append('status', params.status);
     const qs = query.toString();
-    return apiGet<{ customers: any[]; total: number }>(`/admin/customers${qs ? `?${qs}` : ''}`);
+    return apiGet<any>(`/admin/customers${qs ? `?${qs}` : ''}`);
   },
 
   /** Fetch customer details with real backend order calculation */
@@ -364,13 +377,46 @@ export const adminService = {
   demoteAdmin: (userId: string): Promise<SystemUser> =>
     apiPost<SystemUser>(`/admin/users/${userId}/demote`, {}),
 
-  /** Fetch all orders site-wide (supports optional status and payment_status query params). */
-  getAllOrders: (params?: { status?: string; payment_status?: string }): Promise<Order[]> => {
+  /** Fetch all orders site-wide (supports status, payment_status, search, date range, and pagination params). */
+  getAllOrders: (params?: {
+    status?: string;
+    payment_status?: string;
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Order[];
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+    summary: {
+      total_orders: number;
+      processing: number;
+      confirmed: number;
+      shipped: number;
+      out_for_delivery: number;
+      delivered: number;
+      cancelled: number;
+      pending_payment: number;
+      paid: number;
+      failed_payment: number;
+      refunded: number;
+      total_revenue: number;
+    };
+  }> => {
     const query = new URLSearchParams();
     if (params?.status && params.status !== 'ALL') query.append('status', params.status);
     if (params?.payment_status && params.payment_status !== 'ALL') query.append('payment_status', params.payment_status);
+    if (params?.search && params.search.trim()) query.append('search', params.search.trim());
+    if (params?.date_from) query.append('date_from', params.date_from);
+    if (params?.date_to) query.append('date_to', params.date_to);
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
     const queryString = query.toString();
-    return apiGet<Order[]>(`/admin/orders${queryString ? `?${queryString}` : ''}`);
+    return apiGet<any>(`/admin/orders${queryString ? `?${queryString}` : ''}`);
   },
 
   /** Update an order's status. */

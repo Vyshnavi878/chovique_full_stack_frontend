@@ -234,9 +234,12 @@ export interface Testimonial {
 
 export interface HomeStats {
   happy_customers: number;
-  unique_flavors: number;
-  countries_shipped: number;
-  five_star_reviews_percent: number;
+  products_available: number;
+  orders_delivered: number;
+  customer_rating_percent: number;
+  unique_flavors?: number;
+  countries_shipped?: number;
+  five_star_reviews_percent?: number;
 }
 
 export interface ContactInfo {

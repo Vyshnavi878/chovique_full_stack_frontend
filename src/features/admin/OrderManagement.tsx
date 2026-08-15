@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   X,
@@ -8,10 +8,10 @@ import {
   RefreshCw,
   AlertTriangle,
   Package,
-  MapPin,
-  CreditCard,
   Calendar,
 } from 'lucide-react';
+import { adminService } from '../../services/adminService';
+import { Pagination } from '../../components/ui/Pagination';
 
 // ─── Status Definitions ───────────────────────────────────────────────────────
 
@@ -77,7 +77,8 @@ const OrderDetailModal: React.FC<{
   onClose: () => void;
   onUpdateStatus: (id: string, payload: { status?: string; payment_status?: string }) => void;
   addToast: (type: 'success' | 'error' | 'info', msg: string, title?: string) => void;
-}> = ({ order, onClose, onUpdateStatus, addToast }) => {
+  onRefresh: () => void;
+}> = ({ order, onClose, onUpdateStatus, addToast, onRefresh }) => {
   const [confirmPayload, setConfirmPayload] = useState<{ status?: string; payment_status?: string } | null>(null);
   const [confirmMsg, setConfirmMsg] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -86,8 +87,6 @@ const OrderDetailModal: React.FC<{
   const currentSt = order.status || 'Processing';
   const currentPs = order.payment_status || 'PENDING';
   const allowedNext = ALLOWED_TRANSITIONS[currentSt] || [];
-  const fBadge = FULFILLMENT_COLORS[currentSt] || { bg: 'rgba(255,255,255,0.08)', color: 'var(--cream)' };
-  const pBadge = PAYMENT_COLORS[currentPs] || { bg: 'rgba(255,255,255,0.08)', color: 'var(--cream)' };
 
   const initiateStatusChange = (newSt: string) => {
     if (!allowedNext.includes(newSt)) {
@@ -114,170 +113,136 @@ const OrderDetailModal: React.FC<{
   const doUpdate = async (payload: { status?: string; payment_status?: string }) => {
     setIsUpdating(true);
     try {
-      onUpdateStatus(order.id, payload);
+      await onUpdateStatus(order.id, payload);
       addToast('success', 'Order updated successfully.', 'Updated');
+      onRefresh();
       onClose();
-    } catch {
-      addToast('error', 'Failed to update order.', 'Error');
+    } catch (err: any) {
+      addToast('error', err?.detail || err?.message || 'Failed to update order status.', 'Error');
     } finally {
       setIsUpdating(false);
     }
   };
 
   return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9000,
-        background: 'rgba(0,0,0,0.85)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px', backdropFilter: 'blur(6px)',
-      }}
-    >
-      <div style={{
-        background: '#0e0a06',
-        border: '1px solid rgba(201,168,76,0.3)',
-        borderRadius: '12px', width: '100%', maxWidth: '780px',
-        maxHeight: '88vh', overflowY: 'auto', padding: '32px', position: 'relative',
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '12px', border: '1px solid var(--gold)', background: 'rgba(18,10,5,0.96)', padding: '28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '6px' }}>Order Details</div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', margin: 0 }}>{order.id}</h2>
-            <div style={{ fontSize: '0.78rem', color: 'var(--grey-light)', marginTop: '4px' }}>Placed: {order.date}</div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Order Details</span>
+            <h2 style={{ fontFamily: 'monospace', fontSize: '1.4rem', color: 'var(--cream)', margin: 0 }}>{order.id}</h2>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--rose-gold)', cursor: 'pointer' }}>
-            <X size={22} />
-          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--beige)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
 
-        {/* Status row */}
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
-          <span style={{ padding: '5px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700, background: fBadge.bg, color: fBadge.color, border: `1px solid ${fBadge.color}40` }}>
-            {STATUS_LABELS[currentSt] || currentSt}
-          </span>
-          <span style={{ padding: '5px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700, background: pBadge.bg, color: pBadge.color, border: `1px solid ${pBadge.color}40` }}>
-            {currentPs}
-          </span>
-          <span style={{ padding: '5px 14px', borderRadius: '20px', fontSize: '0.78rem', color: 'var(--beige)', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}>
-            {order.paymentMethod}
-          </span>
-          <span style={{ padding: '5px 14px', borderRadius: '20px', fontSize: '0.78rem', color: 'var(--beige)', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}>
-            {order.deliveryOption}
-          </span>
-        </div>
-
-        {/* 2-col info grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-          {/* Shipping Address */}
-          <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <MapPin size={12} /> Shipping Address
-            </div>
-            <div style={{ fontWeight: 700, color: 'var(--cream)', marginBottom: '4px' }}>{order.shippingAddress?.name || '—'}</div>
-            <div style={{ fontSize: '0.83rem', color: 'var(--beige)', lineHeight: 1.7 }}>
-              <div>{order.shippingAddress?.street}</div>
-              <div>{order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.zip}</div>
-              <div style={{ color: 'var(--grey-light)', marginTop: '4px' }}>📞 {order.shippingAddress?.phone}</div>
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Customer Info</div>
+            <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.9rem' }}>{order.shippingAddress?.name || 'Customer'}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{order.shippingAddress?.phone}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{order.shippingAddress?.email || order.user_email}</div>
           </div>
-
-          {/* Payment Breakdown */}
-          <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <CreditCard size={12} /> Payment Breakdown
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.83rem', color: 'var(--beige)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>₹{order.subtotal?.toFixed(2)}</span></div>
-              {(order.coupon_discount > 0) && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}><span>Coupon ({order.coupon_code})</span><span>-₹{order.coupon_discount?.toFixed(2)}</span></div>}
-              {(order.coin_discount > 0) && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f39c12' }}><span>Coins ({order.coins_used})</span><span>-₹{order.coin_discount?.toFixed(2)}</span></div>}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Shipping</span><span>{order.shipping === 0 ? 'Free' : `₹${order.shipping}`}</span></div>
-              {(order.tax > 0) && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tax</span><span>₹{order.tax?.toFixed(2)}</span></div>}
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '7px', marginTop: '3px', fontWeight: 700, color: 'var(--gold)', fontSize: '0.97rem' }}>
-                <span>Total</span><span>₹{order.total?.toFixed(2)}</span>
-              </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Shipping Address</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--cream)' }}>
+              {order.shippingAddress?.address}, {order.shippingAddress?.city}, {order.shippingAddress?.state} - {order.shippingAddress?.postalCode || order.shippingAddress?.pincode}
             </div>
           </div>
         </div>
 
-        {/* Items */}
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Package size={12} /> Order Items ({order.items?.length || 0})
-          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '10px' }}>Order Items</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {order.items?.map((item: any, idx: number) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '7px' }}>
-                {item.product?.image && (
-                  <img src={item.product.image} alt={item.product.name}
-                    style={{ width: '40px', height: '40px', borderRadius: '5px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.88rem' }}>{item.product?.name || 'Product'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{item.product?.weight || ''} • ₹{item.product?.price || item.price} × {item.quantity}</div>
+            {order.items?.map((it: any, idx: number) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--cream)', fontWeight: 600 }}>{it.product?.name || 'Product'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Qty: {it.quantity} × ₹{it.price}</div>
                 </div>
-                <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.92rem' }}>
-                  ₹{((item.product?.price || item.price || 0) * item.quantity).toFixed(2)}
-                </div>
+                <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.9rem' }}>₹{(it.quantity * it.price).toLocaleString()}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Update Status Actions */}
-        {(allowedNext.length > 0 || (isCod && currentPs === 'PENDING')) && (
-          <div style={{ padding: '16px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: '8px', marginBottom: '18px' }}>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Update Order Status</div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {allowedNext.map((st) => {
-                const isDestructive = st === 'Cancelled';
-                return (
-                  <button key={st} disabled={isUpdating} onClick={() => initiateStatusChange(st)}
-                    style={{ padding: '7px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: isDestructive ? '1px solid #e74c3c' : '1px solid var(--gold)', background: isDestructive ? 'rgba(231,76,60,0.12)' : 'rgba(201,168,76,0.12)', color: isDestructive ? '#e74c3c' : 'var(--gold)' }}>
-                    → {STATUS_LABELS[st] || st}
-                  </button>
-                );
-              })}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginBottom: '4px' }}>
+              Status: <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+              Payment: <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Total Amount</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{order.total?.toLocaleString()}</div>
+          </div>
+        </div>
+
+        {allowedNext.length > 0 && (
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '10px' }}>
+              Update Fulfillment Status:
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {allowedNext.map((st) => (
+                <button
+                  key={st}
+                  disabled={isUpdating}
+                  onClick={() => initiateStatusChange(st)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: st === 'Cancelled' ? 'rgba(231,76,60,0.15)' : 'rgba(201,168,76,0.15)',
+                    color: st === 'Cancelled' ? '#e74c3c' : 'var(--gold)',
+                    border: st === 'Cancelled' ? '1px solid rgba(231,76,60,0.4)' : '1px solid var(--gold)',
+                  }}
+                >
+                  Mark as {STATUS_LABELS[st] || st}
+                </button>
+              ))}
               {isCod && currentPs === 'PENDING' && (
-                <button disabled={isUpdating} onClick={initiateCodPaid}
-                  style={{ padding: '7px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: '1px solid #2ecc71', background: 'rgba(46,204,113,0.12)', color: '#2ecc71' }}>
-                  ✓ Mark COD as Paid
+                <button
+                  disabled={isUpdating}
+                  onClick={initiateCodPaid}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: 'rgba(46,204,113,0.15)',
+                    color: '#2ecc71',
+                    border: '1px solid rgba(46,204,113,0.4)',
+                  }}
+                >
+                  Mark COD Paid
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Footer */}
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <a href={`http://localhost:8000/api/v1/orders/${order.id}/invoice`} target="_blank" rel="noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '6px', fontSize: '0.83rem', fontWeight: 600, color: 'var(--cream)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none' }}>
-            <FileText size={14} /> View Invoice
-          </a>
-          <button onClick={onClose}
-            style={{ padding: '9px 18px', borderRadius: '6px', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--cream)' }}>
-            Close
-          </button>
-        </div>
-
-        {/* Inline Confirm Overlay */}
         {confirmPayload && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.88)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '20px', zIndex: 100 }}>
-            <AlertTriangle size={40} color="#e74c3c" />
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', marginBottom: '10px' }}>Confirm Action</div>
-              <div style={{ fontSize: '0.88rem', color: 'var(--beige)', maxWidth: '340px', lineHeight: 1.6 }}>{confirmMsg}</div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setConfirmPayload(null)}
-                style={{ padding: '9px 20px', borderRadius: '6px', fontSize: '0.83rem', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: 'var(--cream)', fontWeight: 600 }}>
-                Cancel
+          <div style={{ marginTop: '16px', padding: '14px', borderRadius: '8px', background: 'rgba(231,76,60,0.15)', border: '1px solid rgba(231,76,60,0.4)', color: '#f5e6d3' }}>
+            <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem' }}>{confirmMsg}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                disabled={isUpdating}
+                onClick={() => doUpdate(confirmPayload)}
+                style={{ padding: '6px 14px', background: '#e74c3c', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}
+              >
+                Confirm
               </button>
-              <button onClick={() => { doUpdate(confirmPayload!); setConfirmPayload(null); }} disabled={isUpdating}
-                style={{ padding: '9px 20px', borderRadius: '6px', fontSize: '0.83rem', cursor: 'pointer', background: '#e74c3c', border: '1px solid #e74c3c', color: '#fff', fontWeight: 700 }}>
-                {isUpdating ? 'Processing...' : 'Confirm'}
+              <button
+                onClick={() => setConfirmPayload(null)}
+                style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.1)', color: 'var(--cream)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -295,18 +260,28 @@ const QuickConfirmDialog: React.FC<{
   onConfirm: () => void;
   onCancel: () => void;
 }> = ({ orderId, newStatus, onConfirm, onCancel }) => (
-  <div style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(6px)' }}>
-    <div style={{ background: '#0e0a06', border: '1px solid rgba(231,76,60,0.4)', borderRadius: '12px', padding: '36px', maxWidth: '440px', width: '100%', textAlign: 'center' }}>
-      <AlertTriangle size={40} color="#e74c3c" style={{ margin: '0 auto 16px', display: 'block' }} />
-      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '12px' }}>Confirm Status Change</h3>
-      <p style={{ color: 'var(--beige)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '24px' }}>
-        Marking order <strong style={{ color: 'var(--gold)' }}>{orderId}</strong> as{' '}
-        <strong style={{ color: newStatus === 'Cancelled' ? '#e74c3c' : '#2ecc71' }}>{STATUS_LABELS[newStatus] || newStatus}</strong>.
-        {IRREVERSIBLE.has(newStatus) && <><br /><span style={{ color: '#e74c3c', fontSize: '0.8rem' }}>⚠ This action cannot be reversed.</span></>}
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+    <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', padding: '24px', borderRadius: '12px', border: '1px solid var(--gold)', background: 'rgba(18,10,5,0.96)', textAlign: 'center' }}>
+      <AlertTriangle size={36} color="#e74c3c" style={{ margin: '0 auto 12px auto', display: 'block' }} />
+      <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', margin: '0 0 8px 0', fontSize: '1.2rem' }}>Confirm Status Change</h3>
+      <p style={{ fontSize: '0.85rem', color: 'var(--beige)', marginBottom: '20px' }}>
+        {newStatus === '_MARK_PAID'
+          ? `Are you sure you want to mark COD payment as PAID for order ${orderId}?`
+          : `Are you sure you want to change order ${orderId} status to "${STATUS_LABELS[newStatus] || newStatus}"?`}
       </p>
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-        <button onClick={onCancel} style={{ padding: '9px 20px', borderRadius: '6px', fontSize: '0.83rem', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: 'var(--cream)', fontWeight: 600 }}>Cancel</button>
-        <button onClick={onConfirm} style={{ padding: '9px 20px', borderRadius: '6px', fontSize: '0.83rem', cursor: 'pointer', background: newStatus === 'Cancelled' ? '#e74c3c' : '#c9a84c', border: 'none', color: '#000', fontWeight: 700 }}>Confirm</button>
+        <button
+          onClick={onCancel}
+          style={{ padding: '9px 20px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--cream)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          style={{ padding: '9px 20px', background: 'var(--gold)', border: 'none', color: '#000', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+        >
+          Confirm
+        </button>
       </div>
     </div>
   </div>
@@ -315,66 +290,65 @@ const QuickConfirmDialog: React.FC<{
 // ─── Main OrderManagement Component ──────────────────────────────────────────
 
 interface OrderManagementProps {
-  adminOrders: any[];
-  adminOrdersLoading: boolean;
-  orderFulfillmentFilter: string;
-  orderPaymentFilter: string;
-  setOrderFulfillmentFilter: (v: string) => void;
-  setOrderPaymentFilter: (v: string) => void;
-  fetchAdminOrders: (fulfillment?: string, payment?: string) => void;
-  handleUpdateOrderStatus: (orderId: string, payload: { status?: string; payment_status?: string }) => void;
+  handleUpdateOrderStatus: (orderId: string, payload: { status?: string; payment_status?: string }) => Promise<any>;
   addToast: (type: 'success' | 'error' | 'info', message: string, title?: string) => void;
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
-  adminOrders,
-  adminOrdersLoading,
-  orderFulfillmentFilter,
-  orderPaymentFilter,
-  setOrderFulfillmentFilter,
-  setOrderPaymentFilter,
-  fetchAdminOrders,
   handleUpdateOrderStatus,
   addToast,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState('ALL');
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [dbOrderData, setDbOrderData] = useState<any>(null);
+
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<{ order: any; newStatus: string } | null>(null);
 
-  // Safe array normalization
-  const safeAdminOrders = useMemo(() => {
-    return Array.isArray(adminOrders) ? adminOrders : (adminOrders as any)?.items || [];
-  }, [adminOrders]);
-
-  // Client-side search + date filtering
-  const filteredOrders = useMemo(() => {
-    let list = safeAdminOrders;
-    const q = searchQuery.toLowerCase().trim();
-    if (q) {
-      list = list.filter((o: any) =>
-        o.id?.toLowerCase().includes(q) ||
-        o.shippingAddress?.name?.toLowerCase().includes(q) ||
-        o.shippingAddress?.phone?.toLowerCase().includes(q) ||
-        o.paymentMethod?.toLowerCase().includes(q)
-      );
+  const fetchDbOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const data = await adminService.getAllOrders({
+        status: fulfillmentFilter !== 'ALL' ? fulfillmentFilter : undefined,
+        payment_status: paymentFilter !== 'ALL' ? paymentFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        page,
+        limit,
+      });
+      setDbOrderData(data);
+    } catch (err: any) {
+      console.error('Failed to fetch orders from database:', err);
+      addToast('error', err?.detail || err?.message || 'Failed to load order data from database.', 'API Error');
+    } finally {
+      setOrdersLoading(false);
     }
-    if (dateFrom) list = list.filter((o: any) => new Date(o.date) >= new Date(dateFrom));
-    if (dateTo) list = list.filter((o: any) => new Date(o.date) <= new Date(dateTo + 'T23:59:59'));
-    return list;
-  }, [safeAdminOrders, searchQuery, dateFrom, dateTo]);
+  }, [fulfillmentFilter, paymentFilter, searchQuery, dateFrom, dateTo, page, limit, addToast]);
 
-  // KPI counts from full adminOrders list
-  const kpis = useMemo(() => {
-    const total = safeAdminOrders.length;
-    const pending = safeAdminOrders.filter((o: any) => o.status === 'Processing' || o.status === 'Confirmed').length;
-    const transit = safeAdminOrders.filter((o: any) => o.status === 'Shipped' || o.status === 'Out_For_Delivery').length;
-    const delivered = safeAdminOrders.filter((o: any) => o.status === 'Delivered').length;
-    const cancelled = safeAdminOrders.filter((o: any) => o.status === 'Cancelled').length;
-    const revenue = safeAdminOrders.filter((o: any) => o.status !== 'Cancelled').reduce((s: number, o: any) => s + (o.total || 0), 0);
-    return { total, pending, transit, delivered, cancelled, revenue };
-  }, [safeAdminOrders]);
+  useEffect(() => {
+    fetchDbOrders();
+  }, [fetchDbOrders]);
+
+  const summary = dbOrderData?.summary || {};
+  const ordersList = dbOrderData?.items || [];
+  const totalCount = dbOrderData?.total || 0;
+  const totalPages = dbOrderData?.total_pages || 1;
+
+  const kpis = {
+    total: summary.total_orders ?? 0,
+    pending: (summary.processing ?? 0) + (summary.confirmed ?? 0),
+    transit: (summary.shipped ?? 0) + (summary.out_for_delivery ?? 0),
+    delivered: summary.delivered ?? 0,
+    cancelled: summary.cancelled ?? 0,
+    revenue: summary.total_revenue ?? 0,
+  };
 
   const handleQuickChange = (order: any, newSt: string) => {
     const currentSt = order.status || 'Processing';
@@ -385,8 +359,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     if (IRREVERSIBLE.has(newSt)) {
       setPendingConfirm({ order, newStatus: newSt });
     } else {
-      handleUpdateOrderStatus(order.id, { status: newSt });
-      addToast('success', `Order ${order.id} → ${STATUS_LABELS[newSt] || newSt}`, 'Status Updated');
+      handleUpdateOrderStatus(order.id, { status: newSt }).then(() => {
+        addToast('success', `Order ${order.id} → ${STATUS_LABELS[newSt] || newSt}`, 'Status Updated');
+        fetchDbOrders();
+      });
     }
   };
 
@@ -394,38 +370,42 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     setPendingConfirm({ order, newStatus: '_MARK_PAID' });
   };
 
-  const confirmUpdate = () => {
+  const confirmUpdate = async () => {
     if (!pendingConfirm) return;
     const { order, newStatus } = pendingConfirm;
-    if (newStatus === '_MARK_PAID') {
-      handleUpdateOrderStatus(order.id, { payment_status: 'PAID' });
-      addToast('success', `COD marked PAID for ${order.id}`, 'Payment Updated');
-    } else {
-      handleUpdateOrderStatus(order.id, { status: newStatus });
-      addToast('success', `Order ${order.id} → ${STATUS_LABELS[newStatus] || newStatus}`, 'Status Updated');
+    try {
+      if (newStatus === '_MARK_PAID') {
+        await handleUpdateOrderStatus(order.id, { payment_status: 'PAID' });
+        addToast('success', `COD marked PAID for ${order.id}`, 'Payment Updated');
+      } else {
+        await handleUpdateOrderStatus(order.id, { status: newStatus });
+        addToast('success', `Order ${order.id} → ${STATUS_LABELS[newStatus] || newStatus}`, 'Status Updated');
+      }
+      fetchDbOrders();
+    } catch (err: any) {
+      console.error('Failed to update order status:', err);
+    } finally {
+      setPendingConfirm(null);
     }
-    setPendingConfirm(null);
   };
 
   return (
     <>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px', marginBottom: '28px' }}>
         <div>
           <span className="section-label">Order Operations</span>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', color: 'var(--cream)', margin: 0 }}>Order Management</h1>
         </div>
         <button
-          onClick={() => fetchAdminOrders(orderFulfillmentFilter, orderPaymentFilter)}
-          disabled={adminOrdersLoading}
+          onClick={fetchDbOrders}
+          disabled={ordersLoading}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(201,168,76,0.35)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold)' }}
         >
-          {adminOrdersLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={15} />}
+          {ordersLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={15} />}
           Refresh
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px', marginBottom: '26px' }}>
         {[
           { label: 'Total Orders', value: kpis.total, color: '#c9a84c' },
@@ -433,27 +413,25 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           { label: 'In Transit', value: kpis.transit, color: '#f39c12' },
           { label: 'Delivered', value: kpis.delivered, color: '#2ecc71' },
           { label: 'Cancelled', value: kpis.cancelled, color: '#e74c3c' },
-          { label: 'Net Revenue', value: `₹${kpis.revenue.toLocaleString('en-IN')}`, color: '#c9a84c', small: true },
+          { label: 'Net Revenue', value: `₹${kpis.revenue.toLocaleString('en-IN')}`, color: '#c9a84c' },
         ].map((k) => (
           <div key={k.label} className="glass-panel" style={{ padding: '14px 16px', borderRadius: '10px', borderTop: `2px solid ${k.color}`, border: `1px solid ${k.color}22` }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '7px' }}>{k.label}</div>
-            <div style={{ fontSize: k.small ? '1rem' : '1.55rem', fontWeight: 700, color: k.color, fontFamily: 'var(--font-display)' }}>{k.value}</div>
+            <div style={{ fontSize: '1.55rem', fontWeight: 700, color: k.color, fontFamily: 'var(--font-display)' }}>{k.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Filter Toolbar */}
       <div className="glass-panel" style={{ padding: '18px 22px', marginBottom: '18px', border: '1px solid var(--glass-border)' }}>
-        {/* Fulfillment */}
         <div style={{ marginBottom: '14px' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Fulfillment Status</span>
           <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
             {FULFILLMENT_STATUSES.map((st) => {
-              const isActive = orderFulfillmentFilter === st;
+              const isActive = fulfillmentFilter === st;
               const badge = FULFILLMENT_COLORS[st];
               return (
                 <button key={st} type="button"
-                  onClick={() => { setOrderFulfillmentFilter(st); fetchAdminOrders(st, orderPaymentFilter); }}
+                  onClick={() => { setFulfillmentFilter(st); setPage(1); }}
                   style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.2)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
                   {STATUS_LABELS[st] || st}
                 </button>
@@ -462,16 +440,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           </div>
         </div>
 
-        {/* Payment */}
         <div style={{ marginBottom: '14px' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Payment Status</span>
           <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
             {PAYMENT_STATUSES.map((ps) => {
-              const isActive = orderPaymentFilter === ps;
+              const isActive = paymentFilter === ps;
               const badge = PAYMENT_COLORS[ps];
               return (
                 <button key={ps} type="button"
-                  onClick={() => { setOrderPaymentFilter(ps); fetchAdminOrders(orderFulfillmentFilter, ps); }}
+                  onClick={() => { setPaymentFilter(ps); setPage(1); }}
                   style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.15)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
                   {ps}
                 </button>
@@ -480,56 +457,49 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           </div>
         </div>
 
-        {/* Search + Date range */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
             <Search size={14} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--grey-light)', pointerEvents: 'none' }} />
-            <input type="text" placeholder="Search by Order ID, customer name or phone..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            <input type="text" placeholder="Search by Order ID, customer name or phone..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               style={{ width: '100%', paddingLeft: '34px', paddingRight: searchQuery ? '32px' : '10px', paddingTop: '8px', paddingBottom: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.83rem', outline: 'none', boxSizing: 'border-box' }} />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '9px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}>
+              <button onClick={() => { setSearchQuery(''); setPage(1); }} style={{ position: 'absolute', right: '9px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}>
                 <X size={13} />
               </button>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>From:</span>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               style={{ padding: '8px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.8rem', outline: 'none', colorScheme: 'dark' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>To:</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
               style={{ padding: '8px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.8rem', outline: 'none', colorScheme: 'dark' }} />
           </div>
-          {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+          {(dateFrom || dateTo || searchQuery || fulfillmentFilter !== 'ALL' || paymentFilter !== 'ALL') && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); setSearchQuery(''); setFulfillmentFilter('ALL'); setPaymentFilter('ALL'); setPage(1); }}
               style={{ padding: '8px 11px', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '6px', color: '#e74c3c', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}>
-              Clear
+              Reset Filters
             </button>
           )}
         </div>
       </div>
 
-      {/* Results info */}
-      <div style={{ marginBottom: '10px' }}>
-        <span style={{ fontSize: '0.8rem', color: 'var(--grey-light)' }}>
-          {adminOrdersLoading ? 'Loading...' : `Showing ${filteredOrders.length} of ${adminOrders.length} orders`}
-        </span>
-      </div>
-
-      {/* Orders Table */}
       <div className="glass-panel" style={{ padding: '0', border: '1px solid var(--glass-border)', overflowX: 'auto', borderRadius: '10px' }}>
-        {adminOrdersLoading ? (
+        {ordersLoading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--beige)' }}>
             <Loader2 size={36} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 14px auto', display: 'block' }} />
-            <p style={{ margin: 0 }}>Loading orders...</p>
+            <p style={{ margin: 0 }}>Loading orders from database...</p>
           </div>
-        ) : filteredOrders.length === 0 ? (
+        ) : ordersList.length === 0 ? (
           <div style={{ padding: '60px', textAlign: 'center' }}>
             <Package size={40} color="var(--grey-light)" style={{ margin: '0 auto 14px auto', display: 'block' }} />
             <p style={{ color: 'var(--grey-light)', margin: 0 }}>
-              {adminOrders.length === 0 ? 'No orders found.' : 'No orders match the current filters.'}
+              {totalCount === 0 && !searchQuery && !dateFrom && !dateTo && fulfillmentFilter === 'ALL' && paymentFilter === 'ALL'
+                ? 'No orders found in database.'
+                : 'No orders match the selected search or filter criteria.'}
             </p>
           </div>
         ) : (
@@ -544,7 +514,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((ord: any, idx: number) => {
+              {ordersList.map((ord: any, idx: number) => {
                 const isCod = ord.paymentMethod === 'Cash on Delivery' || ord.paymentMethod === 'COD';
                 const currentPs = ord.payment_status || 'PENDING';
                 const currentSt = ord.status || 'Processing';
@@ -552,29 +522,25 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 const fBadge = FULFILLMENT_COLORS[currentSt] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
                 const pBadge = PAYMENT_COLORS[currentPs] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
                 const isFinal = currentSt === 'Delivered' || currentSt === 'Cancelled';
+                const ordDate = ord.created_at || ord.date || 'Today';
 
                 return (
                   <tr key={ord.id}
-                    style={{ borderBottom: idx < filteredOrders.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.2s' }}
+                    style={{ borderBottom: idx < ordersList.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.2s' }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.022)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    {/* Order ID & Date */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: '0.78rem' }}>{ord.id}</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <Calendar size={10} />{ord.date}
+                        <Calendar size={10} />{ordDate}
                       </div>
                     </td>
-
-                    {/* Customer */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{ord.shippingAddress?.name || '—'}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{ord.shippingAddress?.name || ord.name || '—'}</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--beige)', marginTop: '2px' }}>{ord.shippingAddress?.phone}</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--grey-light)' }}>{ord.shippingAddress?.city}, {ord.shippingAddress?.state}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--grey-light)' }}>{ord.shippingAddress?.city}{ord.shippingAddress?.state ? `, ${ord.shippingAddress?.state}` : ''}</div>
                     </td>
-
-                    {/* Items */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '175px' }}>
                         {ord.items?.slice(0, 2).map((it: any, i: number) => (
@@ -584,16 +550,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                             <span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>×{it.quantity}</span>
                           </div>
                         ))}
-                        {ord.items?.length > 2 && <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>+{ord.items.length - 2} more</div>}
                       </div>
                     </td>
-
-                    {/* Payment Method */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <span style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.8rem' }}>{ord.paymentMethod || '—'}</span>
                     </td>
-
-                    {/* Payment Status */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700, background: pBadge.bg, color: pBadge.color, border: `1px solid ${pBadge.color}50` }}>
                         {currentPs}
@@ -605,8 +566,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         </button>
                       )}
                     </td>
-
-                    {/* Fulfillment Status */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700, background: fBadge.bg, color: fBadge.color, border: `1px solid ${fBadge.color}50`, marginBottom: isFinal ? 0 : '5px' }}>
                         {STATUS_LABELS[currentSt] || currentSt}
@@ -621,27 +580,14 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         </select>
                       )}
                     </td>
-
-                    {/* Total */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
                       <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.92rem' }}>₹{ord.total?.toLocaleString('en-IN')}</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--grey-light)', marginTop: '2px' }}>
-                        {ord.items?.reduce((s: number, i: any) => s + i.quantity, 0)} item(s)
-                      </div>
                     </td>
-
-                    {/* Actions */}
                     <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        <button onClick={() => setViewingOrder(ord)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 11px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', whiteSpace: 'nowrap' }}>
-                          <Eye size={12} /> View Order
-                        </button>
-                        <a href={`http://localhost:8000/api/v1/orders/${ord.id}/invoice`} target="_blank" rel="noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 11px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--cream)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                          <FileText size={12} /> Invoice
-                        </a>
-                      </div>
+                      <button onClick={() => setViewingOrder(ord)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 11px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                        <Eye size={12} /> View
+                      </button>
                     </td>
                   </tr>
                 );
@@ -651,13 +597,44 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         )}
       </div>
 
-      {/* Order Detail Modal */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', flexWrap: 'wrap', gap: '15px' }}>
+        <div style={{ fontSize: '0.82rem', color: 'var(--beige)' }}>
+          Showing {totalCount > 0 ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, totalCount)} of {totalCount} orders
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalCount}
+            itemsPerPage={limit}
+            onPageChange={(p) => setPage(p)}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--beige)' }}>
+            <span>Rows per page:</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+              style={{ padding: '4px 8px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)', borderRadius: '4px', color: 'var(--cream)', fontSize: '0.8rem' }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       {viewingOrder && (
         <OrderDetailModal
           order={viewingOrder}
           onClose={() => setViewingOrder(null)}
           onUpdateStatus={handleUpdateOrderStatus}
           addToast={addToast}
+          onRefresh={fetchDbOrders}
         />
       )}
 

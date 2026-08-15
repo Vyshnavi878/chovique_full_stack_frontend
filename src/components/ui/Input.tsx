@@ -32,21 +32,25 @@ export const Input: React.FC<InputProps> = ({
         fontFamily: 'var(--font-body)',
       }}
     >
-      {label && (
-        <label
-          htmlFor={inputId}
-          style={{
-            fontSize: '0.8rem',
-            color: 'var(--beige)',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 500,
-          }}
-        >
-          {label}
-          {props.required && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
-        </label>
-      )}
+      {label && (() => {
+        const hasAsterisk = label.includes('*') || props.required;
+        const cleanLabel = label.replace(/\s*\*+\s*$/, '');
+        return (
+          <label
+            htmlFor={inputId}
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--beige)',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontWeight: 500,
+            }}
+          >
+            {cleanLabel}
+            {hasAsterisk && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
+          </label>
+        );
+      })()}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <input
           id={inputId}
@@ -139,21 +143,25 @@ export const Select: React.FC<SelectProps> = ({
         fontFamily: 'var(--font-body)',
       }}
     >
-      {label && (
-        <label
-          htmlFor={selectId}
-          style={{
-            fontSize: '0.8rem',
-            color: 'var(--beige)',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 500,
-          }}
-        >
-          {label}
-          {props.required && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
-        </label>
-      )}
+      {label && (() => {
+        const hasAsterisk = label.includes('*') || props.required;
+        const cleanLabel = label.replace(/\s*\*+\s*$/, '');
+        return (
+          <label
+            htmlFor={selectId}
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--beige)',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontWeight: 500,
+            }}
+          >
+            {cleanLabel}
+            {hasAsterisk && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
+          </label>
+        );
+      })()}
       <select
         id={selectId}
         style={{

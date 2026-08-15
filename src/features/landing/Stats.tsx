@@ -48,9 +48,9 @@ const Counter: React.FC<CounterProps> = ({ target, suffix = '+' }) => {
 /** Default fallback stats while loading */
 const DEFAULT_STATS = [
   { target: 50000, suffix: '+', label: 'Happy Customers' },
-  { target: 120, suffix: '+', label: 'Unique Flavors' },
-  { target: 15, suffix: '+', label: 'Countries Shipped' },
-  { target: 98, suffix: '%', label: '5-Star Reviews' },
+  { target: 120, suffix: '+', label: 'Products Available' },
+  { target: 1500, suffix: '+', label: 'Orders Delivered' },
+  { target: 98, suffix: '%', label: 'Customer Rating %' },
 ];
 
 export const Stats: React.FC = () => {
@@ -60,10 +60,10 @@ export const Stats: React.FC = () => {
     homeService.getStats()
       .then((data: HomeStats) => {
         setStats([
-          { target: data.happy_customers, suffix: '+', label: 'Happy Customers' },
-          { target: data.unique_flavors, suffix: '+', label: 'Unique Flavors' },
-          { target: data.countries_shipped, suffix: '+', label: 'Countries Shipped' },
-          { target: data.five_star_reviews_percent, suffix: '%', label: '5-Star Reviews' },
+          { target: data.happy_customers ?? 50000, suffix: '+', label: 'Happy Customers' },
+          { target: data.products_available ?? data.unique_flavors ?? 120, suffix: '+', label: 'Products Available' },
+          { target: data.orders_delivered ?? data.countries_shipped ?? 1500, suffix: '+', label: 'Orders Delivered' },
+          { target: data.customer_rating_percent ?? data.five_star_reviews_percent ?? 98, suffix: '%', label: 'Customer Rating %' },
         ]);
       })
       .catch(() => {
