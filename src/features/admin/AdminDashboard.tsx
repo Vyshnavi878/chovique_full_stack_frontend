@@ -2532,7 +2532,8 @@ export const AdminDashboard: React.FC = () => {
                             ) : (
                               paginated.map((prod) => {
                                 const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                                const isAvailable = (prod.isAvailable ?? prod.is_available ?? true) && displayStock > 0;
+                                const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
+                                const isAvailable = isAdminAvailable && displayStock > 0;
                                 const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
 
                                 return (
@@ -2595,14 +2596,14 @@ export const AdminDashboard: React.FC = () => {
                                           fontWeight: 600
                                         }}>
                                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
-                                          Out of Stock
+                                          Stock Out
                                         </span>
                                       )}
                                     </td>
                                     <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                         {/* Stock Out / Stock In Quick Toggle */}
-                                        {isAvailable ? (
+                                        {isAdminAvailable ? (
                                           <button
                                             type="button"
                                             disabled={updatingStockProductId === prod.id}
@@ -2615,7 +2616,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setProducts((prev) =>
                                                   prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
                                                 );
-                                                addToast('info', `Marked "${prod.name}" as Out of Stock.`, 'Availability Updated');
+                                                addToast('info', `Marked "${prod.name}" as Stock Out (unavailable to customers). Physical stock remains ${displayStock} units.`, 'Availability Updated');
                                               } catch (err: any) {
                                                 console.error('Stock Out failed:', err);
                                                 addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
@@ -2650,7 +2651,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setProducts((prev) =>
                                                   prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
                                                 );
-                                                addToast('success', `Marked "${prod.name}" as In Stock.`, 'Availability Updated');
+                                                addToast('success', `Marked "${prod.name}" as Enabled / Available. Physical stock: ${displayStock} units.`, 'Availability Updated');
                                               } catch (err: any) {
                                                 console.error('Stock In failed:', err);
                                                 addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
@@ -2670,7 +2671,7 @@ export const AdminDashboard: React.FC = () => {
                                               opacity: updatingStockProductId === prod.id ? 0.6 : 1,
                                             }}
                                           >
-                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Stock In'}
+                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Enable'}
                                           </button>
                                         )}
 
