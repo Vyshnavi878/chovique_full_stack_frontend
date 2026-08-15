@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   CheckCircle,
   Eye,
+  EyeOff,
   AlertTriangle,
   UploadCloud,
   Trash2,
@@ -176,6 +177,8 @@ export const CustomerDashboard: React.FC = () => {
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.profile.phone || '',
+    dob: user?.profile.dob || '',
+    gender: user?.profile.gender || '',
   });
   const [profileSaved, setProfileSaved] = useState(false);
   const [showAddAddressForm, setShowAddAddressForm] = useState(false);
@@ -229,6 +232,8 @@ export const CustomerDashboard: React.FC = () => {
         name: user.name || '',
         email: user.email || '',
         phone: user.profile.phone || '',
+        dob: user.profile.dob || '',
+        gender: user.profile.gender || '',
       });
     }
   }, [user]);
@@ -243,6 +248,101 @@ export const CustomerDashboard: React.FC = () => {
   useEffect(() => {
     setImgLoadError(false);
   }, [avatarPreviewUrl, user?.profile?.avatarUrl, (user?.profile as any)?.avatar_url]);
+
+  // --- Unsaved Changes Tracking ---
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingTabChange, setPendingTabChange] = useState<CustomerTab | null>(null);
+
+  const isProfileDirty = 
+    activeTab === 'profile' && (
+      pendingAvatarFile !== null ||
+      profileForm.name !== (user?.name || '') ||
+      profileForm.phone !== (user?.profile.phone || '') ||
+      profileForm.dob !== (user?.profile.dob || '') ||
+      profileForm.gender !== (user?.profile.gender || '')
+    );
+
+  // Fallback interceptor for React Router links since BrowserRouter doesn't support useBlocker
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (!isProfileDirty) return;
+      
+      let target = e.target as HTMLElement | null;
+      while (target && target.tagName !== 'A') {
+        target = target.parentElement;
+      }
+
+      if (target && target.tagName === 'A') {
+        const href = target.getAttribute('href');
+        // Check if it's an internal link navigating away from the dashboard
+        if (href && href.startsWith('/') && !href.startsWith('/dashboard')) {
+          e.preventDefault();
+          e.stopPropagation();
+          // Store the destination href in pendingTabChange temporarily (hack)
+          setPendingTabChange(href as unknown as CustomerTab);
+          setShowUnsavedModal(true);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, { capture: true });
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, { capture: true });
+    };
+  }, [isProfileDirty]);
+
+  const handleTabChange = (newTab: CustomerTab) => {
+    if (activeTab === 'profile' && isProfileDirty) {
+      setPendingTabChange(newTab);
+      setShowUnsavedModal(true);
+      return;
+    }
+    setActiveTab(newTab);
+    setIsSidebarOpen(false);
+  };
+
+  const handleConfirmDiscard = () => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.profile.phone || '',
+        dob: user.profile.dob || '',
+        gender: user.profile.gender || '',
+      });
+      setPendingAvatarFile(null);
+      setAvatarPreviewUrl(null);
+    }
+    
+    if (pendingTabChange) {
+      const tabStr = pendingTabChange as string;
+      if (tabStr.startsWith('/')) {
+        navigate(tabStr);
+        return;
+      }
+      setActiveTab(pendingTabChange);
+    }
+    setShowUnsavedModal(false);
+    setPendingTabChange(null);
+    setIsSidebarOpen(false);
+  };
+
+  const handleCancelDiscard = () => {
+    setShowUnsavedModal(false);
+    setPendingTabChange(null);
+  };
+
+  // Warn on page reload/close if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isProfileDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // Standard way to trigger the native browser prompt
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isProfileDirty]);
 
   // --- Profile save state ---
   const [isProfileSaving, setIsProfileSaving] = useState(false);
@@ -269,16 +369,34 @@ export const CustomerDashboard: React.FC = () => {
     }
   }, [user]);
 
-  // --- Change password state ---
-  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
-  const [changePasswordForm, setChangePasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [changePasswordMessage, setChangePasswordMessage] = useState('');
-  const [changePasswordError, setChangePasswordError] = useState('');
+  // --- Update password state (OTP flow) ---
+  const [showUpdatePasswordForm, setShowUpdatePasswordForm] = useState(false);
+  const [updatePasswordStep, setUpdatePasswordStep] = useState<1 | 2 | 3>(1);
+  const [updatePasswordEmail, setUpdatePasswordEmail] = useState('');
+  const [updatePasswordOTP, setUpdatePasswordOTP] = useState('');
+  const [updatePasswordNew, setUpdatePasswordNew] = useState('');
+  const [updatePasswordConfirm, setUpdatePasswordConfirm] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [updatePasswordMessage, setUpdatePasswordMessage] = useState('');
+  const [updatePasswordError, setUpdatePasswordError] = useState('');
+  const [updatePasswordTimer, setUpdatePasswordTimer] = useState(0);
+
+  // Initialize email when form opens
+  useEffect(() => {
+    if (showUpdatePasswordForm && user?.email) {
+      setUpdatePasswordEmail(user.email);
+    }
+  }, [showUpdatePasswordForm, user?.email]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (updatePasswordTimer > 0) {
+      const interval = setInterval(() => setUpdatePasswordTimer((t) => t - 1), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [updatePasswordTimer]);
 
   // --- Coupons: fetched from backend, not hardcoded ---
   const [coupons, setCoupons] = useState<UserCoupon[]>([]);
@@ -303,6 +421,36 @@ export const CustomerDashboard: React.FC = () => {
       })
       .finally(() => {
         if (!cancelled) setIsCouponsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  // --- Overview Coupons: separate state for the overview tab's coupon preview ---
+  // Fetched on mount (overview tab) so the count and cards are always live from the backend.
+  const [overviewCoupons, setOverviewCoupons] = useState<UserCoupon[]>([]);
+  const [isOverviewCouponsLoading, setIsOverviewCouponsLoading] = useState(false);
+  const [overviewCouponsError, setOverviewCouponsError] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'overview') return;
+    let cancelled = false;
+    setIsOverviewCouponsLoading(true);
+    setOverviewCouponsError('');
+    userService
+      .getCoupons()
+      .then((data) => {
+        if (!cancelled) setOverviewCoupons(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Failed to load coupons.';
+          setOverviewCouponsError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsOverviewCouponsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -567,6 +715,27 @@ export const CustomerDashboard: React.FC = () => {
       return;
     }
 
+    // DOB validation (if provided) — only checks that date is in the past and plausible
+    if (profileForm.dob) {
+      const dobDate = new Date(profileForm.dob);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (isNaN(dobDate.getTime())) {
+        setProfileError('Please enter a valid Date of Birth.');
+        return;
+      }
+      if (dobDate >= today) {
+        setProfileError('Date of Birth must be in the past.');
+        return;
+      }
+      const ageYears = today.getFullYear() - dobDate.getFullYear() -
+        (today < new Date(today.getFullYear(), dobDate.getMonth(), dobDate.getDate()) ? 1 : 0);
+      if (ageYears > 120) {
+        setProfileError('Please enter a valid Date of Birth.');
+        return;
+      }
+    }
+
     setIsProfileSaving(true);
     try {
       if (pendingAvatarFile) {
@@ -583,6 +752,8 @@ export const CustomerDashboard: React.FC = () => {
       await updateUserProfile({
         name: trimmedName,
         phone: trimmedPhone,
+        dob: profileForm.dob || undefined,
+        gender: profileForm.gender || undefined,
       });
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
@@ -595,101 +766,98 @@ export const CustomerDashboard: React.FC = () => {
     }
   };
 
+  // handlePreferencesSave — DOB/Gender have been moved to My Profile.
+  // This handler now only handles the outer settings form submit.
+  // Password changes use their own separate handleChangePasswordSubmit.
   const handlePreferencesSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPreferencesError('');
-    setPreferencesSaved(false);
+    // No-op: the only remaining save in Account Settings is the Change Password
+    // sub-form which has its own submit handler. DOB and Gender are now in My Profile.
+  };
 
-    // --- Frontend Validation ---
-    if (!settingsForm.gender) {
-      setPreferencesError('Please select a gender.');
+  const handleSendUpdatePasswordOTP = async () => {
+    setUpdatePasswordError('');
+    setUpdatePasswordMessage('');
+    if (!updatePasswordEmail) {
+      setUpdatePasswordError('Email is required.');
       return;
     }
-    if (!settingsForm.dob) {
-      setPreferencesError('Date of Birth is required.');
-      return;
-    }
-    const dobDate = new Date(settingsForm.dob);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (isNaN(dobDate.getTime())) {
-      setPreferencesError('Please enter a valid Date of Birth.');
-      return;
-    }
-    if (dobDate >= today) {
-      setPreferencesError('Date of Birth must be in the past.');
-      return;
-    }
-    const ageYears = today.getFullYear() - dobDate.getFullYear() -
-      (today < new Date(today.getFullYear(), dobDate.getMonth(), dobDate.getDate()) ? 1 : 0);
-    if (ageYears < 13) {
-      setPreferencesError('You must be at least 13 years old.');
-      return;
-    }
-    if (ageYears > 120) {
-      setPreferencesError('Please enter a valid Date of Birth.');
-      return;
-    }
-
-    setIsPreferencesSaving(true);
+    setIsUpdatingPassword(true);
     try {
-      await updateUserProfile({
-        dob: settingsForm.dob,
-        gender: settingsForm.gender,
-      });
-      setPreferencesSaved(true);
-      setTimeout(() => setPreferencesSaved(false), 3000);
+      const res = await authService.sendUpdatePasswordOTP(updatePasswordEmail);
+      setUpdatePasswordMessage(res.message || 'OTP sent successfully.');
+      setUpdatePasswordStep(2);
+      setUpdatePasswordTimer(90);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save settings.';
-      setPreferencesError(msg);
+      const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
+      setUpdatePasswordError(msg);
     } finally {
-      setIsPreferencesSaving(false);
+      setIsUpdatingPassword(false);
     }
   };
 
-  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setChangePasswordError('');
-    setChangePasswordMessage('');
-
-    const { currentPassword, newPassword, confirmPassword } = changePasswordForm;
-
-    if (!currentPassword) {
-      setChangePasswordError('Current password is required.');
+  const handleVerifyUpdatePasswordOTP = async () => {
+    setUpdatePasswordError('');
+    setUpdatePasswordMessage('');
+    if (!updatePasswordOTP || updatePasswordOTP.length !== 6) {
+      setUpdatePasswordError('Please enter a valid 6-digit OTP.');
       return;
     }
-    if (!newPassword) {
-      setChangePasswordError('New password is required.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setChangePasswordError('New password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword === currentPassword) {
-      setChangePasswordError('New password must be different from your current password.');
-      return;
-    }
-    if (!confirmPassword) {
-      setChangePasswordError('Please confirm your new password.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setChangePasswordError('New password and confirm password do not match.');
-      return;
-    }
-
-    setIsChangingPassword(true);
+    setIsUpdatingPassword(true);
     try {
-      const res = await authService.changePassword(currentPassword, newPassword, confirmPassword);
-      setChangePasswordMessage(res.message || 'Password changed successfully.');
-      setChangePasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setTimeout(() => setShowChangePasswordForm(false), 2000);
+      const res = await authService.verifyUpdatePasswordOTP(updatePasswordEmail, updatePasswordOTP);
+      setUpdatePasswordMessage(res.message || 'OTP verified successfully.');
+      setUpdatePasswordStep(3);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to change password.';
-      setChangePasswordError(msg);
+      const msg = err instanceof Error ? err.message : 'Failed to verify OTP.';
+      setUpdatePasswordError(msg);
     } finally {
-      setIsChangingPassword(false);
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const handleUpdatePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatePasswordError('');
+    setUpdatePasswordMessage('');
+
+    if (!updatePasswordNew) {
+      setUpdatePasswordError('New password is required.');
+      return;
+    }
+    if (updatePasswordNew.length < 8) {
+      setUpdatePasswordError('New password must be at least 8 characters.');
+      return;
+    }
+    if (!updatePasswordConfirm) {
+      setUpdatePasswordError('Please confirm your new password.');
+      return;
+    }
+    if (updatePasswordNew !== updatePasswordConfirm) {
+      setUpdatePasswordError('New password and confirm password do not match.');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const res = await authService.updatePasswordWithOTP(
+        updatePasswordEmail,
+        updatePasswordNew,
+        updatePasswordConfirm
+      );
+      setUpdatePasswordMessage(res.message || 'Password updated successfully.');
+      setTimeout(() => {
+        setShowUpdatePasswordForm(false);
+        setUpdatePasswordStep(1);
+        setUpdatePasswordOTP('');
+        setUpdatePasswordNew('');
+        setUpdatePasswordConfirm('');
+      }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update password.';
+      setUpdatePasswordError(msg);
+    } finally {
+      setIsUpdatingPassword(false);
     }
   };
 
@@ -738,10 +906,7 @@ export const CustomerDashboard: React.FC = () => {
                 return (
                   <button
                     key={menuItem.id}
-                    onClick={() => {
-                      setActiveTab(menuItem.id as CustomerTab);
-                      setIsSidebarOpen(false);
-                    }}
+                    onClick={() => handleTabChange(menuItem.id as CustomerTab)}
                     className={`dashboard-menu-btn ${isActive ? 'active' : ''}`}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}
                   >
@@ -821,7 +986,10 @@ export const CustomerDashboard: React.FC = () => {
               {/* Welcome Title Banner */}
               <div style={{ marginBottom: '28px' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
-                  Welcome back, {user.name.split(' ')[0]}! 👋
+                  {orders.length === 0
+                    ? `Welcome, ${user.name ? user.name.split(' ')[0] : ''}! 👋`
+                    : `Welcome back, ${user.name ? user.name.split(' ')[0] : ''}! 👋`
+                  }
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.92rem', margin: 0 }}>
                   Here's what's happening with your account today.
@@ -895,7 +1063,7 @@ export const CustomerDashboard: React.FC = () => {
                 <div className="dashboard-stat-card" onClick={() => setActiveTab('coupons')}>
                   <div>
                     <span className="stat-card-title">AVAILABLE COUPONS</span>
-                    <span className="stat-card-value">3</span>
+                    <span className="stat-card-value">{isOverviewCouponsLoading ? '…' : overviewCoupons.length}</span>
                   </div>
                   <div className="stat-card-link">
                     <span>View all coupons</span>
@@ -931,90 +1099,111 @@ export const CustomerDashboard: React.FC = () => {
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', fontSize: '0.9rem' }}>No recent orders placed.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {orders.slice(0, 4).map((ord) => (
-                        <div
-                          key={ord.id}
-                          style={{
-                            padding: '14px 16px',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: '12px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <img
-                              src={ord.items[0]?.product?.image || ord.items[0]?.product?.images?.[0] || 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80'}
-                              alt="Product"
-                              style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.2)' }}
-                            />
-                            <div>
-                              <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.9rem', display: 'block' }}>{ord.id}</span>
-                              <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '2px' }}>
-                                {ord.date} · {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
-                              </span>
+                      {orders.slice(0, 4).map((ord) => {
+                        const statusBg =
+                          ord.status === 'Delivered'
+                            ? 'rgba(46, 204, 113, 0.15)'
+                            : ord.status === 'Cancelled'
+                            ? 'rgba(231, 76, 60, 0.15)'
+                            : 'rgba(241, 196, 15, 0.15)';
+                        const statusColor =
+                          ord.status === 'Delivered'
+                            ? '#2ecc71'
+                            : ord.status === 'Cancelled'
+                            ? '#e74c3c'
+                            : '#f1c40f';
+                        const statusBorder =
+                          ord.status === 'Delivered'
+                            ? '1px solid rgba(46, 204, 113, 0.3)'
+                            : ord.status === 'Cancelled'
+                            ? '1px solid rgba(231, 76, 60, 0.3)'
+                            : '1px solid rgba(241, 196, 15, 0.3)';
+                        return (
+                          <div
+                            key={ord.id}
+                            style={{
+                              padding: '12px 14px',
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid rgba(255,255,255,0.06)',
+                              borderRadius: '8px',
+                              display: 'grid',
+                              gridTemplateColumns: '1fr auto auto',
+                              alignItems: 'center',
+                              gap: '12px',
+                            }}
+                          >
+                            {/* LEFT: thumbnail + order meta */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                              <img
+                                src={ord.items[0]?.product?.image || ord.items[0]?.product?.images?.[0] || 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80'}
+                                alt="Product"
+                                style={{ width: '44px', height: '44px', flexShrink: 0, borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.2)' }}
+                              />
+                              <div style={{ minWidth: 0 }}>
+                                <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.82rem', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ord.id}</span>
+                                <span style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', display: 'block', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                  {ord.date} &middot; {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
+                                </span>
+                              </div>
                             </div>
-                          </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <div style={{ textAlign: 'right' }}>
-                              <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.92rem', display: 'block' }}>
+                            {/* MIDDLE: amount + status badge */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                              <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
                                 ₹{ord.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                               <span
                                 style={{
-                                  fontSize: '0.72rem',
+                                  fontSize: '0.68rem',
                                   fontWeight: 700,
-                                  padding: '2px 8px',
+                                  padding: '2px 7px',
                                   borderRadius: '4px',
                                   display: 'inline-block',
-                                  marginTop: '4px',
-                                  background:
-                                    ord.status === 'Delivered' || ord.status === 'Confirmed'
-                                      ? 'rgba(46, 204, 113, 0.15)'
-                                      : ord.status === 'Cancelled'
-                                      ? 'rgba(231, 76, 60, 0.15)'
-                                      : 'rgba(241, 196, 15, 0.15)',
-                                  color:
-                                    ord.status === 'Delivered' || ord.status === 'Confirmed'
-                                      ? '#2ecc71'
-                                      : ord.status === 'Cancelled'
-                                      ? '#e74c3c'
-                                      : '#f1c40f',
-                                  border:
-                                    ord.status === 'Delivered' || ord.status === 'Confirmed'
-                                      ? '1px solid rgba(46, 204, 113, 0.3)'
-                                      : ord.status === 'Cancelled'
-                                      ? '1px solid rgba(231, 76, 60, 0.3)'
-                                      : '1px solid rgba(241, 196, 15, 0.3)',
+                                  whiteSpace: 'nowrap',
+                                  background: statusBg,
+                                  color: statusColor,
+                                  border: statusBorder,
                                 }}
                               >
                                 {ord.status}
                               </span>
                             </div>
 
-                            <button
-                              onClick={() => setActiveTab('orders')}
-                              style={{
-                                padding: '8px 14px',
-                                background: 'transparent',
-                                border: '1px solid rgba(201, 168, 76, 0.4)',
-                                color: '#c9a84c',
-                                borderRadius: '6px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              View Details
-                            </button>
+                            {/* RIGHT: View Details button */}
+                            <div style={{ flexShrink: 0 }}>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrder(ord);
+                                  setOrderSubView('details');
+                                  setActiveTab('orders');
+                                }}
+                                style={{
+                                  padding: '7px 12px',
+                                  background: 'transparent',
+                                  border: '1px solid rgba(201, 168, 76, 0.4)',
+                                  color: '#c9a84c',
+                                  borderRadius: '6px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  transition: 'border-color 0.2s, background 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,168,76,0.1)';
+                                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(201,168,76,0.7)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(201,168,76,0.4)';
+                                }}
+                              >
+                                View Details
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1040,36 +1229,98 @@ export const CustomerDashboard: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {[
-                      { code: 'CHOC10', title: 'Chocolate Delight', desc: '10% OFF on your chocolate order.', terms: 'Min. order: ₹999 · Valid till 31 Aug 2026' },
-                      { code: 'CHOC100', title: 'Chocolate Delight', desc: '10% OFF on your chocolate order.', terms: 'Min. order: ₹999 · Valid till 31 Aug 2026' },
-                      { code: 'WELCOME5', title: 'Welcome Offer', desc: '5% OFF on your first order.', terms: 'Min. order: ₹500 · No Expiry' },
-                    ].map((coupon) => (
-                      <div key={coupon.code} className="coupon-ticket-card">
-                        <div className="coupon-ticket-left">
-                          <span className="coupon-ticket-code">{coupon.code}</span>
-                        </div>
-                        <div className="coupon-ticket-right">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div>
-                              <h4 style={{ color: '#f5efe6', margin: '0 0 4px 0', fontSize: '0.9rem', fontWeight: 700 }}>{coupon.title}</h4>
-                              <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '0.78rem' }}>{coupon.desc}</p>
+                  {/* Loading state */}
+                  {isOverviewCouponsLoading && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {[1, 2, 3].map((n) => (
+                        <div
+                          key={n}
+                          style={{
+                            height: '72px',
+                            borderRadius: '8px',
+                            background: 'rgba(201,168,76,0.06)',
+                            border: '1px solid rgba(201,168,76,0.12)',
+                            animation: 'pulse 1.5s ease-in-out infinite',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* API error state */}
+                  {!isOverviewCouponsLoading && overviewCouponsError && (
+                    <p style={{ color: 'rgba(231,76,60,0.85)', fontSize: '0.85rem', margin: 0 }}>
+                      {overviewCouponsError}
+                    </p>
+                  )}
+
+                  {/* Empty state */}
+                  {!isOverviewCouponsLoading && !overviewCouponsError && overviewCoupons.length === 0 && (
+                    <p style={{ color: 'rgba(255,255,255,0.45)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>
+                      No offers available for your account right now.
+                    </p>
+                  )}
+
+                  {/* Dynamic coupon cards from backend */}
+                  {!isOverviewCouponsLoading && !overviewCouponsError && overviewCoupons.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {overviewCoupons.slice(0, 3).map((coupon) => {
+                        // Build a human-readable description from real backend fields
+                        let couponDesc = '';
+                        if (coupon.discount_type === 'PERCENTAGE' && (coupon.discount_percent ?? 0) > 0) {
+                          couponDesc = `${coupon.discount_percent}% OFF on your order.`;
+                        } else if (coupon.discount_type === 'FIXED_AMOUNT' && (coupon.discount_amount ?? 0) > 0) {
+                          couponDesc = `₹${coupon.discount_amount} OFF on your order.`;
+                        } else if (coupon.discount_type === 'FREE_SHIPPING') {
+                          couponDesc = 'Free Shipping on your order.';
+                        } else {
+                          couponDesc = coupon.description || coupon.desc || 'Special discount on your order.';
+                        }
+
+                        // Build terms line from real backend fields
+                        const termsParts: string[] = [];
+                        if ((coupon.minimum_order_amount ?? 0) > 0) {
+                          termsParts.push(`Min. order: ₹${coupon.minimum_order_amount}`);
+                        }
+                        if (coupon.expires_at) {
+                          const expDate = new Date(coupon.expires_at);
+                          termsParts.push(`Valid till ${expDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`);
+                        } else {
+                          termsParts.push('No Expiry');
+                        }
+                        const couponTerms = termsParts.join(' · ');
+
+                        return (
+                          <div key={coupon.code} className="coupon-ticket-card">
+                            <div className="coupon-ticket-left">
+                              <span className="coupon-ticket-code">{coupon.code}</span>
                             </div>
-                            <button
-                              className="coupon-copy-btn"
-                              onClick={() => handleCopyCouponCode(coupon.code)}
-                            >
-                              {copiedCode === coupon.code ? 'Copied!' : 'Copy Code'}
-                            </button>
+                            <div className="coupon-ticket-right">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                  <h4 style={{ color: '#f5efe6', margin: '0 0 4px 0', fontSize: '0.9rem', fontWeight: 700 }}>
+                                    {coupon.name || coupon.code}
+                                  </h4>
+                                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '0.78rem' }}>
+                                    {couponDesc}
+                                  </p>
+                                </div>
+                                <button
+                                  className="coupon-copy-btn"
+                                  onClick={() => handleCopyCouponCode(coupon.code)}
+                                >
+                                  {copiedCode === coupon.code ? 'Copied!' : 'Copy Code'}
+                                </button>
+                              </div>
+                              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '8px', display: 'block' }}>
+                                {couponTerms}
+                              </span>
+                            </div>
                           </div>
-                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '8px', display: 'block' }}>
-                            {coupon.terms}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1228,7 +1479,7 @@ export const CustomerDashboard: React.FC = () => {
 
                     {(() => {
                       const profileAvatarRaw = avatarPreviewUrl || user.profile.avatarUrl || (user.profile as any)?.avatar_url;
-                      const formattedAvatarUrl = profileAvatarRaw && !profileAvatarRaw.startsWith('http') && !profileAvatarRaw.startsWith('data:')
+                      const formattedAvatarUrl = profileAvatarRaw && !profileAvatarRaw.startsWith('http') && !profileAvatarRaw.startsWith('data:') && !profileAvatarRaw.startsWith('blob:')
                         ? profileAvatarRaw.startsWith('/') ? `${BASE_URL}${profileAvatarRaw}` : `${BASE_URL}/${profileAvatarRaw}`
                         : profileAvatarRaw;
 
@@ -1429,6 +1680,85 @@ export const CustomerDashboard: React.FC = () => {
                         }}
                         placeholder="e.g. 9876543210"
                       />
+                    </div>
+
+                    {/* ── Personal Information ── */}
+                    <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: '4px' }}>
+                      <h4 style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '1rem',
+                        color: '#c9a84c',
+                        fontWeight: 700,
+                        margin: '0 0 18px 0',
+                        letterSpacing: '0.3px',
+                      }}>
+                        Personal Information
+                      </h4>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                        {/* Date of Birth */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
+                            Date of Birth
+                          </label>
+                          <input
+                            type="date"
+                            value={profileForm.dob}
+                            max={new Date().toISOString().split('T')[0]}
+                            min={new Date(new Date().setFullYear(new Date().getFullYear() - 120)).toISOString().split('T')[0]}
+                            onChange={(e) => {
+                              setProfileForm({ ...profileForm, dob: e.target.value });
+                              if (profileError) setProfileError('');
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '6px',
+                              background: 'rgba(0, 0, 0, 0.4)',
+                              border: `1px solid ${profileForm.dob ? 'rgba(46,204,113,0.5)' : 'rgba(201,168,76,0.3)'}`,
+                              color: '#f5efe6',
+                              fontSize: '0.9rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              colorScheme: 'dark',
+                              transition: 'border-color 0.2s ease',
+                            }}
+                          />
+                        </div>
+
+                        {/* Gender */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
+                            Gender
+                          </label>
+                          <select
+                            value={profileForm.gender}
+                            onChange={(e) => {
+                              setProfileForm({ ...profileForm, gender: e.target.value });
+                              if (profileError) setProfileError('');
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '6px',
+                              background: '#120e0b',
+                              border: `1px solid ${profileForm.gender ? 'rgba(46,204,113,0.5)' : 'rgba(201,168,76,0.3)'}`,
+                              color: profileForm.gender ? '#f5efe6' : 'rgba(255,255,255,0.45)',
+                              fontSize: '0.9rem',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              cursor: 'pointer',
+                              transition: 'border-color 0.2s ease',
+                            }}
+                          >
+                            <option value="" style={{ background: '#120e0b', color: 'rgba(255,255,255,0.45)' }}>Select Gender</option>
+                            <option value="Male" style={{ background: '#120e0b', color: '#f5efe6' }}>Male</option>
+                            <option value="Female" style={{ background: '#120e0b', color: '#f5efe6' }}>Female</option>
+                            <option value="Non-binary" style={{ background: '#120e0b', color: '#f5efe6' }}>Non-binary</option>
+                            <option value="Prefer not to say" style={{ background: '#120e0b', color: '#f5efe6' }}>Prefer not to say</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Error Banner */}
@@ -2301,19 +2631,19 @@ export const CustomerDashboard: React.FC = () => {
                                           letterSpacing: '0.5px',
                                           display: 'inline-block',
                                           background:
-                                            ord.status === 'Delivered' || ord.status === 'Confirmed'
+                                            ord.status === 'Delivered'
                                               ? 'rgba(46, 204, 113, 0.18)'
                                               : ord.status === 'Cancelled'
                                               ? 'rgba(231, 76, 60, 0.18)'
                                               : 'rgba(241, 196, 15, 0.18)',
                                           color:
-                                            ord.status === 'Delivered' || ord.status === 'Confirmed'
+                                            ord.status === 'Delivered'
                                               ? '#2ecc71'
                                               : ord.status === 'Cancelled'
                                               ? '#e74c3c'
                                               : '#f1c40f',
                                           border:
-                                            ord.status === 'Delivered' || ord.status === 'Confirmed'
+                                            ord.status === 'Delivered'
                                               ? '1px solid rgba(46, 204, 113, 0.4)'
                                               : ord.status === 'Cancelled'
                                               ? '1px solid rgba(231, 76, 60, 0.4)'
@@ -2463,7 +2793,7 @@ export const CustomerDashboard: React.FC = () => {
                     }}
                   >
                     {showAddAddressForm ? <X size={16} /> : <Plus size={16} />}
-                    {showAddAddressForm ? 'Cancel' : '+ Add New Address'}
+                    {showAddAddressForm ? 'Cancel' : 'Add New Address'}
                   </button>
                 </div>
 
@@ -3704,82 +4034,7 @@ export const CustomerDashboard: React.FC = () => {
 
                 <form onSubmit={handlePreferencesSave} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-                  {/* Personal Demographics Card */}
-                  <div
-                    style={{
-                      background: 'rgba(18, 14, 11, 0.95)',
-                      border: '1px solid rgba(201, 168, 76, 0.25)',
-                      borderRadius: '14px',
-                      padding: '28px',
-                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                    }}
-                  >
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#f5efe6', margin: '0 0 22px 0', fontWeight: 700 }}>
-                      Personal Demographics
-                    </h3>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '20px' }}>
-                      {/* Date of Birth — required */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
-                          Date of Birth <span style={{ color: '#e74c3c' }}>*</span>
-                        </label>
-                        <input
-                          type="date"
-                          value={settingsForm.dob}
-                          max={new Date(new Date().setFullYear(new Date().getFullYear() - 13)).toISOString().split('T')[0]}
-                          min={new Date(new Date().setFullYear(new Date().getFullYear() - 120)).toISOString().split('T')[0]}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, dob: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '11px 14px',
-                            borderRadius: '8px',
-                            background: 'rgba(0, 0, 0, 0.35)',
-                            border: `1px solid ${settingsForm.dob ? 'rgba(46, 204, 113, 0.5)' : 'rgba(201, 168, 76, 0.3)'}`,
-                            color: '#f5efe6',
-                            fontSize: '0.9rem',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            colorScheme: 'dark',
-                            transition: 'border-color 0.2s ease',
-                          }}
-                        />
-                        <p style={{ margin: '6px 0 0 2px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)' }}>
-                          Must be at least 13 years old
-                        </p>
-                      </div>
-
-                      {/* Gender — required */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
-                          Gender <span style={{ color: '#e74c3c' }}>*</span>
-                        </label>
-                        <select
-                          value={settingsForm.gender}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, gender: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '11px 14px',
-                            borderRadius: '8px',
-                            background: '#120e0b',
-                            border: `1px solid ${settingsForm.gender ? 'rgba(46, 204, 113, 0.5)' : 'rgba(201, 168, 76, 0.3)'}`,
-                            color: settingsForm.gender ? '#f5efe6' : 'rgba(255,255,255,0.45)',
-                            fontSize: '0.9rem',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            cursor: 'pointer',
-                            transition: 'border-color 0.2s ease',
-                          }}
-                        >
-                          <option value="" style={{ background: '#120e0b', color: 'rgba(255,255,255,0.45)' }}>Select Gender</option>
-                          <option value="Male" style={{ background: '#120e0b', color: '#f5efe6' }}>Male</option>
-                          <option value="Female" style={{ background: '#120e0b', color: '#f5efe6' }}>Female</option>
-                          <option value="Non-binary" style={{ background: '#120e0b', color: '#f5efe6' }}>Non-binary</option>
-                          <option value="Prefer not to say" style={{ background: '#120e0b', color: '#f5efe6' }}>Prefer not to say</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
+                  {/* Personal Demographics removed — Date of Birth and Gender are now in My Profile */}
 
                   {/* Security Credentials Card */}
                   <div
@@ -3803,10 +4058,13 @@ export const CustomerDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          setShowChangePasswordForm(!showChangePasswordForm);
-                          setChangePasswordError('');
-                          setChangePasswordMessage('');
-                          setChangePasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                          setShowUpdatePasswordForm(!showUpdatePasswordForm);
+                          setUpdatePasswordStep(1);
+                          setUpdatePasswordError('');
+                          setUpdatePasswordMessage('');
+                          setUpdatePasswordOTP('');
+                          setUpdatePasswordNew('');
+                          setUpdatePasswordConfirm('');
                         }}
                         style={{
                           padding: '9px 22px',
@@ -3821,14 +4079,13 @@ export const CustomerDashboard: React.FC = () => {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {showChangePasswordForm ? 'Cancel' : 'Change Password'}
+                        {showUpdatePasswordForm ? 'Cancel' : 'Change Password'}
                       </button>
                     </div>
 
                     {/* Change Password Form */}
-                    {showChangePasswordForm && (
-                      <form
-                        onSubmit={handleChangePasswordSubmit}
+                    {showUpdatePasswordForm && (
+                      <div
                         style={{
                           marginTop: '24px',
                           paddingTop: '22px',
@@ -3838,149 +4095,270 @@ export const CustomerDashboard: React.FC = () => {
                           gap: '16px',
                         }}
                       >
-                        {/* Current Password — required */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
-                            Current Password <span style={{ color: '#e74c3c' }}>*</span>
-                          </label>
-                          <input
-                            type="password"
-                            placeholder="Enter current password"
-                            value={changePasswordForm.currentPassword}
-                            onChange={(e) => setChangePasswordForm({ ...changePasswordForm, currentPassword: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '11px 14px',
-                              borderRadius: '8px',
-                              background: 'rgba(0, 0, 0, 0.35)',
-                              border: `1px solid ${changePasswordForm.currentPassword ? 'rgba(46, 204, 113, 0.5)' : 'rgba(201, 168, 76, 0.3)'}`,
-                              color: '#f5efe6',
-                              fontSize: '0.9rem',
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                              transition: 'border-color 0.2s ease',
-                            }}
-                          />
-                        </div>
-
-                        {/* New Password — required */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
-                            New Password <span style={{ color: '#e74c3c' }}>*</span>
-                          </label>
-                          <input
-                            type="password"
-                            placeholder="Enter new password (min 6 characters)"
-                            value={changePasswordForm.newPassword}
-                            onChange={(e) => setChangePasswordForm({ ...changePasswordForm, newPassword: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '11px 14px',
-                              borderRadius: '8px',
-                              background: 'rgba(0, 0, 0, 0.35)',
-                              border: `1px solid ${
-                                changePasswordForm.newPassword.length === 0
-                                  ? 'rgba(201, 168, 76, 0.3)'
-                                  : changePasswordForm.newPassword.length >= 6
-                                  ? 'rgba(46, 204, 113, 0.5)'
-                                  : 'rgba(231, 76, 60, 0.5)'
-                              }`,
-                              color: '#f5efe6',
-                              fontSize: '0.9rem',
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                              transition: 'border-color 0.2s ease',
-                            }}
-                          />
-                          {changePasswordForm.newPassword.length > 0 && changePasswordForm.newPassword.length < 6 && (
-                            <p style={{ margin: '5px 0 0 2px', fontSize: '0.75rem', color: '#e74c3c', fontWeight: 600 }}>
-                              Password must be at least 6 characters ({changePasswordForm.newPassword.length}/6)
+                        {/* Step 1: Send OTP */}
+                        {updatePasswordStep === 1 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <p style={{ margin: 0, fontSize: '0.88rem', color: '#f5efe6' }}>
+                              To change your password, we need to verify your identity.
                             </p>
-                          )}
-                        </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={handleSendUpdatePasswordOTP}
+                                disabled={isUpdatingPassword}
+                                style={{
+                                  padding: '10px 24px',
+                                  borderRadius: '8px',
+                                  background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                                  color: '#0f0c0a',
+                                  border: 'none',
+                                  fontSize: '0.9rem',
+                                  fontWeight: 700,
+                                  cursor: isUpdatingPassword ? 'not-allowed' : 'pointer',
+                                  opacity: isUpdatingPassword ? 0.7 : 1,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                }}
+                              >
+                                {isUpdatingPassword ? (
+                                  <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Sending OTP...</>
+                                ) : (
+                                  'Send OTP to Email'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Confirm New Password — required */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
-                            Confirm New Password <span style={{ color: '#e74c3c' }}>*</span>
-                          </label>
-                          <input
-                            type="password"
-                            placeholder="Confirm new password"
-                            value={changePasswordForm.confirmPassword}
-                            onChange={(e) => setChangePasswordForm({ ...changePasswordForm, confirmPassword: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '11px 14px',
-                              borderRadius: '8px',
-                              background: 'rgba(0, 0, 0, 0.35)',
-                              border: `1px solid ${
-                                changePasswordForm.confirmPassword.length === 0
-                                  ? 'rgba(201, 168, 76, 0.3)'
-                                  : changePasswordForm.newPassword === changePasswordForm.confirmPassword
-                                  ? 'rgba(46, 204, 113, 0.5)'
-                                  : 'rgba(231, 76, 60, 0.5)'
-                              }`,
-                              color: '#f5efe6',
-                              fontSize: '0.9rem',
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                              transition: 'border-color 0.2s ease',
-                            }}
-                          />
-                          {changePasswordForm.confirmPassword.length > 0 && (
-                            <p style={{
-                              margin: '5px 0 0 2px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: changePasswordForm.newPassword === changePasswordForm.confirmPassword ? '#2ecc71' : '#e74c3c',
-                            }}>
-                              {changePasswordForm.newPassword === changePasswordForm.confirmPassword
-                                ? '✓ Passwords match'
-                                : '✗ Passwords do not match'}
-                            </p>
-                          )}
-                        </div>
+                        {/* Step 2: Verify OTP */}
+                        {updatePasswordStep === 2 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
+                                Enter 6-Digit OTP <span style={{ color: '#e74c3c' }}>*</span>
+                              </label>
+                              <div style={{ display: 'flex', gap: '12px' }}>
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  placeholder="000000"
+                                  value={updatePasswordOTP}
+                                  onChange={(e) => setUpdatePasswordOTP(e.target.value.replace(/\D/g, ''))}
+                                  style={{
+                                    flex: 1,
+                                    padding: '11px 14px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(0, 0, 0, 0.35)',
+                                    border: `1px solid ${updatePasswordOTP.length === 6 ? 'rgba(46, 204, 113, 0.5)' : 'rgba(201, 168, 76, 0.3)'}`,
+                                    color: '#f5efe6',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    letterSpacing: '2px',
+                                    transition: 'border-color 0.2s ease',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyUpdatePasswordOTP}
+                                  disabled={isUpdatingPassword || updatePasswordOTP.length !== 6}
+                                  style={{
+                                    padding: '0 24px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                                    color: '#0f0c0a',
+                                    border: 'none',
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    cursor: isUpdatingPassword || updatePasswordOTP.length !== 6 ? 'not-allowed' : 'pointer',
+                                    opacity: isUpdatingPassword || updatePasswordOTP.length !== 6 ? 0.7 : 1,
+                                  }}
+                                >
+                                  {isUpdatingPassword ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : 'Verify'}
+                                </button>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                              {updatePasswordTimer > 0 ? (
+                                `Resend OTP in ${updatePasswordTimer}s`
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={handleSendUpdatePasswordOTP}
+                                  style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                >
+                                  Resend OTP
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
-                        {changePasswordError && (
+                        {/* Step 3: New Password */}
+                        {updatePasswordStep === 3 && (
+                          <form onSubmit={handleUpdatePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
+                                New Password <span style={{ color: '#e74c3c' }}>*</span>
+                              </label>
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  type={showNewPassword ? "text" : "password"}
+                                  placeholder="Enter new password (min 8 characters)"
+                                  value={updatePasswordNew}
+                                  onChange={(e) => setUpdatePasswordNew(e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '11px 40px 11px 14px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(0, 0, 0, 0.35)',
+                                    border: `1px solid ${
+                                      updatePasswordNew.length === 0
+                                        ? 'rgba(201, 168, 76, 0.3)'
+                                        : updatePasswordNew.length >= 8
+                                        ? 'rgba(46, 204, 113, 0.5)'
+                                        : 'rgba(231, 76, 60, 0.5)'
+                                    }`,
+                                    color: '#f5efe6',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                    transition: 'border-color 0.2s ease',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewPassword(!showNewPassword)}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                              </div>
+                              {updatePasswordNew.length > 0 && updatePasswordNew.length < 8 && (
+                                <p style={{ margin: '5px 0 0 2px', fontSize: '0.75rem', color: '#e74c3c', fontWeight: 600 }}>
+                                  Password must be at least 8 characters ({updatePasswordNew.length}/8)
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.88rem', color: '#f5efe6', fontWeight: 600, marginBottom: '8px' }}>
+                                Confirm New Password <span style={{ color: '#e74c3c' }}>*</span>
+                              </label>
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  type={showConfirmPassword ? "text" : "password"}
+                                  placeholder="Confirm new password"
+                                  value={updatePasswordConfirm}
+                                  onChange={(e) => setUpdatePasswordConfirm(e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '11px 40px 11px 14px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(0, 0, 0, 0.35)',
+                                    border: `1px solid ${
+                                      updatePasswordConfirm.length === 0
+                                        ? 'rgba(201, 168, 76, 0.3)'
+                                        : updatePasswordNew === updatePasswordConfirm
+                                        ? 'rgba(46, 204, 113, 0.5)'
+                                        : 'rgba(231, 76, 60, 0.5)'
+                                    }`,
+                                    color: '#f5efe6',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                    transition: 'border-color 0.2s ease',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                              </div>
+                              {updatePasswordConfirm.length > 0 && (
+                                <p style={{
+                                  margin: '5px 0 0 2px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  color: updatePasswordNew === updatePasswordConfirm ? '#2ecc71' : '#e74c3c',
+                                }}>
+                                  {updatePasswordNew === updatePasswordConfirm
+                                    ? '✓ Passwords match'
+                                    : '✗ Passwords do not match'}
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <button
+                                type="submit"
+                                disabled={isUpdatingPassword}
+                                style={{
+                                  padding: '10px 24px',
+                                  borderRadius: '8px',
+                                  background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                                  color: '#0f0c0a',
+                                  border: 'none',
+                                  fontSize: '0.9rem',
+                                  fontWeight: 700,
+                                  cursor: isUpdatingPassword ? 'not-allowed' : 'pointer',
+                                  opacity: isUpdatingPassword ? 0.7 : 1,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                }}
+                              >
+                                {isUpdatingPassword ? (
+                                  <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Updating...</>
+                                ) : (
+                                  'Update Password'
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {updatePasswordError && (
                           <div style={{ padding: '12px 14px', background: 'rgba(231, 76, 60, 0.12)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600 }}>
-                            {changePasswordError}
+                            {updatePasswordError}
                           </div>
                         )}
 
-                        {changePasswordMessage && (
+                        {updatePasswordMessage && (
                           <div style={{ padding: '12px 14px', background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-                            <CheckCircle size={15} /> {changePasswordMessage}
+                            <CheckCircle size={15} /> {updatePasswordMessage}
                           </div>
                         )}
-
-                        <div>
-                          <button
-                            type="submit"
-                            disabled={isChangingPassword}
-                            style={{
-                              padding: '10px 24px',
-                              borderRadius: '8px',
-                              background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
-                              color: '#0f0c0a',
-                              border: 'none',
-                              fontSize: '0.9rem',
-                              fontWeight: 700,
-                              cursor: isChangingPassword ? 'not-allowed' : 'pointer',
-                              opacity: isChangingPassword ? 0.7 : 1,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                            }}
-                          >
-                            {isChangingPassword ? (
-                              <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Updating...</>
-                            ) : (
-                              'Update Password'
-                            )}
-                          </button>
-                        </div>
-                      </form>
+                      </div>
                     )}
                   </div>
 
@@ -3996,61 +4374,7 @@ export const CustomerDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Save Settings Button */}
-                  <div>
-                    <button
-                      type="submit"
-                      disabled={isPreferencesSaving}
-                      style={{
-                        padding: '12px 32px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
-                        color: '#0f0c0a',
-                        border: 'none',
-                        fontSize: '1rem',
-                        fontWeight: 700,
-                        cursor: isPreferencesSaving ? 'not-allowed' : 'pointer',
-                        opacity: isPreferencesSaving ? 0.7 : 1,
-                        boxShadow: '0 4px 14px rgba(201, 168, 76, 0.35)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                      }}
-                    >
-                      {isPreferencesSaving ? (
-                        <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
-                      ) : (
-                        'Save Settings'
-                      )}
-                    </button>
-                  </div>
                  </form>
-
-                 {/* Session Management & Logout Block */}
-                 <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(201, 168, 76, 0.2)' }}>
-                   <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#f5efe6', marginBottom: '8px' }}>
-                     Session Management
-                   </h4>
-                   <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                     Log out of your current customer session on this device.
-                   </p>
-                   <Button
-                     variant="secondary"
-                     type="button"
-                     onClick={handleLogoutClick}
-                     style={{
-                       borderColor: 'rgba(255, 77, 79, 0.4)',
-                       color: '#ff4d4f',
-                       background: 'rgba(255, 77, 79, 0.08)',
-                       display: 'inline-flex',
-                       alignItems: 'center',
-                       gap: '8px',
-                     }}
-                   >
-                     <LogOut size={16} />
-                     <span>Log Out of Account</span>
-                   </Button>
-                 </div>
               </div>
             )}
 
@@ -4271,6 +4595,18 @@ export const CustomerDashboard: React.FC = () => {
             )}
           </main>
         </div>
+
+        {/* Unsaved Changes Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showUnsavedModal}
+          title="Unsaved Changes"
+          message="You have unsaved changes in your profile. Are you sure you want to discard them and leave?"
+          confirmText="Discard & Leave"
+          cancelText="Cancel"
+          variant="warning"
+          onConfirm={handleConfirmDiscard}
+          onCancel={handleCancelDiscard}
+        />
 
         {/* Logout Confirmation Modal */}
         <ConfirmationModal

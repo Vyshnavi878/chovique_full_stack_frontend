@@ -20,6 +20,7 @@ import { apiPost } from '../../lib/api';
 import { orderService } from '../../services/orderService';
 import { walletService } from '../../services/walletService';
 import { cartService } from '../../services/cartService';
+import { userService } from '../../services/userService';
 import type { Order, CheckoutInitiateResponse, VerifyPaymentPayload } from '../../types';
 
 // Razorpay global type declaration
@@ -68,13 +69,33 @@ export const CheckoutPage: React.FC = () => {
 
   // Pre-fill shipping form from authenticated user's default address if available
   const [shippingForm, setShippingForm] = useState({
-    name: user?.profile?.name || '',
-    street: user?.profile?.address?.street || '',
-    city: user?.profile?.address?.city || '',
-    state: user?.profile?.address?.state || '',
-    zip: user?.profile?.address?.zip || '',
+    name: user?.profile?.name || user?.name || '',
+    street: '',
+    city: '',
+    state: '',
+    zip: '',
     phone: user?.profile?.phone || '',
   });
+
+  // Fetch the user's addresses and populate the default one
+  useEffect(() => {
+    if (user && user.role !== 'guest') {
+      userService.getAddresses().then((addrs) => {
+        if (addrs && addrs.length > 0) {
+          const defaultAddr = addrs.find(a => a.isDefault) || addrs[0];
+          setShippingForm(prev => ({
+            ...prev,
+            name: defaultAddr.name || prev.name,
+            street: defaultAddr.street,
+            city: defaultAddr.city,
+            state: defaultAddr.state,
+            zip: defaultAddr.zip,
+            phone: defaultAddr.phone || prev.phone,
+          }));
+        }
+      }).catch(console.error);
+    }
+  }, [user]);
 
   const [deliveryOption, setDeliveryOption] = useState('Standard Delivery');
   const [paymentMethod, setPaymentMethod] = useState('Credit Card');

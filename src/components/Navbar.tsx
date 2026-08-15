@@ -306,7 +306,7 @@ export const Navbar: React.FC = () => {
                   {avatarSrc && !avatarError ? (
                     <img
                       src={avatarSrc}
-                      alt={user.name}
+                      alt={user?.name || 'User'}
                       onError={() => setAvatarError(true)}
                       style={{
                         width: '28px',

@@ -125,6 +125,35 @@ export const authService = {
   },
 
   /**
+   * Send OTP for authenticated password update.
+   */
+  sendUpdatePasswordOTP: async (email: string): Promise<{ message: string }> => {
+    return apiPost<{ message: string }>('/auth/update-password/send-otp', { email });
+  },
+
+  /**
+   * Verify OTP for authenticated password update.
+   */
+  verifyUpdatePasswordOTP: async (email: string, otp: string): Promise<{ message: string }> => {
+    return apiPost<{ message: string }>('/auth/update-password/verify-otp', { email, otp });
+  },
+
+  /**
+   * Update password after OTP verification.
+   */
+  updatePasswordWithOTP: async (
+    email: string,
+    newPassword: string,
+    confirmPassword: string
+  ): Promise<{ message: string }> => {
+    return apiPost<{ message: string }>('/auth/update-password', {
+      email,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    });
+  },
+
+  /**
    * Google Sign-In — exchange a Google id_token for a Chovique session.
    */
   googleSignIn: async (idToken: string): Promise<GoogleAuthResponse> => {
