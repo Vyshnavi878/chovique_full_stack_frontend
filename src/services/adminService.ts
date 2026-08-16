@@ -22,10 +22,32 @@ import type {
 
 /** Payload for /admin/offline-sales POST — matches backend OfflineSalePayload */
 export interface AdminOfflineSalePayload {
-  product_name: string;
-  quantity: number;
-  total_price: number;
+  company_name?: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
   payment_method: string;
+  discount?: number;
+  tax?: number;
+  items?: Array<{
+    product_id: string;
+    quantity: number;
+  }>;
+  // Payment-Method-Specific Details
+  payment_status?: string;
+  received_amount?: number;
+  receipt_number?: string;
+  card_type?: string;
+  card_last4?: string;
+  transaction_id?: string;
+  upi_id?: string;
+  bank_name?: string;
+  account_holder?: string;
+  // Legacy single product fallback fields
+  product_name?: string;
+  quantity?: number;
+  total_price?: number;
 }
 
 /** Payload for /admin/orders/{id}/status PATCH */

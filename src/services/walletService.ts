@@ -70,10 +70,4 @@ export const walletService = {
 
   updateRewardSettings: (settings: RewardSettings): Promise<RewardSettings> =>
     apiPut<RewardSettings>('/admin/rewards/settings', settings),
-
-  adminAdjustCoins: (user_id: string, coins: number, reason: string): Promise<CoinTransaction> =>
-    apiPost<CoinTransaction>('/admin/rewards/adjust', { user_id, coins, reason }),
-
-  getRewardHistory: (limit = 50): Promise<any[]> =>
-    apiGet<any[]>(`/admin/rewards/history?limit=${limit}`),
 };

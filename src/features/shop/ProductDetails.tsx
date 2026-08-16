@@ -239,7 +239,7 @@ export const ProductDetails: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--gold)' }}>
                   <Star size={16} fill="currentColor" />
                   <span style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.95rem' }}>
-                    {product.rating !== undefined && product.rating !== null ? Number(product.rating).toFixed(1) : '0.0'}
+                    {product.rating ? Number(product.rating).toFixed(1) : '4.8'}
                   </span>
                 </div>
                 <span style={{ color: 'var(--glass-border)' }}>|</span>

@@ -7,14 +7,16 @@ import { fadeInUp } from '../../lib/framer';
 export const BestsellersNewArrivals: React.FC = () => {
   const { products } = useApp();
 
-  // Filter Bestsellers (badge is Bestseller/Premium)
+  // Filter Bestsellers (badge is Bestseller/Premium or isBestseller flag, strictly excluding Limited)
   const bestsellersList = products.filter(
-    (p) => p.badge === 'Bestseller' || p.badge === 'Premium'
+    (p) => (p.isBestseller || p.badge === 'Bestseller' || p.badge === 'Premium') &&
+           p.badge !== 'Limited' && p.badge !== 'Limited Edition'
   ).slice(0, 2);
 
-  // Filter New Arrivals (badge is New/Limited)
+  // Filter New Arrivals (badge is New or isNewArrival flag, strictly excluding Limited and Bestseller/Premium unless explicitly marked as New)
   const newArrivalsList = products.filter(
-    (p) => p.badge === 'New' || p.badge === 'Limited'
+    (p) => (p.isNewArrival || p.badge === 'New') &&
+           p.badge !== 'Limited' && p.badge !== 'Limited Edition'
   ).slice(0, 2);
 
   return (

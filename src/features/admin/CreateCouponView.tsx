@@ -155,7 +155,7 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
       {/* ── Breadcrumb & Header ────────────────────────────────────── */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '0.85rem', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-          <span>Coupons &amp; Discounts</span>
+          <span style={{ cursor: onCancel ? 'pointer' : 'default' }} onClick={onCancel}>Coupons &amp; Discounts</span>
           <span style={{ color: 'rgba(255,255,255,0.3)' }}>&gt;</span>
           <span style={{ color: 'rgba(255,255,255,0.7)' }}>Create New Coupon</span>
         </div>

@@ -23,6 +23,7 @@ export const productService = {
     const query = new URLSearchParams();
     if (params.search)      query.set('search', params.search);
     if (params.category && params.category !== 'all') query.set('category', params.category);
+    if (params.availability && params.availability !== 'all') query.set('availability', params.availability);
     if (params.price_min !== undefined) query.set('price_min', String(params.price_min));
     if (params.price_max !== undefined) query.set('price_max', String(params.price_max));
     if (params.min_rating !== undefined) query.set('min_rating', String(params.min_rating));

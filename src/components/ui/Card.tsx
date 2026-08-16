@@ -289,7 +289,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
               <span style={{ color: 'var(--gold)' }}>★</span>
               <span style={{ color: 'var(--cream)', fontWeight: 600 }}>
-                {product.rating !== undefined && product.rating !== null ? Number(product.rating).toFixed(1) : '0.0'}
+                {product.rating ? Number(product.rating).toFixed(1) : '4.8'}
               </span>
             </div>
           </div>

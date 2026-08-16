@@ -31,7 +31,12 @@ import {
   ChevronDown,
   Search,
   Home,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  Video,
+  Headphones,
+  MapPin,
+  Edit3
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
@@ -121,6 +126,7 @@ export const AdminDashboard: React.FC = () => {
     if (tab === 'logout') {
       setShowLogoutConfirmModal(true);
     } else {
+      setShowCreateCouponForm(false);
       setActiveTab(tab);
     }
   };
@@ -310,6 +316,13 @@ export const AdminDashboard: React.FC = () => {
     }
     if ((activeTab === 'categories' || activeTab === 'products') && categoriesList.length === 0) {
       fetchCategories();
+    }
+    if (activeTab === 'products') {
+      productService.getProducts({ per_page: 100 }).then((res) => {
+        if (res && Array.isArray(res.items)) {
+          setProducts(res.items);
+        }
+      }).catch(() => {});
     }
     if (activeTab === 'orders') {
       fetchAdminOrders(orderFulfillmentFilter, orderPaymentFilter);
@@ -637,6 +650,7 @@ export const AdminDashboard: React.FC = () => {
         formData.append('ingredients', item.ingredients);
         formData.append('stock', String(item.stock));
         if (item.badge) formData.append('badge', item.badge);
+        formData.append('rating', String(item.rating !== undefined && item.rating !== null ? item.rating : 4.8));
         if (item.imageFiles.length > 0) {
           formData.append('image', item.imageFiles[0]);
           item.imageFiles.forEach((file: File) => formData.append('gallery_images', file));
@@ -756,6 +770,7 @@ export const AdminDashboard: React.FC = () => {
   // --- Testimonials & Contact Messages & Story Video States ---
   const [testimonialsList, setTestimonialsList] = useState<any[]>([]);
   const [contactMessages, setContactMessages] = useState<any[]>([]);
+  const [selectedContactMessage, setSelectedContactMessage] = useState<any | null>(null);
   const [newTestimonial, setNewTestimonial] = useState({
     author: '',
     title: '',
@@ -768,6 +783,8 @@ export const AdminDashboard: React.FC = () => {
   const [storyVideoFile, setStoryVideoFile] = useState<File | null>(null);
   const [uploadingStoryVideo, setUploadingStoryVideo] = useState(false);
   const [storyVideoUrl, setStoryVideoUrl] = useState('');
+  const [showAddTestimonialModal, setShowAddTestimonialModal] = useState(false);
+  const [showUploadVideoModal, setShowUploadVideoModal] = useState(false);
 
   // --- Coupons State ---
   const [couponsList, setCouponsList] = useState<any[]>([]);
@@ -792,6 +809,7 @@ export const AdminDashboard: React.FC = () => {
   };
   const [newCoupon, setNewCoupon] = useState(initialCouponState);
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
+  const [showCreateCouponForm, setShowCreateCouponForm] = useState(false);
 
   // --- Analytics State ---
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -1175,61 +1193,7 @@ export const AdminDashboard: React.FC = () => {
     );
   };
 
-  // --- Reward Settings State & Handlers ---
-  const [rewardSettingsForm, setRewardSettingsForm] = useState<RewardSettings>({
-    reward_system_enabled: true,
-    spend_per_coin: 10,
-    coins_per_rupee: 10,
-    max_redemption_percentage: 20,
-  });
-  const [isSavingRewardSettings, setIsSavingRewardSettings] = useState(false);
-  const [rewardSettingsSaved, setRewardSettingsSaved] = useState(false);
 
-  // Manual coin adjustment state
-  const [adjustCoinForm, setAdjustCoinForm] = useState({ user_id: '', coins: 100, reason: 'Customer Goodwill' });
-  const [isAdjustingCoins, setIsAdjustingCoins] = useState(false);
-  const [adjustCoinsSuccess, setAdjustCoinsSuccess] = useState(false);
-
-  useEffect(() => {
-    if (activeTab === 'reward-settings') {
-      walletService.getRewardSettings()
-        .then((res) => setRewardSettingsForm(res))
-        .catch(() => {});
-    }
-  }, [activeTab]);
-
-  const handleSaveRewardSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingRewardSettings(true);
-    try {
-      await walletService.updateRewardSettings(rewardSettingsForm);
-      setRewardSettingsSaved(true);
-      setTimeout(() => setRewardSettingsSaved(false), 3000);
-    } catch (err: any) {
-      alert(err?.message || 'Failed to save reward settings');
-    } finally {
-      setIsSavingRewardSettings(false);
-    }
-  };
-
-  const handleAdjustCoinsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adjustCoinForm.user_id.trim()) {
-      alert('Please enter a User ID');
-      return;
-    }
-    setIsAdjustingCoins(true);
-    try {
-      await walletService.adminAdjustCoins(adjustCoinForm.user_id, adjustCoinForm.coins, adjustCoinForm.reason);
-      setAdjustCoinsSuccess(true);
-      setTimeout(() => setAdjustCoinsSuccess(false), 3000);
-      setAdjustCoinForm({ user_id: '', coins: 100, reason: 'Customer Goodwill' });
-    } catch (err: any) {
-      alert(err?.message || 'Failed to adjust coins');
-    } finally {
-      setIsAdjustingCoins(false);
-    }
-  };
 
   const [siteStats, setSiteStats] = useState({
     happy_customers: 50000,
@@ -1304,15 +1268,17 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
 
+    const targetBannerId = currentBanner.id;
+
     setIsReplacingBannerImage(true);
     try {
       const formData = new FormData();
       formData.append('image', file);
-      const res = await adminService.uploadBannerImage(currentBanner.id, formData);
+      const res = await adminService.uploadBannerImage(targetBannerId, formData);
 
-      // Immediately update local banner image state
+      // Immediately update local banner image state without reordering
       if (updateBanner) {
-        updateBanner(currentBanner.id, { image: res.image_url });
+        updateBanner(targetBannerId, { image: res.image_url });
       }
 
       addToast('success', 'Hero slide image replaced and saved to database successfully!', 'Image Replaced');
@@ -1320,6 +1286,14 @@ export const AdminDashboard: React.FC = () => {
       // Refresh banners list from backend DB
       if (refreshBanners) {
         await refreshBanners();
+      }
+
+      // Ensure selected slide index stays matched to the target banner ID
+      if (banners && banners.length > 0) {
+        const foundIdx = banners.findIndex((b: any) => b.id === targetBannerId);
+        if (foundIdx !== -1) {
+          setSelectedSlideIdx(foundIdx);
+        }
       }
     } catch (err: any) {
       console.error('Failed to replace banner image:', err);
@@ -1525,27 +1499,31 @@ export const AdminDashboard: React.FC = () => {
 
   const handleAddTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTestimonial.author || !newTestimonial.text) return;
+    if (!newTestimonial.author || !newTestimonial.text) {
+      addToast('error', 'Please fill in Author Name and Testimonial Quote Text.', 'Validation Error');
+      return;
+    }
     setUploadingTestimonial(true);
 
     const formData = new FormData();
-    formData.append('author', newTestimonial.author);
-    formData.append('title', newTestimonial.title || 'Chocolate Enthusiast');
-    formData.append('text', newTestimonial.text);
-    formData.append('rating', String(newTestimonial.rating));
-    formData.append('initials', newTestimonial.initials || newTestimonial.author.slice(0, 2).toUpperCase());
+    formData.append('author', newTestimonial.author.trim());
+    formData.append('title', newTestimonial.title?.trim() || 'Chocolate Enthusiast');
+    formData.append('text', newTestimonial.text.trim());
+    formData.append('rating', String(newTestimonial.rating || 5));
+    formData.append('initials', newTestimonial.initials || newTestimonial.author.trim().slice(0, 2).toUpperCase());
     if (testimonialAvatarFile) {
       formData.append('avatar', testimonialAvatarFile);
     }
 
     try {
       await adminService.createTestimonial(formData);
-      alert('Testimonial created successfully!');
+      addToast('success', `Testimonial by "${newTestimonial.author}" created successfully!`, 'Testimonial Created');
       setNewTestimonial({ author: '', title: '', text: '', rating: 5, initials: '' });
       setTestimonialAvatarFile(null);
+      setShowAddTestimonialModal(false);
       fetchAdminTestimonials(testimonialStatusFilter);
     } catch (err: any) {
-      alert(err?.message || 'Failed to create testimonial');
+      addToast('error', err?.message || 'Failed to create testimonial', 'Creation Error');
     } finally {
       setUploadingTestimonial(false);
     }
@@ -1555,9 +1533,10 @@ export const AdminDashboard: React.FC = () => {
     if (!window.confirm('Delete this testimonial permanently?')) return;
     try {
       await adminService.deleteTestimonial(id);
+      addToast('success', 'Testimonial deleted successfully.', 'Deleted');
       fetchAdminTestimonials(testimonialStatusFilter);
     } catch (err: any) {
-      alert('Failed to delete testimonial');
+      addToast('error', 'Failed to delete testimonial', 'Error');
     }
   };
 
@@ -1572,21 +1551,43 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteContactMessage = async (id: string) => {
-    if (!window.confirm('Delete this message?')) return;
+    if (!window.confirm('Delete this customer inquiry permanently?')) return;
     try {
       await adminService.deleteContactMessage(id);
       setContactMessages(prev => prev.filter(m => m.id !== id));
+      if (selectedContactMessage?.id === id) {
+        setSelectedContactMessage(null);
+      }
+      addToast('success', 'Customer contact message deleted successfully.', 'Message Deleted');
     } catch (err: any) {
-      alert('Failed to delete contact message');
+      addToast('error', err?.message || 'Failed to delete contact message', 'Error');
     }
   };
 
   const handleUploadStoryVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storyVideoFile) {
-      alert('Please select a video file first.');
+      addToast('error', 'Please select a video file first.', 'File Required');
       return;
     }
+
+    // Video format validation
+    const validExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
+    const fileName = storyVideoFile.name.toLowerCase();
+    const isValidFormat = validExtensions.some((ext) => fileName.endsWith(ext)) || storyVideoFile.type.startsWith('video/');
+
+    if (!isValidFormat) {
+      addToast('error', 'Unsupported video format. Please upload an MP4, WEBM, OGG, or MOV video file.', 'Invalid Format');
+      return;
+    }
+
+    // Video size validation (Max 100MB)
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+    if (storyVideoFile.size > MAX_SIZE) {
+      addToast('error', 'File size exceeds 100MB limit. Please upload a smaller video file.', 'File Too Large');
+      return;
+    }
+
     setUploadingStoryVideo(true);
     const formData = new FormData();
     formData.append('video', storyVideoFile);
@@ -1594,10 +1595,11 @@ export const AdminDashboard: React.FC = () => {
     try {
       const result = await adminService.uploadStoryVideo(formData);
       setStoryVideoUrl(result.video_url);
-      alert('Our Story process video updated successfully!');
+      addToast('success', 'Our Story process video updated successfully!', 'Video Updated');
       setStoryVideoFile(null);
+      setShowUploadVideoModal(false);
     } catch (err: any) {
-      alert(err?.message || 'Failed to upload video.');
+      addToast('error', err?.message || 'Failed to upload video.', 'Upload Error');
     } finally {
       setUploadingStoryVideo(false);
     }
@@ -1608,9 +1610,9 @@ export const AdminDashboard: React.FC = () => {
     try {
       const res = await adminService.deleteStoryVideo();
       setStoryVideoUrl(res.video_url);
-      alert('Crafting video reset to default.');
+      addToast('success', 'Crafting video reset to default.', 'Video Reset');
     } catch (err: any) {
-      alert('Failed to reset video.');
+      addToast('error', 'Failed to reset video.', 'Error');
     }
   };
 
@@ -1622,30 +1624,100 @@ export const AdminDashboard: React.FC = () => {
     support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
     address: '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
   });
+  const [supportFormData, setSupportFormData] = useState({
+    phone: '+91 98765 43210',
+    whatsapp: '+91 98765 43210',
+    email: 'support@chovique.com',
+    support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
+    address: '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
+  });
+  const [showEditSupportModal, setShowEditSupportModal] = useState(false);
   const [updatingContact, setUpdatingContact] = useState(false);
+
+  const openEditSupportModal = () => {
+    setSupportFormData({ ...supportContactData });
+    setShowEditSupportModal(true);
+  };
 
   useEffect(() => {
     adminService.getContactInfo().then((res) => {
       if (res) {
-        setSupportContactData({
+        const initial = {
           phone: res.phone || '+91 98765 43210',
           whatsapp: res.whatsapp || res.phone || '+91 98765 43210',
           email: res.email || 'support@chovique.com',
           support_hours: res.support_hours || 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
           address: res.address || '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
-        });
+        };
+        setSupportContactData(initial);
+        setSupportFormData(initial);
       }
     }).catch(() => { });
   }, []);
 
   const handleUpdateSupportContact = async (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneTrim = (supportFormData.phone || '').trim();
+    const whatsappTrim = (supportFormData.whatsapp || '').trim();
+    const emailTrim = (supportFormData.email || '').trim();
+    const hoursTrim = (supportFormData.support_hours || '').trim();
+    const addressTrim = (supportFormData.address || '').trim();
+
+    if (!phoneTrim) {
+      addToast('error', 'Customer Support Phone is required.', 'Validation Error');
+      return;
+    }
+    if (!whatsappTrim) {
+      addToast('error', 'WhatsApp Support Number is required.', 'Validation Error');
+      return;
+    }
+    if (!emailTrim) {
+      addToast('error', 'Customer Support Email is required.', 'Validation Error');
+      return;
+    }
+    if (!hoursTrim) {
+      addToast('error', 'Support Hours are required.', 'Validation Error');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrim)) {
+      addToast('error', 'Please enter a valid email address.', 'Validation Error');
+      return;
+    }
+
+    const phoneRegex = /^(\+91[\-\s]?)?[0]?[6-9]\d{9}$|^\+?[0-9\s\-()]{7,15}$/;
+    if (!phoneRegex.test(phoneTrim)) {
+      addToast('error', 'Please enter a valid phone number (e.g. +91 9876543210).', 'Validation Error');
+      return;
+    }
+    if (!phoneRegex.test(whatsappTrim)) {
+      addToast('error', 'Please enter a valid WhatsApp number (e.g. +91 9876543210).', 'Validation Error');
+      return;
+    }
+
     setUpdatingContact(true);
     try {
-      await adminService.updateContactInfo(supportContactData);
-      alert('Customer Support details updated successfully!');
+      await adminService.updateContactInfo({
+        phone: phoneTrim,
+        whatsapp: whatsappTrim,
+        email: emailTrim,
+        support_hours: hoursTrim,
+        address: addressTrim,
+      });
+      const updated = {
+        phone: phoneTrim,
+        whatsapp: whatsappTrim,
+        email: emailTrim,
+        support_hours: hoursTrim,
+        address: addressTrim,
+      };
+      setSupportContactData(updated);
+      setSupportFormData(updated);
+      setShowEditSupportModal(false);
+      addToast('success', 'Customer Support details updated successfully! Updated live on customer contact page.', 'Details Saved');
     } catch (err: any) {
-      alert(err?.message || 'Failed to update Customer Support details.');
+      addToast('error', err?.message || 'Failed to update Customer Support details.', 'Update Error');
     } finally {
       setUpdatingContact(false);
     }
@@ -2476,26 +2548,44 @@ export const AdminDashboard: React.FC = () => {
                 {/* Filtered Count */}
                 {(() => {
                   const filtered = products.filter((prod) => {
+                    const searchTrim = productSearch.trim().toLowerCase();
                     const skuStr = (prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`).toLowerCase();
-                    const nameMatch = prod.name.toLowerCase().includes(productSearch.toLowerCase()) || skuStr.includes(productSearch.toLowerCase());
-                    const catMatch = (() => {
-                      if (productCategoryFilter === 'all') return true;
-                      if (!prod.category) return false;
-                      const pCat = prod.category.toLowerCase().trim();
-                      const filterVal = productCategoryFilter.toLowerCase().trim();
-                      const pCatNorm = pCat.replace(/[^a-z0-9]/g, '');
-                      const filterNorm = filterVal.replace(/[^a-z0-9]/g, '');
+                    const nameStr = (prod.name || '').toLowerCase();
+                    const descStr = (prod.description || '').toLowerCase();
+                    const nameMatch = !searchTrim || nameStr.includes(searchTrim) || skuStr.includes(searchTrim) || descStr.includes(searchTrim);
 
-                      return (
-                        pCat === filterVal ||
-                        pCat.includes(filterVal) ||
-                        filterVal.includes(pCat) ||
-                        (filterNorm.length > 2 && pCatNorm.includes(filterNorm)) ||
-                        (pCatNorm.length > 2 && filterNorm.includes(pCatNorm))
+                    const catMatch = (() => {
+                      if (productCategoryFilter === 'all' || !productCategoryFilter) return true;
+                      
+                      const selectedCat = (categoriesList || []).find(
+                        (c) => c.id === productCategoryFilter || c.slug === productCategoryFilter || c.name.toLowerCase() === productCategoryFilter.toLowerCase()
                       );
+
+                      const filterId = selectedCat ? selectedCat.id : productCategoryFilter;
+                      const filterName = selectedCat ? selectedCat.name.toLowerCase().trim() : productCategoryFilter.toLowerCase().trim();
+                      const filterSlug = selectedCat && selectedCat.slug ? selectedCat.slug.toLowerCase().trim() : '';
+
+                      const prodCatId = prod.category_id || '';
+                      const prodCatName = (prod.category || '').toLowerCase().trim();
+
+                      if (prodCatId && prodCatId === filterId) return true;
+                      if (prodCatName && (prodCatName === filterName || (filterSlug && prodCatName === filterSlug))) return true;
+                      if (filterName && prodCatName && (prodCatName.includes(filterName) || filterName.includes(prodCatName))) return true;
+
+                      return false;
                     })();
+
                     const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                    const availMatch = productAvailabilityFilter === 'all' || (productAvailabilityFilter === 'in_stock' ? displayStock > 0 : displayStock === 0);
+                    const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
+                    const isAvailable = isAdminAvailable && displayStock > 0;
+
+                    const availMatch = (() => {
+                      if (productAvailabilityFilter === 'all' || !productAvailabilityFilter) return true;
+                      if (productAvailabilityFilter === 'in_stock') return isAvailable;
+                      if (productAvailabilityFilter === 'out_of_stock' || productAvailabilityFilter === 'stock_out') return !isAvailable;
+                      return true;
+                    })();
+
                     return nameMatch && catMatch && availMatch;
                   });
 
@@ -4254,136 +4344,164 @@ export const AdminDashboard: React.FC = () => {
 
         {/* COUPONS TAB */}
         {activeTab === 'coupons' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '35px' }}>
-            <CreateCouponView
-              addToast={addToast}
-              onAddCoupon={async (payload) => {
-                const created = await adminService.createCoupon(payload);
-                setCouponsList([created, ...couponsList]);
-              }}
-            />
+          <div>
+            {showCreateCouponForm ? (
+              <CreateCouponView
+                addToast={addToast}
+                onAddCoupon={async (payload) => {
+                  const created = await adminService.createCoupon(payload);
+                  setCouponsList([created, ...couponsList]);
+                  setShowCreateCouponForm(false);
+                }}
+                onCancel={() => setShowCreateCouponForm(false)}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                {/* Header Section */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                  <div>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                      Coupons &amp; Discounts
+                    </h1>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--beige)', marginTop: '4px', margin: 0 }}>
+                      Manage discount coupons, influencer codes, and promotional offers
+                    </p>
+                  </div>
 
-              {/* Coupons List */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active &amp; Past Coupons</h3>
-                {couponsList.length === 0 ? (
-                  <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {couponsList.map((c: any) => {
-                      const isExpired = c.status === 'EXPIRED' || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
-                      const isInactive = !c.is_active || c.status === 'INACTIVE';
-                      const cType = c.coupon_type || 'CUSTOMER';
+                  <Button
+                    variant="gold"
+                    glow
+                    onClick={() => setShowCreateCouponForm(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+                  >
+                    <Plus size={18} />
+                    CREATE COUPON
+                  </Button>
+                </div>
 
-                      return (
-                        <div key={c.id || c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
-                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: cType === 'INFLUENCER' ? 'rgba(155,89,182,0.2)' : 'rgba(52,152,219,0.2)', color: cType === 'INFLUENCER' ? '#9b59b6' : '#3498db', borderRadius: '4px', fontWeight: 700 }}>
-                                {cType}
-                              </span>
-                              {isExpired ? (
-                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(231,76,60,0.2)', color: '#e74c3c', borderRadius: '4px', fontWeight: 700 }}>
-                                  EXPIRED
+                {/* Coupons List */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active &amp; Past Coupons</h3>
+                  {couponsList.length === 0 ? (
+                    <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      {couponsList.map((c: any) => {
+                        const isExpired = c.status === 'EXPIRED' || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
+                        const isInactive = !c.is_active || c.status === 'INACTIVE';
+                        const cType = c.coupon_type || 'CUSTOMER';
+
+                        return (
+                          <div key={c.id || c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
+                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: cType === 'INFLUENCER' ? 'rgba(155,89,182,0.2)' : 'rgba(52,152,219,0.2)', color: cType === 'INFLUENCER' ? '#9b59b6' : '#3498db', borderRadius: '4px', fontWeight: 700 }}>
+                                  {cType}
                                 </span>
-                              ) : isInactive ? (
-                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(149,165,166,0.2)', color: '#95a5a6', borderRadius: '4px', fontWeight: 700 }}>
-                                  INACTIVE
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
-                                  ACTIVE
-                                </span>
+                                {isExpired ? (
+                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(231,76,60,0.2)', color: '#e74c3c', borderRadius: '4px', fontWeight: 700 }}>
+                                    EXPIRED
+                                  </span>
+                                ) : isInactive ? (
+                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(149,165,166,0.2)', color: '#95a5a6', borderRadius: '4px', fontWeight: 700 }}>
+                                    INACTIVE
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
+                                    ACTIVE
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
+                                {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
+                                <span style={{ color: 'var(--grey-light)', marginLeft: '12px' }}>(Times Used: {c.usage_count || 0})</span>
+                              </div>
+                              {c.expires_at && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
+                                  Expires: {new Date(c.expires_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                </div>
                               )}
                             </div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
-                              {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
-                              <span style={{ color: 'var(--grey-light)', marginLeft: '12px' }}>(Times Used: {c.usage_count || 0})</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                onClick={() => setEditingCoupon({ ...c })}
+                                style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                title="Edit Coupon"
+                              >
+                                <Edit2 size={14} /> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteCoupon(c.code)}
+                                style={{ background: 'rgba(255,0,0,0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                title="Delete Coupon"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
                             </div>
-                            {c.expires_at && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
-                                Expires: {new Date(c.expires_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                              </div>
-                            )}
                           </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={() => setEditingCoupon({ ...c })}
-                              style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Edit Coupon"
-                            >
-                              <Edit2 size={14} /> Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteCoupon(c.code)}
-                              style={{ background: 'rgba(255,0,0,0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Delete Coupon"
-                            >
-                              <Trash2 size={14} /> Delete
-                            </button>
-                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Edit Coupon Modal */}
+                {editingCoupon && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '450px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', marginBottom: '20px' }}>
+                        Edit Coupon: {editingCoupon.code}
+                      </h3>
+                      <form onSubmit={handleUpdateCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <Input 
+                          label="Description" 
+                          value={editingCoupon.description || ''} 
+                          onChange={e => setEditingCoupon({...editingCoupon, description: e.target.value})}
+                          required
+                        />
+                        <Input 
+                          label="Discount Percent (%)" 
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={editingCoupon.discount_percent || 0} 
+                          onChange={e => setEditingCoupon({...editingCoupon, discount_percent: parseFloat(e.target.value) || 0})}
+                          required
+                        />
+                        <Input 
+                          label="Expiry Date (Required)" 
+                          type="date"
+                          value={editingCoupon.expires_at ? editingCoupon.expires_at.slice(0, 10) : ''} 
+                          onChange={e => setEditingCoupon({...editingCoupon, expires_at: e.target.value})}
+                          required
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
+                          <input 
+                            type="checkbox"
+                            id="coupon-active-check"
+                            checked={editingCoupon.is_active ?? true}
+                            onChange={e => setEditingCoupon({...editingCoupon, is_active: e.target.checked})}
+                          />
+                          <label htmlFor="coupon-active-check" style={{ color: 'var(--cream)', fontSize: '0.9rem', cursor: 'pointer' }}>
+                            Active Status (Check to enable coupon)
+                          </label>
                         </div>
-                      );
-                    })}
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
+                          <Button variant="gold" type="submit" style={{ flex: 1 }}>Save Changes</Button>
+                          <button 
+                            type="button"
+                            onClick={() => setEditingCoupon(null)}
+                            style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--grey-mid)', color: 'var(--cream)', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 )}
-              </div>
-
-            {/* Edit Coupon Modal */}
-            {editingCoupon && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                <div className="glass-panel" style={{ width: '100%', maxWidth: '450px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', marginBottom: '20px' }}>
-                    Edit Coupon: {editingCoupon.code}
-                  </h3>
-                  <form onSubmit={handleUpdateCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <Input 
-                      label="Description" 
-                      value={editingCoupon.description || ''} 
-                      onChange={e => setEditingCoupon({...editingCoupon, description: e.target.value})}
-                      required
-                    />
-                    <Input 
-                      label="Discount Percent (%)" 
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={editingCoupon.discount_percent || 0} 
-                      onChange={e => setEditingCoupon({...editingCoupon, discount_percent: parseFloat(e.target.value) || 0})}
-                      required
-                    />
-                    <Input 
-                      label="Expiry Date (Required)" 
-                      type="date"
-                      value={editingCoupon.expires_at ? editingCoupon.expires_at.slice(0, 10) : ''} 
-                      onChange={e => setEditingCoupon({...editingCoupon, expires_at: e.target.value})}
-                      required
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
-                      <input 
-                        type="checkbox"
-                        id="coupon-active-check"
-                        checked={editingCoupon.is_active ?? true}
-                        onChange={e => setEditingCoupon({...editingCoupon, is_active: e.target.checked})}
-                      />
-                      <label htmlFor="coupon-active-check" style={{ color: 'var(--cream)', fontSize: '0.9rem', cursor: 'pointer' }}>
-                        Active Status (Check to enable coupon)
-                      </label>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
-                      <Button variant="gold" type="submit" style={{ flex: 1 }}>Save Changes</Button>
-                      <button 
-                        type="button"
-                        onClick={() => setEditingCoupon(null)}
-                        style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--grey-mid)', color: 'var(--cream)', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </div>
               </div>
             )}
           </div>
@@ -4854,132 +4972,237 @@ export const AdminDashboard: React.FC = () => {
 
         {/* ATELIER TESTIMONIALS TAB */}
         {activeTab === 'testimonials' && (
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Testimonials & Reviews Moderation Hub
-            </h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+            {/* Header Section with Primary Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                  Atelier Testimonials &amp; Story Video
+                </h1>
+                <p style={{ fontSize: '0.9rem', color: 'var(--beige)', marginTop: '4px', margin: 0 }}>
+                  Manage customer testimonials, moderation status, and Our Story crafting process video
+                </p>
+              </div>
 
-            {/* Testimonial Status Filter Tabs */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-              {['all', 'pending', 'approved', 'rejected'].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => handleStatusFilterChange(st)}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: '20px',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    textTransform: 'capitalize',
-                    background: testimonialStatusFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
-                    color: testimonialStatusFilter === st ? 'var(--dark-chocolate)' : 'var(--cream)',
-                    border: testimonialStatusFilter === st ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s',
-                  }}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <Button
+                  variant="gold"
+                  glow
+                  onClick={() => setShowAddTestimonialModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
                 >
-                  {st} Testimonials
-                </button>
-              ))}
+                  <Plus size={18} />
+                  + ADD TESTIMONIAL
+                </Button>
+
+                <Button
+                  variant="glass"
+                  onClick={() => setShowUploadVideoModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, border: '1px solid var(--gold)', color: 'var(--gold)' }}
+                >
+                  <Video size={18} />
+                  {storyVideoUrl ? 'EDIT / REPLACE VIDEO' : '+ ADD PROCESS VIDEO'}
+                </Button>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              {/* Testimonials List */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+            {/* Section 1: Customer Testimonials List & Moderation */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
                   Customer Testimonials ({testimonialsList.length})
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '550px', overflowY: 'auto' }}>
-                  {testimonialsList.length === 0 ? (
-                    <p style={{ color: 'var(--beige)', fontStyle: 'italic' }}>No testimonials found in this category.</p>
-                  ) : (
-                    testimonialsList.map((t, idx) => {
-                      const st = t.status || (t.is_active ? 'approved' : 'pending');
-                      return (
-                        <div
-                          key={t.id || idx}
-                          style={{
-                            padding: '16px',
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)' }}>
-                              {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
-                                <Star key={i} size={14} fill="currentColor" />
-                              ))}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                background: st === 'approved' ? 'rgba(90,190,90,0.15)' : st === 'rejected' ? 'rgba(250,90,90,0.15)' : 'rgba(240,190,60,0.15)',
-                                color: st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040',
-                                border: `1px solid ${st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040'}`,
-                              }}
-                            >
-                              {st}
-                            </span>
+
+                {/* Testimonial Status Filter Tabs */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['all', 'pending', 'approved', 'rejected'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => handleStatusFilterChange(st)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        textTransform: 'capitalize',
+                        background: testimonialStatusFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                        color: testimonialStatusFilter === st ? 'var(--dark-chocolate)' : 'var(--cream)',
+                        border: testimonialStatusFilter === st ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s',
+                      }}
+                    >
+                      {st} Testimonials
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Testimonials Items */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '550px', overflowY: 'auto' }}>
+                {testimonialsList.length === 0 ? (
+                  <p style={{ color: 'var(--beige)', fontStyle: 'italic', padding: '20px 0', margin: 0 }}>
+                    No testimonials found in this category.
+                  </p>
+                ) : (
+                  testimonialsList.map((t, idx) => {
+                    const st = t.status || (t.is_active ? 'approved' : 'pending');
+                    return (
+                      <div
+                        key={t.id || idx}
+                        style={{
+                          padding: '16px',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid var(--glass-border)',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)' }}>
+                            {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
+                              <Star key={i} size={14} fill="currentColor" />
+                            ))}
                           </div>
-                          <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
-                            "{t.text}"
-                          </p>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600 }}>
-                              {t.author} {t.title ? `— ${t.title}` : ''}
-                            </span>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {st !== 'approved' && t.id && (
-                                <button
-                                  onClick={() => handleApproveTestimonial(t.id)}
-                                  style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '4px', padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                                >
-                                  Approve
-                                </button>
-                              )}
-                              {st !== 'rejected' && t.id && (
-                                <button
-                                  onClick={() => handleRejectTestimonial(t.id)}
-                                  style={{ background: 'rgba(240,160,60,0.2)', border: '1px solid #e09040', color: '#e09040', borderRadius: '4px', padding: '3px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                                >
-                                  Reject
-                                </button>
-                              )}
-                              {t.id && (
-                                <button
-                                  onClick={() => handleDeleteTestimonial(t.id)}
-                                  style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px' }}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              background: st === 'approved' ? 'rgba(90,190,90,0.15)' : st === 'rejected' ? 'rgba(250,90,90,0.15)' : 'rgba(240,190,60,0.15)',
+                              color: st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040',
+                              border: `1px solid ${st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040'}`,
+                            }}
+                          >
+                            {st}
+                          </span>
+                        </div>
+                        <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
+                          "{t.text}"
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600 }}>
+                            {t.author} {t.title ? `— ${t.title}` : ''}
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {st !== 'approved' && t.id && (
+                              <button
+                                onClick={() => handleApproveTestimonial(t.id)}
+                                style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Approve
+                              </button>
+                            )}
+                            {st !== 'rejected' && t.id && (
+                              <button
+                                onClick={() => handleRejectTestimonial(t.id)}
+                                style={{ background: 'rgba(240,160,60,0.2)', border: '1px solid #e09040', color: '#e09040', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Reject
+                              </button>
+                            )}
+                            {t.id && (
+                              <button
+                                onClick={() => handleDeleteTestimonial(t.id)}
+                                style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px' }}
+                                title="Delete Testimonial"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </div>
-                      );
-                    })
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Our Story Process Video Card */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
+                    Our Story Process Video
+                  </h3>
+                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginTop: '4px', margin: 0 }}>
+                    Upload, update, or replace the crafting process video displayed on Customer → Our Story page
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <Button
+                    variant="gold"
+                    glow
+                    onClick={() => setShowUploadVideoModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    <Video size={16} />
+                    {storyVideoUrl ? 'EDIT / REPLACE VIDEO' : '+ ADD PROCESS VIDEO'}
+                  </Button>
+
+                  {storyVideoUrl && (
+                    <button
+                      onClick={handleDeleteStoryVideo}
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--beige)', borderRadius: '6px', padding: '8px 14px', fontSize: '0.8rem', cursor: 'pointer' }}
+                    >
+                      Reset to Default
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Add New Testimonial Form & Story Video Upload */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.4)' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                    Add Atelier Testimonial
-                  </h3>
-                  <form onSubmit={handleAddTestimonial}>
+              {storyVideoUrl ? (
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <video
+                    src={storyVideoUrl}
+                    controls
+                    style={{ width: '100%', maxHeight: '280px', borderRadius: '6px', objectFit: 'cover' }}
+                  />
+                  <div style={{ fontSize: '0.78rem', color: 'var(--beige)', marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Active Video Source: <code style={{ color: 'var(--gold)' }}>{storyVideoUrl.slice(0, 70)}...</code></span>
+                    <span style={{ color: '#6fbf6f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle size={14} /> Published on Customer Story Page
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '30px', textAlign: 'center', border: '1px dashed var(--glass-border)', borderRadius: '8px', color: 'var(--beige)' }}>
+                  <Video size={32} style={{ color: 'var(--gold)', marginBottom: '8px', margin: '0 auto 8px', display: 'block' }} />
+                  <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem' }}>No custom process video uploaded yet.</p>
+                  <Button variant="gold" onClick={() => setShowUploadVideoModal(true)}>
+                    + ADD PROCESS VIDEO
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* MODAL 1: ADD ATELIER TESTIMONIAL MODAL */}
+            {showAddTestimonialModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', margin: 0 }}>
+                      + Add Atelier Testimonial
+                    </h3>
+                    <button
+                      onClick={() => setShowAddTestimonialModal(false)}
+                      style={{ background: 'none', border: 'none', color: 'var(--cream)', cursor: 'pointer', fontSize: '1.2rem' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleAddTestimonial} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <Input
-                      label="Author Name"
+                      label="Author Name *"
                       required
+                      placeholder="e.g. Chef Marco Pierre"
                       value={newTestimonial.author}
                       onChange={(e) => setNewTestimonial({ ...newTestimonial, author: e.target.value })}
                     />
@@ -4989,18 +5212,40 @@ export const AdminDashboard: React.FC = () => {
                       value={newTestimonial.title}
                       onChange={(e) => setNewTestimonial({ ...newTestimonial, title: e.target.value })}
                     />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        Testimonial Quote Text
+                        Rating (Stars)
+                      </label>
+                      <select
+                        value={newTestimonial.rating}
+                        onChange={(e) => setNewTestimonial({ ...newTestimonial, rating: parseInt(e.target.value) || 5 })}
+                        style={{
+                          padding: '10px 12px',
+                          background: 'rgba(0,0,0,0.4)',
+                          border: '1px solid var(--glass-border)',
+                          color: 'var(--cream)',
+                          borderRadius: '4px',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value={5}>5 Stars ★★★★★</option>
+                        <option value={4}>4 Stars ★★★★☆</option>
+                        <option value={3}>3 Stars ★★★☆☆</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Testimonial Quote Text *
                       </label>
                       <textarea
                         required
-                        rows={3}
+                        rows={4}
+                        placeholder="Write the customer quote or review text..."
                         value={newTestimonial.text}
                         onChange={(e) => setNewTestimonial({ ...newTestimonial, text: e.target.value })}
                         style={{
                           padding: '12px',
-                          background: 'rgba(0,0,0,0.3)',
+                          background: 'rgba(0,0,0,0.4)',
                           border: '1px solid var(--glass-border)',
                           color: 'var(--cream)',
                           borderRadius: '4px',
@@ -5009,36 +5254,65 @@ export const AdminDashboard: React.FC = () => {
                         }}
                       />
                     </div>
-                    <Button variant="gold" fullWidth type="submit" disabled={uploadingTestimonial} glow>
-                      {uploadingTestimonial ? 'Creating...' : 'Create Testimonial'}
-                    </Button>
-                  </form>
-                </div>
 
-                {/* Our Story Crafting Video Upload & Manage */}
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
-                    Our Story Process Video
-                  </h3>
-                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                    Upload, update, or reset the crafting process video displayed on Our Story page.
-                  </p>
-                  <form onSubmit={handleUploadStoryVideo}>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => setStoryVideoFile(e.target.files?.[0] || null)}
-                      style={{ marginBottom: '15px', color: 'var(--cream)', fontSize: '0.85rem' }}
-                    />
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <Button variant="gold" fullWidth type="submit" disabled={uploadingStoryVideo} glow>
-                        {uploadingStoryVideo ? 'Uploading...' : 'Upload Video'}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                      <Button variant="gold" fullWidth type="submit" disabled={uploadingTestimonial} glow>
+                        {uploadingTestimonial ? 'Creating Testimonial...' : 'Create Testimonial'}
+                      </Button>
+                      <Button variant="glass" type="button" onClick={() => setShowAddTestimonialModal(false)}>
+                        Cancel
                       </Button>
                     </div>
                   </form>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* MODAL 2: ADD / EDIT PROCESS VIDEO MODAL */}
+            {showUploadVideoModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', margin: 0 }}>
+                      {storyVideoUrl ? 'Edit / Replace Process Video' : '+ Add Our Story Process Video'}
+                    </h3>
+                    <button
+                      onClick={() => setShowUploadVideoModal(false)}
+                      style={{ background: 'none', border: 'none', color: 'var(--cream)', cursor: 'pointer', fontSize: '1.2rem' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                    Select a video file to display in the Our Story section on the customer homepage. Max size: 100MB.
+                  </p>
+
+                  <form onSubmit={handleUploadStoryVideo} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ padding: '16px', border: '1px dashed var(--gold)', borderRadius: '6px', background: 'rgba(0,0,0,0.3)', textAlign: 'center' }}>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        onChange={(e) => setStoryVideoFile(e.target.files?.[0] || null)}
+                        style={{ width: '100%', color: 'var(--cream)', fontSize: '0.85rem' }}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--beige)', marginTop: '8px', display: 'block' }}>
+                        Supported formats: MP4, WEBM, OGG, MOV (Max 100MB)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                      <Button variant="gold" fullWidth type="submit" disabled={uploadingStoryVideo || !storyVideoFile} glow>
+                        {uploadingStoryVideo ? 'Uploading Video...' : storyVideoUrl ? 'Replace Video' : 'Upload Video'}
+                      </Button>
+                      <Button variant="glass" type="button" onClick={() => setShowUploadVideoModal(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
 
             {/* Site-wide Product Reviews Moderation */}
             <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginTop: '30px' }}>
@@ -5091,15 +5365,21 @@ export const AdminDashboard: React.FC = () => {
         {/* CONTACT MESSAGES & CUSTOMER SUPPORT MGMT TAB */}
         {activeTab === 'contact-messages' && (
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', marginBottom: '35px' }}>
-              Contact Form Messages &amp; Customer Support Settings
-            </h1>
+            {/* Page Header */}
+            <div style={{ marginBottom: '35px' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
+                Contact Form Messages &amp; Customer Support Settings
+              </h1>
+              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginTop: '6px', marginBottom: 0 }}>
+                Manage customer inquiries received via the contact form and configure customer support channels.
+              </p>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.3fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              {/* Messages Table */}
+              {/* 1. Messages Table */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  Received Customer Inquiries
+                  Received Customer Inquiries ({contactMessages.length})
                 </h3>
                 <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
                   <table className="admin-table">
@@ -5138,16 +5418,25 @@ export const AdminDashboard: React.FC = () => {
                               </span>
                             </td>
                             <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
-                              {msg.message}
+                              {msg.message?.length > 70 ? `${msg.message.slice(0, 70)}...` : msg.message}
                             </td>
                             <td>
-                              <button
-                                onClick={() => handleDeleteContactMessage(msg.id)}
-                                style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer' }}
-                                title="Delete message"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  onClick={() => setSelectedContactMessage(msg)}
+                                  style={{ background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  title="View complete message"
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteContactMessage(msg.id)}
+                                  style={{ background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  title="Delete message"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -5157,73 +5446,244 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Customer Support Info Editor Panel */}
+              {/* 2. Customer Support Info Summary Card */}
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.4)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
-                  Update Customer Support Info
-                </h3>
-                <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                  Post and update the contact phone, WhatsApp, email, and support hours displayed on the Contact Page.
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Headphones size={20} color="var(--gold)" />
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
+                      Customer Support Info
+                    </h3>
+                  </div>
+                  <Button
+                    variant="glass"
+                    onClick={openEditSupportModal}
+                    style={{ fontSize: '0.78rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                  >
+                    <Edit3 size={13} /> EDIT DETAILS
+                  </Button>
+                </div>
+
+                <p style={{ color: 'var(--beige)', fontSize: '0.82rem', marginBottom: '18px', lineHeight: 1.5 }}>
+                  Current support details active and displayed across the customer-facing Contact Page.
                 </p>
 
-                <form onSubmit={handleUpdateSupportContact}>
-                  <Input
-                    label="Customer Support Phone"
-                    required
-                    value={supportContactData.phone}
-                    onChange={(e) => setSupportContactData({ ...supportContactData, phone: e.target.value })}
-                  />
-
-                  <Input
-                    label="WhatsApp Support Number"
-                    required
-                    value={supportContactData.whatsapp}
-                    onChange={(e) => setSupportContactData({ ...supportContactData, whatsapp: e.target.value })}
-                  />
-
-                  <Input
-                    label="Customer Support Email"
-                    type="email"
-                    required
-                    value={supportContactData.email}
-                    onChange={(e) => setSupportContactData({ ...supportContactData, email: e.target.value })}
-                  />
-
-                  <Input
-                    label="Support Hours"
-                    placeholder="Mon - Sat: 10:00 AM - 8:00 PM"
-                    required
-                    value={supportContactData.support_hours}
-                    onChange={(e) => setSupportContactData({ ...supportContactData, support_hours: e.target.value })}
-                  />
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      Atelier Address
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={supportContactData.address}
-                      onChange={(e) => setSupportContactData({ ...supportContactData, address: e.target.value })}
-                      style={{
-                        padding: '10px',
-                        background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid var(--glass-border)',
-                        color: 'var(--cream)',
-                        borderRadius: '4px',
-                        outline: 'none',
-                        resize: 'none',
-                        fontSize: '0.85rem',
-                      }}
-                    />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <Phone size={13} color="var(--gold)" /> Customer Support Phone
+                    </span>
+                    <strong style={{ color: 'var(--cream)', fontSize: '0.95rem' }}>{supportContactData.phone}</strong>
                   </div>
 
-                  <Button variant="gold" fullWidth type="submit" disabled={updatingContact} glow>
-                    {updatingContact ? 'Saving Details...' : 'Update Customer Support Details'}
-                  </Button>
-                </form>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <MessageSquare size={13} color="#2ecc71" /> WhatsApp Support Number
+                    </span>
+                    <strong style={{ color: 'var(--cream)', fontSize: '0.95rem' }}>{supportContactData.whatsapp}</strong>
+                  </div>
+
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <Mail size={13} color="var(--gold)" /> Customer Support Email
+                    </span>
+                    <a href={`mailto:${supportContactData.email}`} style={{ color: 'var(--gold)', fontWeight: 600, fontSize: '0.95rem', textDecoration: 'none' }}>
+                      {supportContactData.email}
+                    </a>
+                  </div>
+
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <Clock size={13} color="var(--gold)" /> Support Hours
+                    </span>
+                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', lineHeight: 1.4 }}>{supportContactData.support_hours}</span>
+                  </div>
+
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <MapPin size={13} color="var(--gold)" /> Atelier Address
+                    </span>
+                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', lineHeight: 1.4 }}>{supportContactData.address || '—'}</span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* EDIT CUSTOMER SUPPORT INFO MODAL */}
+            {showEditSupportModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Headphones size={22} color="var(--gold)" />
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', color: 'var(--gold)', margin: 0 }}>
+                        Update Customer Support Info
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setShowEditSupportModal(false)}
+                      style={{ background: 'none', border: 'none', color: 'var(--cream)', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                    Update the contact phone, WhatsApp, email, hours, and address. Changes will immediately reflect across the customer-facing website.
+                  </p>
+
+                  <form onSubmit={handleUpdateSupportContact}>
+                    <Input
+                      label="Customer Support Phone *"
+                      required
+                      value={supportFormData.phone}
+                      onChange={(e) => setSupportFormData({ ...supportFormData, phone: e.target.value })}
+                    />
+
+                    <Input
+                      label="WhatsApp Support Number *"
+                      required
+                      value={supportFormData.whatsapp}
+                      onChange={(e) => setSupportFormData({ ...supportFormData, whatsapp: e.target.value })}
+                    />
+
+                    <Input
+                      label="Customer Support Email *"
+                      type="email"
+                      required
+                      value={supportFormData.email}
+                      onChange={(e) => setSupportFormData({ ...supportFormData, email: e.target.value })}
+                    />
+
+                    <Input
+                      label="Support Hours *"
+                      placeholder="Mon - Sat: 10:00 AM - 8:00 PM"
+                      required
+                      value={supportFormData.support_hours}
+                      onChange={(e) => setSupportFormData({ ...supportFormData, support_hours: e.target.value })}
+                    />
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '24px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Atelier Address
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={supportFormData.address}
+                        onChange={(e) => setSupportFormData({ ...supportFormData, address: e.target.value })}
+                        style={{
+                          padding: '10px',
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid var(--glass-border)',
+                          color: 'var(--cream)',
+                          borderRadius: '4px',
+                          outline: 'none',
+                          resize: 'none',
+                          fontSize: '0.85rem',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="glass"
+                        type="button"
+                        onClick={() => setShowEditSupportModal(false)}
+                        disabled={updatingContact}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="gold"
+                        glow
+                        type="submit"
+                        disabled={updatingContact}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 22px' }}
+                      >
+                        {updatingContact ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" /> Saving Details...
+                          </>
+                        ) : (
+                          'UPDATE CUSTOMER SUPPORT DETAILS'
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW CONTACT INQUIRY DETAILS MODAL */}
+            {selectedContactMessage && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '540px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', color: 'var(--gold)', margin: 0 }}>
+                      Customer Inquiry Details
+                    </h3>
+                    <button
+                      onClick={() => setSelectedContactMessage(null)}
+                      style={{ background: 'none', border: 'none', color: 'var(--cream)', cursor: 'pointer', fontSize: '1.2rem' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.9rem', color: 'var(--cream)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block' }}>Customer Name</span>
+                        <strong style={{ fontSize: '1rem', color: 'var(--cream)' }}>{selectedContactMessage.name}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block' }}>Received Date</span>
+                        <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{selectedContactMessage.created_at}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block' }}>Email Address</span>
+                        <a href={`mailto:${selectedContactMessage.email}`} style={{ color: 'var(--gold)', fontWeight: 600 }}>{selectedContactMessage.email}</a>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block' }}>Phone Number</span>
+                        <span>{selectedContactMessage.phone || '—'}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Subject</span>
+                      <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '3px 10px', borderRadius: '4px', fontSize: '0.82rem', fontWeight: 600 }}>
+                        {selectedContactMessage.subject || 'General Inquiries'}
+                      </span>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--beige)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Message Text</span>
+                      <div style={{ background: 'rgba(0,0,0,0.45)', padding: '14px', borderRadius: '6px', border: '1px solid var(--glass-border)', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--cream)', fontSize: '0.9rem', maxHeight: '200px', overflowY: 'auto' }}>
+                        {selectedContactMessage.message}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+                      <a
+                        href={`mailto:${selectedContactMessage.email}?subject=Re: ${encodeURIComponent(selectedContactMessage.subject || 'Inquiry')}`}
+                        style={{ textDecoration: 'none' }}
+                      >
+                        <Button variant="gold" type="button" glow>
+                          Reply via Email
+                        </Button>
+                      </a>
+                      <Button variant="glass" type="button" onClick={() => setSelectedContactMessage(null)}>
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* EDIT PRODUCT MODAL */}

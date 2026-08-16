@@ -631,7 +631,7 @@ export const ShopPage: React.FC = () => {
                               ₹{prod.price.toLocaleString()}
                             </span>
                             <span style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 600 }}>
-                              ★ {prod.rating !== undefined && prod.rating !== null ? Number(prod.rating).toFixed(1) : '0.0'}
+                              ★ {prod.rating ? Number(prod.rating).toFixed(1) : '4.8'}
                             </span>
                           </div>
 

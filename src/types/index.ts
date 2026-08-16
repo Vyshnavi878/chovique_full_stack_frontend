@@ -148,6 +148,36 @@ export interface Banner {
 
 export interface OfflineSale {
   id: string;
+  receipt_id?: string;
+  company_name?: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  payment_method?: string;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  total_amount?: number;
+  status?: string;
+  payment_status?: string;
+  received_amount?: number;
+  receipt_number?: string;
+  card_type?: string;
+  card_last4?: string;
+  transaction_id?: string;
+  upi_id?: string;
+  bank_name?: string;
+  account_holder?: string;
+  items?: Array<{
+    id: string;
+    product_id?: string;
+    product_name: string;
+    sku?: string;
+    unit_price: number;
+    quantity: number;
+    line_total: number;
+  }>;
   /** camelCase — matches backend OfflineSaleResponse */
   productName: string;
   quantity: number;
@@ -535,6 +565,7 @@ export interface ContactMessageResponse {
 export interface ProductQueryParams {
   search?: string;
   category?: string;
+  availability?: string;
   price_min?: number;
   price_max?: number;
   min_rating?: number;

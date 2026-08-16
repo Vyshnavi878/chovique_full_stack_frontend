@@ -68,23 +68,30 @@ export const ActivityLogsView: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [dateError, setDateError] = useState<string>('');
 
   const fetchLogs = async (page = 1) => {
+    // If end date is earlier than start date, do not perform invalid fetch
+    if (startDate && endDate && endDate < startDate) {
+      setDateError('End Date cannot be earlier than Start Date.');
+      return;
+    }
+    setDateError('');
     setIsLoading(true);
     try {
       const res = await adminService.getActivityLogs({
         page,
         limit: 15,
-        module: selectedModule,
-        action: selectedAction,
-        status: selectedStatus,
-        search: search.trim(),
-        start_date: startDate ? new Date(startDate).toISOString() : undefined,
-        end_date: endDate ? new Date(endDate + 'T23:59:59').toISOString() : undefined,
+        module: selectedModule !== 'all' ? selectedModule : undefined,
+        action: selectedAction !== 'all' ? selectedAction : undefined,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        search: search.trim() || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       });
 
-      setLogs(res.items);
-      setTotal(res.total);
+      setLogs(res.items || []);
+      setTotal(res.total || 0);
       setCurrentPage(page);
     } catch (err) {
       console.error('Failed to fetch activity logs:', err);
@@ -96,6 +103,34 @@ export const ActivityLogsView: React.FC = () => {
   useEffect(() => {
     fetchLogs(1);
   }, [selectedModule, selectedAction, selectedStatus, startDate, endDate]);
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    if (val && endDate && endDate < val) {
+      setDateError('End Date cannot be earlier than Start Date.');
+    } else {
+      setDateError('');
+    }
+  };
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    if (startDate && val && val < startDate) {
+      setDateError('End Date cannot be earlier than Start Date.');
+    } else {
+      setDateError('');
+    }
+  };
+
+  const handleResetFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setSearch('');
+    setSelectedModule('all');
+    setSelectedAction('all');
+    setSelectedStatus('all');
+    setDateError('');
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,11 +293,12 @@ export const ActivityLogsView: React.FC = () => {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              max={endDate || undefined}
+              onChange={(e) => handleStartDateChange(e.target.value)}
               style={{
                 padding: '6px 10px',
                 background: 'rgba(10, 8, 6, 0.8)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: dateError ? '1px solid #ff6b6b' : '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '6px',
                 color: '#f5efe6',
                 fontSize: '0.8rem',
@@ -275,11 +311,12 @@ export const ActivityLogsView: React.FC = () => {
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate || undefined}
+              onChange={(e) => handleEndDateChange(e.target.value)}
               style={{
                 padding: '6px 10px',
                 background: 'rgba(10, 8, 6, 0.8)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: dateError ? '1px solid #ff6b6b' : '1px solid rgba(255,255,255,0.15)',
                 borderRadius: '6px',
                 color: '#f5efe6',
                 fontSize: '0.8rem',
@@ -287,16 +324,15 @@ export const ActivityLogsView: React.FC = () => {
             />
           </div>
 
-          {(startDate || endDate || search) && (
+          {dateError && (
+            <span style={{ color: '#ff6b6b', fontSize: '0.78rem', fontWeight: 500 }}>
+              {dateError}
+            </span>
+          )}
+
+          {(startDate || endDate || search || selectedAction !== 'all' || selectedStatus !== 'all' || selectedModule !== 'all') && (
             <button
-              onClick={() => {
-                setStartDate('');
-                setEndDate('');
-                setSearch('');
-                setSelectedModule('all');
-                setSelectedAction('all');
-                setSelectedStatus('all');
-              }}
+              onClick={handleResetFilters}
               style={{
                 background: 'none',
                 border: 'none',
