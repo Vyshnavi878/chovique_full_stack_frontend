@@ -77,7 +77,6 @@ export interface Product {
   weight: string;
   description: string;
   ingredients: string;
-  nutrition: NutritionInfo;
   rating: number;
   ratingsCount: number;
   badge?: 'Bestseller' | 'New' | 'Premium' | 'Limited' | 'Gift Hamper' | 'Signature' | string;
@@ -451,7 +450,6 @@ export interface ProductUpdatePayload {
   badge?: Product['badge'];
   description?: string;
   ingredients?: string;
-  nutrition?: NutritionInfo;
 }
 
 export interface ProfileUpdatePayload {

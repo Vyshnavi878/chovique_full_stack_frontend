@@ -121,17 +121,7 @@ export const CheckoutPage: React.FC = () => {
     }
   });
 
-  const [couponInputCode, setCouponInputCode] = useState('');
-  const [couponError, setCouponError] = useState('');
-  const [isCouponLoading, setIsCouponLoading] = useState(false);
-  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
-
-  // Fetch available coupons for current user
-  useEffect(() => {
-    if (user && user.role !== 'guest') {
-      cartService.getAvailableCoupons().then((coupons) => setAvailableCoupons(coupons)).catch(() => {});
-    }
-  }, [user]);
+  // Fetch user wallet data
 
   // Pricing calculations (display-only; backend recalculates authoritatively)
   const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -174,49 +164,7 @@ export const CheckoutPage: React.FC = () => {
   const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee + taxAmount);
 
   // Coupon handlers
-  const handleApplyCouponCode = async (codeToApply: string) => {
-    const formattedCode = codeToApply.trim().toUpperCase();
-    if (!formattedCode) return;
-    setCouponInputCode(formattedCode);
-    setIsCouponLoading(true);
-    setCouponError('');
-    try {
-      const res = await cartService.validateCoupon(formattedCode);
-      if (res.valid) {
-        let calculatedDisc = 0;
-        if (res.discount_type === 'PERCENTAGE') {
-          calculatedDisc = (subtotal * (res.discount_percent || 0)) / 100;
-          if (res.maximum_discount_amount && res.maximum_discount_amount > 0) {
-            calculatedDisc = Math.min(calculatedDisc, res.maximum_discount_amount);
-          }
-        } else if (res.discount_type === 'FIXED_AMOUNT') {
-          calculatedDisc = Math.min(res.discount_amount || 0, subtotal);
-        } else {
-          calculatedDisc = res.calculated_discount || 0;
-        }
 
-        const data: CheckoutCouponData = {
-          code: res.code,
-          discount_percent: res.discount_percent || 0,
-          discount_amount: calculatedDisc,
-        };
-        setAppliedCoupon(data);
-        sessionStorage.setItem('chovique_checkout_coupon', JSON.stringify(data));
-        setCouponInputCode('');
-      } else {
-        setCouponError(res.message || 'Invalid promo code');
-      }
-    } catch {
-      setCouponError('Could not validate promo code.');
-    } finally {
-      setIsCouponLoading(false);
-    }
-  };
-
-  const handleApplyCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleApplyCouponCode(couponInputCode);
-  };
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
@@ -437,7 +385,7 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Promo Code Entry & Available Coupons Section */}
                 <div style={{ marginBottom: '25px' }}>
-                  {appliedCoupon ? (
+                  {appliedCoupon && (
                     <div
                       style={{
                         padding: '12px 16px',
@@ -456,57 +404,17 @@ export const CheckoutPage: React.FC = () => {
                           <span style={{ fontSize: '0.8rem', opacity: 0.9, display: 'block' }}>Saving -₹{discountAmount.toLocaleString()} on this order</span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveCoupon}
-                        style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Available Coupons list */}
-                      {availableCoupons.length > 0 && (
-                        <div style={{ marginBottom: '18px', background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <h4 style={{ color: 'var(--gold)', fontSize: '0.85rem', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Coupons</h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {availableCoupons.map((c) => (
-                              <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.88rem' }}>{c.code}</div>
-                                  <div style={{ fontSize: '0.78rem', color: 'var(--beige)' }}>{c.description || (c.discount_percent ? `${c.discount_percent}% OFF` : `₹${c.discount_amount} OFF`)}</div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplyCouponCode(c.code)}
-                                  disabled={isCouponLoading}
-                                  style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
-                                >
-                                  Use
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                          <Input
-                            placeholder="Enter Promo Code (e.g. WELCOME10)"
-                            value={couponInputCode}
-                            onChange={(e) => setCouponInputCode(e.target.value)}
-                            style={{ textTransform: 'uppercase' }}
-                          />
-                        </div>
-                        <Button variant="gold" type="submit" disabled={isCouponLoading || !couponInputCode.trim()} style={{ whiteSpace: 'nowrap' }}>
-                          {isCouponLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Apply Coupon'}
-                        </Button>
-                      </form>
-                      {couponError && (
-                        <p style={{ color: '#e74c3c', fontSize: '0.82rem', marginTop: '6px', marginBottom: 0 }}>{couponError}</p>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleRemoveCoupon();
+                            // Optional: navigate back to cart to edit/apply coupon
+                            navigate('/cart');
+                          }}
+                          style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                        >
+                          Remove
+                        </button>
                     </div>
                   )}
                 </div>

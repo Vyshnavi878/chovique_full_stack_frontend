@@ -503,6 +503,33 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
                   <option value="SPECIFIC_CATEGORIES">Specific Categories</option>
                 </select>
               </div>
+
+
+              {formData.applicability !== 'ENTIRE_STORE' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.83rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: '8px' }}>
+                    {formData.applicability === 'SPECIFIC_CATEGORIES' ? 'Category IDs' : 'Product IDs'} (comma-separated) <span style={{ color: '#e74c3c' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. cat_123, cat_456"
+                    value={formData.applicable_ids}
+                    onChange={(e) => handleChange('applicable_ids', e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(0,0,0,0.4)',
+                      color: '#fff',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 

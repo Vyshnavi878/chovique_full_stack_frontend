@@ -9,7 +9,7 @@ import { pageTransition } from '../../lib/framer';
 
 import { getImageUrl } from '../../utils/imageUrl';
 
-type TabType = 'description' | 'ingredients' | 'nutrition' | 'reviews';
+type TabType = 'description' | 'ingredients' | 'reviews';
 
 export const ProductDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -373,7 +373,7 @@ export const ProductDetails: React.FC = () => {
         {/* Collapsible Tabs details */}
         <div>
           <div className="details-tabs-header">
-            {(['description', 'ingredients', 'nutrition', 'reviews'] as TabType[]).map((tab) => (
+            {(['description', 'ingredients', 'reviews'] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -397,45 +397,7 @@ export const ProductDetails: React.FC = () => {
               </p>
             )}
 
-            {activeTab === 'nutrition' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '20px' }}>
-                {product.nutrition && Object.entries(product.nutrition).map(([key, val]) => (
-                  val ? (
-                    <div
-                      key={key}
-                      className="glass-panel"
-                      style={{ padding: '16px', textAlign: 'center', border: '1px solid var(--glass-border)' }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--gold)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          display: 'block',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        {key === 'servingSize' ? 'Serving Size' :
-                         key === 'totalFat' ? 'Total Fat' :
-                         key === 'saturatedFat' ? 'Saturated Fat' :
-                         key === 'transFat' ? 'Trans Fat' :
-                         key === 'cholesterol' ? 'Cholesterol' :
-                         key === 'sodium' ? 'Sodium' :
-                         key === 'totalCarb' ? 'Total Carbohydrates' :
-                         key === 'dietaryFiber' ? 'Dietary Fiber' :
-                         key === 'totalSugars' ? 'Total Sugars' :
-                         key === 'addedSugars' ? 'Added Sugars' :
-                         key === 'calories' ? 'Calories' :
-                         key === 'protein' ? 'Protein' :
-                         key.replace(/([A-Z])/g, ' $1')}
-                      </span>
-                      <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--cream)' }}>{val}</span>
-                    </div>
-                  ) : null
-                ))}
-              </div>
-            )}
+
 
             {activeTab === 'reviews' && (
               <ReviewsTabSection

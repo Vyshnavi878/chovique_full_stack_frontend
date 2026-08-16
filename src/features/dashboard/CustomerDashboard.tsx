@@ -4514,8 +4514,8 @@ export const CustomerDashboard: React.FC = () => {
                           style={{
                             width: '100%',
                             padding: '10px 14px',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid var(--glass-border)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
                             borderRadius: '4px',
                             color: 'var(--cream)',
                             fontSize: '0.9rem',
@@ -4539,8 +4539,8 @@ export const CustomerDashboard: React.FC = () => {
                           style={{
                             width: '100%',
                             padding: '10px 14px',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid var(--glass-border)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
                             borderRadius: '4px',
                             color: 'var(--cream)',
                             fontSize: '0.9rem',
@@ -4568,8 +4568,8 @@ export const CustomerDashboard: React.FC = () => {
                           style={{
                             width: '100%',
                             padding: '10px 14px',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid var(--glass-border)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
                             borderRadius: '4px',
                             color: 'var(--cream)',
                             fontSize: '0.9rem',

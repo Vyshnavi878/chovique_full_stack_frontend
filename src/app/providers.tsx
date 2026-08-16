@@ -107,6 +107,7 @@ interface AppContextType {
   tickets: SupportTicket[];
   addSupportTicket: (category: SupportTicket['category'], description: string, orderId?: string) => Promise<void>;
   resolveSupportTicket: (ticketId: string, adminNotes?: string) => Promise<void>;
+  updateSupportTicketStatus: (ticketId: string, status: string, adminNotes?: string) => Promise<void>;
   submitTicketFeedback: (ticketId: string, feedback: 'Resolved' | 'Not Resolved') => Promise<void>;
   acknowledgeTicketNotification: (ticketId: string) => void;
 
@@ -913,6 +914,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateSupportTicketStatus = async (ticketId: string, status: string, adminNotes?: string): Promise<void> => {
+    try {
+      const updated = await import('../services/adminService').then((m) =>
+        m.adminService.updateTicketStatus(ticketId, { status, admin_notes: adminNotes })
+      );
+      setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+    } catch (err) {
+      console.error('Failed to update ticket status:', err);
+      throw err;
+    }
+  };
+
   const submitTicketFeedback = async (ticketId: string, feedback: 'Resolved' | 'Not Resolved'): Promise<void> => {
     try {
       const updated = await ticketService.submitFeedback(ticketId, { feedback });
@@ -1101,6 +1114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tickets,
         addSupportTicket,
         resolveSupportTicket,
+        updateSupportTicketStatus,
         submitTicketFeedback,
         acknowledgeTicketNotification,
         updateUserProfilePicture,

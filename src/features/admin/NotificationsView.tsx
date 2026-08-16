@@ -113,6 +113,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       case 'support_message':
         onNavigateTab('contact-messages', notif.related_entity_id || undefined);
         break;
+      case 'support':
+        onNavigateTab('complaints', notif.related_entity_id || undefined);
+        break;
       case 'reward_adjustment':
         onNavigateTab('reward-settings', notif.related_entity_id || undefined);
         break;
@@ -129,6 +132,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       new_customer: { label: 'New Customer', bg: 'rgba(52, 152, 219, 0.15)', color: '#3498db' },
       coupon_usage: { label: 'Coupon Used', bg: 'rgba(155, 89, 182, 0.15)', color: '#9b59b6' },
       support_message: { label: 'Customer Support', bg: 'rgba(230, 126, 34, 0.15)', color: '#e67e22' },
+      support: { label: 'Support Ticket', bg: 'rgba(230, 126, 34, 0.15)', color: '#e67e22' },
       reward_adjustment: { label: 'Reward Adjustment', bg: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c' },
     };
 

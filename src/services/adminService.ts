@@ -464,7 +464,11 @@ export const adminService = {
 
   /** Resolve a support ticket (admin action). */
   resolveTicket: (ticketId: string, payload: ResolveTicketPayload): Promise<SupportTicket> =>
-    apiPost<SupportTicket>(`/admin/tickets/${ticketId}/resolve`, payload),
+    apiPut<SupportTicket>(`/admin/tickets/${ticketId}/resolve`, payload),
+
+  /** Update an intermediate support ticket status (admin action). */
+  updateTicketStatus: (ticketId: string, payload: { status: string; admin_notes?: string }): Promise<SupportTicket> =>
+    apiPost<SupportTicket>(`/admin/tickets/${ticketId}/status`, payload),
 
   /** Fetch all offline (POS) sales records. */
   getOfflineSales: (): Promise<OfflineSale[]> =>

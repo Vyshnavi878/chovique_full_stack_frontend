@@ -91,6 +91,7 @@ export const AdminDashboard: React.FC = () => {
     importOfflineSales,
     tickets,
     resolveSupportTicket,
+    updateSupportTicketStatus,
     banners,
     updateBanner,
     addBanner,
@@ -4607,13 +4608,13 @@ export const AdminDashboard: React.FC = () => {
                     </h3>
                     <form onSubmit={handleCreateNewBanner} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
                       <Input label="Main Heading / Title" required placeholder="Handcrafted Chocolate Masterpieces" value={newBannerData.title} onChange={(e) => setNewBannerData({ ...newBannerData, title: e.target.value })} />
-                      <Input label="Subtitle Description" placeholder="Made with Ghanaian cocoa mass..." value={newBannerData.subtitle} onChange={(e) => setNewBannerData({ ...newBannerData, subtitle: e.target.value })} />
-                      <Input label="Category Tag (e.g. Artisanal Series)" placeholder="Artisanal Series" value={newBannerData.tag} onChange={(e) => setNewBannerData({ ...newBannerData, tag: e.target.value })} />
-                      <Input label="Button Label (CTA)" placeholder="Explore Collection" value={newBannerData.buttonText} onChange={(e) => setNewBannerData({ ...newBannerData, buttonText: e.target.value })} />
-                      <Input label="Target Link URL" placeholder="/products" value={newBannerData.link} onChange={(e) => setNewBannerData({ ...newBannerData, link: e.target.value })} />
+                      <Input label="Subtitle Description" required placeholder="Made with Ghanaian cocoa mass..." value={newBannerData.subtitle} onChange={(e) => setNewBannerData({ ...newBannerData, subtitle: e.target.value })} />
+                      <Input label="Category Tag (e.g. Artisanal Series)" required placeholder="Artisanal Series" value={newBannerData.tag} onChange={(e) => setNewBannerData({ ...newBannerData, tag: e.target.value })} />
+                      <Input label="Button Label (CTA)" required placeholder="Explore Collection" value={newBannerData.buttonText} onChange={(e) => setNewBannerData({ ...newBannerData, buttonText: e.target.value })} />
+                      <Input label="Target Link URL" required placeholder="/products" value={newBannerData.link} onChange={(e) => setNewBannerData({ ...newBannerData, link: e.target.value })} />
                       <div>
                         <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Banner Image File:</span>
-                        <input ref={newBannerFileInputRef} type="file" accept="image/*" onChange={(e) => setNewBannerImageFile(e.target.files?.[0] || null)} style={{ marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: 'var(--cream)', padding: '6px', width: '100%', borderRadius: '4px' }} />
+                        <input required ref={newBannerFileInputRef} type="file" accept="image/*" onChange={(e) => setNewBannerImageFile(e.target.files?.[0] || null)} style={{ marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: 'var(--cream)', padding: '6px', width: '100%', borderRadius: '4px' }} />
                       </div>
                       {bannerCreateError && (
                         <p style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', color: 'var(--rose-gold)', fontSize: '0.85rem', margin: 0 }}>{bannerCreateError}</p>
@@ -4926,28 +4927,71 @@ export const AdminDashboard: React.FC = () => {
 
                         {isPending && (
                           <form
-                            onSubmit={(e) => {
+                            onSubmit={async (e) => {
                               e.preventDefault();
-                              const input = e.currentTarget.elements.namedItem('notes') as HTMLTextAreaElement;
-                              const notes = input.value;
-                              resolveSupportTicket(t.id, notes);
-                              alert(`Ticket ${t.id} resolved and customer notified.`);
+                              const form = e.currentTarget;
+                              const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
+                              const action = (e.nativeEvent as any).submitter.name;
+                              
+                              if (action === 'update_status') {
+                                const status = (form.elements.namedItem('status') as HTMLSelectElement).value;
+                                try {
+                                  await updateSupportTicketStatus(t.id, status, notes);
+                                  alert(`Ticket ${t.id} status updated to ${status}. Customer notified.`);
+                                } catch (err: any) {
+                                  alert(err?.detail || err?.message || 'Failed to update ticket status.');
+                                }
+                              } else if (action === 'resolve') {
+                                try {
+                                  await resolveSupportTicket(t.id, notes);
+                                  alert(`Ticket ${t.id} resolved and customer notified.`);
+                                } catch (err: any) {
+                                  alert(err?.detail || err?.message || 'Failed to resolve ticket. Ensure you have updated the status at least twice.');
+                                }
+                              }
                             }}
                             style={{ marginTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}
                           >
+                            <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
+                                  Update Status
+                                </label>
+                                <select
+                                  name="status"
+                                  defaultValue={t.status}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    borderRadius: '4px',
+                                    color: 'var(--cream)',
+                                    fontSize: '0.85rem',
+                                    outline: 'none',
+                                  }}
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="In Progress">In Progress</option>
+                                  <option value="Awaiting Customer Response">Awaiting Customer Response</option>
+                                  <option value="Investigating">Investigating</option>
+                                </select>
+                              </div>
+                            </div>
                             <div style={{ marginBottom: '10px' }}>
                               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
-                                Resolution Notes (Optional)
+                                Admin Notes (Optional)
                               </label>
                               <textarea
                                 name="notes"
-                                placeholder="Enter details of how the issue was resolved (e.g. coupon code sent, refund processed)..."
+                                defaultValue={t.adminNotes || ''}
+                                placeholder="Enter details of how the issue is being handled..."
                                 rows={2}
                                 style={{
                                   width: '100%',
                                   padding: '8px 12px',
-                                  background: 'rgba(0,0,0,0.3)',
-                                  border: '1px solid var(--glass-border)',
+                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  border: '1px solid rgba(255, 255, 255, 0.2)',
                                   borderRadius: '4px',
                                   color: 'var(--cream)',
                                   fontSize: '0.85rem',
@@ -4956,9 +5000,14 @@ export const AdminDashboard: React.FC = () => {
                                 }}
                               />
                             </div>
-                            <Button variant="gold" size="sm" type="submit" glow>
-                              Resolve & Notify Customer
-                            </Button>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <Button variant="outline" size="sm" type="submit" name="update_status">
+                                Update Status
+                              </Button>
+                              <Button variant="gold" size="sm" type="submit" name="resolve" glow>
+                                Resolve & Notify Customer
+                              </Button>
+                            </div>
                           </form>
                         )}
                       </div>
@@ -5798,10 +5847,11 @@ export const AdminDashboard: React.FC = () => {
             <div className="glass-panel" style={{ padding: '30px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
               <h3 style={{ color: 'var(--cream)', marginBottom: '20px' }}>Edit Banner</h3>
               <form onSubmit={handleEditBannerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <Input label="Title" value={editingBanner.title} onChange={e => setEditingBanner({...editingBanner, title: e.target.value})} />
-                <Input label="Subtitle" value={editingBanner.subtitle || ''} onChange={e => setEditingBanner({...editingBanner, subtitle: e.target.value})} />
-                <Input label="Button Text" value={editingBanner.buttonText || ''} onChange={e => setEditingBanner({...editingBanner, buttonText: e.target.value})} />
-                <Input label="Link URL" value={editingBanner.link || ''} onChange={e => setEditingBanner({...editingBanner, link: e.target.value})} />
+                <Input label="Title" required value={editingBanner.title} onChange={e => setEditingBanner({...editingBanner, title: e.target.value})} />
+                <Input label="Subtitle" required value={editingBanner.subtitle || ''} onChange={e => setEditingBanner({...editingBanner, subtitle: e.target.value})} />
+                <Input label="Category Tag" required value={editingBanner.tag || ''} onChange={e => setEditingBanner({...editingBanner, tag: e.target.value})} />
+                <Input label="Button Text" required value={editingBanner.buttonText || ''} onChange={e => setEditingBanner({...editingBanner, buttonText: e.target.value})} />
+                <Input label="Link URL" required value={editingBanner.link || ''} onChange={e => setEditingBanner({...editingBanner, link: e.target.value})} />
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <Button variant="text" type="button" onClick={() => setEditingBanner(null)}>Cancel</Button>
                   <Button variant="gold" type="submit">Save Changes</Button>
