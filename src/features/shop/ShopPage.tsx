@@ -53,7 +53,7 @@ export const ShopPage: React.FC = () => {
 
   const [priceRange, setPriceRange] = useState({ min: 0, max: 50000 });
   const [minRating, setMinRating] = useState<number | null>(null);
-  const [sortOption, setSortOption] = useState<string>('popularity');
+  const [sortOption, setSortOption] = useState<string>('featured');
 
   const [isGridView, setIsGridView] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,6 +86,7 @@ export const ShopPage: React.FC = () => {
 
     if (filterParam === 'new') setSortOption('newest');
     else if (filterParam === 'premium') setSortOption('rating');
+    else if (filterParam === 'popular') setSortOption('popularity');
 
     setCurrentPage(1);
   }, [searchParams]);
@@ -93,12 +94,13 @@ export const ShopPage: React.FC = () => {
   // Map sort option to API parameter
   const getApiSortValue = (opt: string) => {
     switch (opt) {
+      case 'popularity': return 'popularity';
       case 'price_asc': return 'price_asc';
       case 'price_desc': return 'price_desc';
       case 'newest': return 'newest';
       case 'rating': return 'rating';
-      case 'popularity':
-      default: return 'bestseller';
+      case 'featured':
+      default: return 'featured';
     }
   };
 
@@ -139,10 +141,11 @@ export const ShopPage: React.FC = () => {
     let count = 0;
     if (selectedCategory !== 'all') count++;
     if (searchQuery.trim() !== '') count++;
-    if (priceRange.max < 50000) count++;
+    if (priceRange.min > 0 || priceRange.max < 50000) count++;
     if (minRating !== null) count++;
+    if (sortOption !== 'featured') count++;
     return count;
-  }, [selectedCategory, searchQuery, priceRange.max, minRating]);
+  }, [selectedCategory, searchQuery, priceRange.min, priceRange.max, minRating, sortOption]);
 
   // Reset all filters handler
   const handleResetFilters = () => {
@@ -150,7 +153,7 @@ export const ShopPage: React.FC = () => {
     setSelectedCategory('all');
     setPriceRange({ min: 0, max: 50000 });
     setMinRating(null);
-    setSortOption('popularity');
+    setSortOption('featured');
     setSearchParams({});
     setCurrentPage(1);
   };
@@ -165,15 +168,18 @@ export const ShopPage: React.FC = () => {
   const indexOfFirstItem = totalProducts > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const indexOfLastItem = Math.min(currentPage * itemsPerPage, totalProducts);
 
-  // Top category horizontal chips
-  const categoryChips = [
-    { id: 'all', label: 'All' },
-    { id: 'dark', label: 'Dark' },
-    { id: 'milk', label: 'Milk' },
-    { id: 'white', label: 'White' },
-    { id: 'truffles', label: 'Truffles' },
-    { id: 'gift', label: 'Gift Hampers' },
-  ];
+  // Top category horizontal chips derived dynamically from Admin category data
+  const categoryChips = useMemo(() => {
+    return [
+      { id: 'all', label: 'All' },
+      ...categoriesList
+        .filter((c) => c.value !== 'all')
+        .map((c) => ({ id: c.value, label: c.label })),
+    ];
+  }, [categoriesList]);
+
+  // Exact 4 Rating Options (No duplicates)
+  const ratingOptions = [4.5, 4.0, 3.5, 3.0];
 
   return (
     <motion.div
@@ -280,6 +286,7 @@ export const ShopPage: React.FC = () => {
                 outline: 'none',
               }}
             >
+              <option value="featured">Featured / Recommended</option>
               <option value="popularity">Popularity</option>
               <option value="price_asc">Price: Low to High</option>
               <option value="price_desc">Price: High to Low</option>
@@ -360,7 +367,6 @@ export const ShopPage: React.FC = () => {
                   color: '#f5efe6',
                   fontSize: '0.88rem',
                   outline: 'none',
-                  marginBottom: '12px',
                 }}
               >
                 {categoriesList.map((cat) => (
@@ -369,33 +375,64 @@ export const ShopPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-
-              <button
-                onClick={() => { setSelectedCategory('all'); setSearchParams({}); }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  border: '1px solid rgba(201, 168, 76, 0.25)',
-                  borderRadius: '4px',
-                  color: '#c9a84c',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <Plus size={14} /> View all categories
-              </button>
             </div>
 
             {/* Filter: Price Range */}
             <div className="filter-group">
               <h4 className="filter-group-title">PRICE RANGE</h4>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Min (₹)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={priceRange.max}
+                    value={priceRange.min === 0 ? '' : priceRange.min}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      setPriceRange((prev) => ({ ...prev, min: val }));
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '6px 8px',
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid rgba(201, 168, 76, 0.3)',
+                      borderRadius: '4px',
+                      color: '#f5efe6',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <span style={{ color: 'rgba(255,255,255,0.4)', paddingTop: '16px' }}>—</span>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Max (₹)</span>
+                  <input
+                    type="number"
+                    min={priceRange.min}
+                    max={50000}
+                    value={priceRange.max === 50000 ? '' : priceRange.max}
+                    placeholder="50,000"
+                    onChange={(e) => {
+                      const val = Math.min(50000, parseInt(e.target.value) || 50000);
+                      setPriceRange((prev) => ({ ...prev, max: val }));
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '6px 8px',
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid rgba(201, 168, 76, 0.3)',
+                      borderRadius: '4px',
+                      color: '#f5efe6',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
               <input
                 type="range"
                 min="0"
@@ -403,13 +440,13 @@ export const ShopPage: React.FC = () => {
                 step="500"
                 value={priceRange.max}
                 onChange={(e) => {
-                  setPriceRange({ ...priceRange, max: parseInt(e.target.value) });
+                  setPriceRange((prev) => ({ ...prev, max: parseInt(e.target.value) }));
                   setCurrentPage(1);
                 }}
-                style={{ width: '100%', accentColor: '#c9a84c', cursor: 'pointer', marginBottom: '12px' }}
+                style={{ width: '100%', accentColor: '#c9a84c', cursor: 'pointer', marginBottom: '8px' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                <span>Min: ₹0</span>
+                <span>Min: ₹{priceRange.min.toLocaleString()}</span>
                 <span>Max: ₹{priceRange.max.toLocaleString()}</span>
               </div>
             </div>
@@ -421,23 +458,37 @@ export const ShopPage: React.FC = () => {
                 <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', display: 'block', marginBottom: '10px' }}>Ratings</span>
               </div>
               <div className="rating-filter-list">
-                {[4.5, 4.0, 4.0, 3.5, 3.0].map((rating, idx) => (
-                  <button
-                    key={`${rating}-${idx}`}
-                    onClick={() => { setMinRating(rating); setCurrentPage(1); }}
-                    className={`rating-filter-btn ${minRating === rating ? 'active' : ''}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      color: minRating === rating ? '#c9a84c' : 'rgba(255,255,255,0.8)',
-                      fontSize: '0.88rem',
-                    }}
-                  >
-                    <Star size={15} fill="#c9a84c" color="#c9a84c" />
-                    <span>{rating}★ &amp; above</span>
-                  </button>
-                ))}
+                {ratingOptions.map((rating) => {
+                  const isSelected = minRating === rating;
+                  return (
+                    <button
+                      key={rating}
+                      onClick={() => {
+                        setMinRating(isSelected ? null : rating);
+                        setCurrentPage(1);
+                      }}
+                      className={`rating-filter-btn ${isSelected ? 'active' : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        color: isSelected ? '#c9a84c' : 'rgba(255,255,255,0.8)',
+                        fontSize: '0.88rem',
+                        background: isSelected ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
+                        border: isSelected ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid transparent',
+                        borderRadius: '4px',
+                        padding: '6px 10px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <Star size={15} fill="#c9a84c" color="#c9a84c" />
+                      <span>{rating === 4.0 ? '4' : rating === 3.0 ? '3' : rating}★ &amp; above</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </aside>
@@ -507,6 +558,7 @@ export const ShopPage: React.FC = () => {
                       cursor: 'pointer',
                     }}
                   >
+                    <option value="featured" style={{ background: '#0f0c0a' }}>Featured / Recommended</option>
                     <option value="popularity" style={{ background: '#0f0c0a' }}>Popularity</option>
                     <option value="price_asc" style={{ background: '#0f0c0a' }}>Price: Low to High</option>
                     <option value="price_desc" style={{ background: '#0f0c0a' }}>Price: High to Low</option>
@@ -907,17 +959,73 @@ export const ShopPage: React.FC = () => {
                   {/* Price Range */}
                   <div className="filter-group">
                     <h4 className="filter-group-title">PRICE RANGE</h4>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Min (₹)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={priceRange.max}
+                          value={priceRange.min === 0 ? '' : priceRange.min}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            setPriceRange((prev) => ({ ...prev, min: val }));
+                            setCurrentPage(1);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            background: 'rgba(0,0,0,0.4)',
+                            border: '1px solid rgba(201, 168, 76, 0.3)',
+                            borderRadius: '4px',
+                            color: '#f5efe6',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', paddingTop: '16px' }}>—</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Max (₹)</span>
+                        <input
+                          type="number"
+                          min={priceRange.min}
+                          max={50000}
+                          value={priceRange.max === 50000 ? '' : priceRange.max}
+                          placeholder="50,000"
+                          onChange={(e) => {
+                            const val = Math.min(50000, parseInt(e.target.value) || 50000);
+                            setPriceRange((prev) => ({ ...prev, max: val }));
+                            setCurrentPage(1);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            background: 'rgba(0,0,0,0.4)',
+                            border: '1px solid rgba(201, 168, 76, 0.3)',
+                            borderRadius: '4px',
+                            color: '#f5efe6',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
                     <input
                       type="range"
                       min="0"
                       max="50000"
                       step="500"
                       value={priceRange.max}
-                      onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
-                      style={{ width: '100%', accentColor: '#c9a84c', cursor: 'pointer', marginBottom: '12px' }}
+                      onChange={(e) => {
+                        setPriceRange((prev) => ({ ...prev, max: parseInt(e.target.value) }));
+                        setCurrentPage(1);
+                      }}
+                      style={{ width: '100%', accentColor: '#c9a84c', cursor: 'pointer', marginBottom: '8px' }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
-                      <span>Min: ₹0</span>
+                      <span>Min: ₹{priceRange.min.toLocaleString()}</span>
                       <span>Max: ₹{priceRange.max.toLocaleString()}</span>
                     </div>
                   </div>
@@ -926,12 +1034,37 @@ export const ShopPage: React.FC = () => {
                   <div className="filter-group">
                     <h4 className="filter-group-title">RATING</h4>
                     <div className="rating-filter-list">
-                      {[4.5, 4.0, 4.0, 3.5, 3.0].map((rating, idx) => (
-                        <button key={`${rating}-${idx}`} onClick={() => setMinRating(rating)} className={`rating-filter-btn ${minRating === rating ? 'active' : ''}`}>
-                          <Star size={14} fill="#c9a84c" color="#c9a84c" />
-                          <span>{rating}★ &amp; above</span>
-                        </button>
-                      ))}
+                      {ratingOptions.map((rating) => {
+                        const isSelected = minRating === rating;
+                        return (
+                          <button
+                            key={rating}
+                            onClick={() => {
+                              setMinRating(isSelected ? null : rating);
+                              setCurrentPage(1);
+                            }}
+                            className={`rating-filter-btn ${isSelected ? 'active' : ''}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              color: isSelected ? '#c9a84c' : 'rgba(255,255,255,0.8)',
+                              fontSize: '0.88rem',
+                              background: isSelected ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
+                              border: isSelected ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid transparent',
+                              borderRadius: '4px',
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              width: '100%',
+                              textAlign: 'left',
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <Star size={14} fill="#c9a84c" color="#c9a84c" />
+                            <span>{rating === 4.0 ? '4' : rating === 3.0 ? '3' : rating}★ &amp; above</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

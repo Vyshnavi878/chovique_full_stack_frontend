@@ -1,38 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
 import { fadeInUp } from '../../lib/framer';
 
-import { categoryService } from '../../services/categoryService';
-
 export const Boutique: React.FC = () => {
   const { products } = useApp();
-  const [activeFilter, setActiveFilter] = useState<string>('all');
-  const [filterButtons, setFilterButtons] = useState<{ type: string; label: string }[]>([
-    { type: 'all', label: 'All' },
-  ]);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    categoryService.getCategories()
-      .then((cats) => {
-        if (Array.isArray(cats) && cats.length > 0) {
-          setFilterButtons([
-            { type: 'all', label: 'All' },
-            ...cats.map((c) => ({ type: c.slug, label: c.name })),
-          ]);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
-    }
-  }, [activeFilter]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -44,22 +19,6 @@ export const Boutique: React.FC = () => {
       });
     }
   };
-
-  const filteredProducts = products.filter((product) => {
-    if (activeFilter === 'all') return true;
-    if (!product.category) return false;
-    const cat = product.category.toLowerCase();
-    const filter = activeFilter.toLowerCase();
-
-    if (cat === filter) return true;
-    if (filter.includes(cat) || cat.includes(filter)) return true;
-    if (cat === 'dark' && filter.includes('dark')) return true;
-    if (cat === 'milk' && filter.includes('milk')) return true;
-    if (cat === 'white' && filter.includes('white')) return true;
-    if (cat === 'gift' && (filter.includes('gift') || filter.includes('hamper'))) return true;
-    if (cat === 'beverage' && filter.includes('bev')) return true;
-    return false;
-  });
 
   return (
     <section
@@ -81,7 +40,7 @@ export const Boutique: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '24px',
+            marginBottom: '40px',
           }}
         >
           <span className="section-label" style={{ justifyContent: 'center' }}>
@@ -94,39 +53,6 @@ export const Boutique: React.FC = () => {
             Browse our complete range of artisanal chocolates — from single-origin bars to luxurious gift hampers.
           </p>
         </motion.div>
-
-        {/* Filter Toolbar */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: '12px',
-            marginBottom: '24px',
-          }}
-        >
-          {filterButtons.map((btn) => (
-            <button
-              key={btn.type}
-              onClick={() => setActiveFilter(btn.type)}
-              style={{
-                padding: '10px 24px',
-                borderRadius: '25px',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                background: activeFilter === btn.type ? 'var(--gradient-gold)' : 'rgba(255, 255, 255, 0.05)',
-                color: activeFilter === btn.type ? 'var(--dark-chocolate)' : 'var(--cream)',
-                border: activeFilter === btn.type ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                transition: 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                cursor: 'pointer',
-              }}
-            >
-              {btn.label}
-            </button>
-          ))}
-        </div>
 
         {/* Inline CSS to hide scrollbars */}
         <style>{`
@@ -194,8 +120,8 @@ export const Boutique: React.FC = () => {
             className="hide-scrollbar"
           >
             <AnimatePresence mode="popLayout">
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => (
+              {products.length > 0 ? (
+                products.map((product) => (
                   <motion.div
                     layout
                     key={product.id}
@@ -225,7 +151,7 @@ export const Boutique: React.FC = () => {
                     fontSize: '1.1rem',
                   }}
                 >
-                  No products in this category yet.
+                  No products in the collection yet.
                 </motion.div>
               )}
             </AnimatePresence>
