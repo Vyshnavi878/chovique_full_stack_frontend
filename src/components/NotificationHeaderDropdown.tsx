@@ -269,8 +269,8 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           width: '42px',
           height: '42px',
           borderRadius: '10px',
-          background: 'rgba(20, 16, 13, 0.9)',
-          border: '1px solid rgba(201, 168, 76, 0.3)',
+          background: isOpen ? 'rgba(20, 16, 13, 0.9)' : 'transparent',
+          border: isOpen ? '1px solid rgba(201, 168, 76, 0.3)' : '1px solid transparent',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -278,11 +278,11 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           color: '#f5efe6',
           position: 'relative',
           transition: 'all 0.2s ease',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          boxShadow: isOpen ? '0 4px 12px rgba(0,0,0,0.4)' : 'none',
         }}
         aria-label="Notifications"
       >
-        <Bell size={20} color="#c9a84c" />
+        <Bell size={20} color={isOpen ? '#c9a84c' : '#f5efe6'} />
 
         {/* Unread Count Badge */}
         {unreadCount > 0 && (

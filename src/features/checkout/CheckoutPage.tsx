@@ -128,7 +128,21 @@ export const CheckoutPage: React.FC = () => {
 
   useEffect(() => {
     if (user && user.role !== 'guest') {
-      cartService.getAvailableCoupons().then((coupons) => setAvailableCoupons(coupons)).catch(() => {});
+      cartService
+        .getAvailableCoupons()
+        .then((coupons) => {
+          const eligible = (coupons || []).filter(
+            (c: any) =>
+              c.is_active !== false &&
+              c.status !== 'Used' &&
+              c.status !== 'USED' &&
+              c.status !== 'Expired' &&
+              c.status !== 'EXPIRED' &&
+              c.status !== 'Not Available'
+          );
+          setAvailableCoupons(eligible);
+        })
+        .catch(() => {});
     }
   }, [user]);
 
@@ -148,7 +162,7 @@ export const CheckoutPage: React.FC = () => {
         })
         .then((res) => {
           setCoinPreview(res);
-          setCoinsToUse(res.allowed_coins);
+          setCoinsToUse(res.allowed_coins > 0 ? res.allowed_coins : 0);
         })
         .catch(() => {
           setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: 'Available reward coins are insufficient for redemption on this order.' });
@@ -360,7 +374,7 @@ export const CheckoutPage: React.FC = () => {
         delivery_option: deliveryOption,
         payment_method: paymentMethod,
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
-        coins_to_use: useCoins && coinPreview.allowed_coins > 0 ? (coinsToUse || coinPreview.allowed_coins) : 0,
+        coins_to_use: useCoins && coinPreview.allowed_coins > 0 ? (coinsToUse > 0 && coinsToUse <= coinPreview.allowed_coins ? coinsToUse : coinPreview.allowed_coins) : 0,
       };
 
       try {

@@ -88,6 +88,8 @@ export interface Product {
   stock?: number;
   is_available?: boolean;
   isAvailable?: boolean;
+  isBestseller?: boolean;
+  isNewArrival?: boolean;
   nutrition?: NutritionInfo;
 }
 
@@ -95,6 +97,26 @@ export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+export type OrderStatus =
+  | 'Pending'
+  | 'Confirmed'
+  | 'Processing'
+  | 'Shipped'
+  | 'Out for Delivery'
+  | 'Delivered'
+  | 'Cancelled'
+  | 'Returned';
+
+export type PaymentStatus =
+  | 'Pending'
+  | 'Processing'
+  | 'Paid'
+  | 'Failed'
+  | 'Cancelled'
+  | 'Refund Pending'
+  | 'Refunded'
+  | 'Partially Refunded';
 
 export interface Order {
   id: string;
@@ -110,8 +132,8 @@ export interface Order {
   coins_earned?: number;
   shipping: number;
   tax: number;
-  status: 'Processing' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
-  payment_status?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  status: OrderStatus | string;
+  payment_status?: PaymentStatus | string;
   date: string;
   created_at?: string;
   shippingAddress: CustomerAddress;

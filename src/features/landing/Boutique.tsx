@@ -63,10 +63,19 @@ export const Boutique: React.FC = () => {
             -ms-overflow-style: none;
             scrollbar-width: none;
           }
+          @media (max-width: 640px) {
+            .boutique-carousel-wrapper {
+              padding: 0 40px !important;
+            }
+            .boutique-card-item {
+              flex: 0 0 250px !important;
+              width: 250px !important;
+            }
+          }
         `}</style>
 
         {/* Slider Container Wrapper */}
-        <div style={{ position: 'relative', width: '100%', padding: '0 50px' }}>
+        <div className="boutique-carousel-wrapper" style={{ position: 'relative', width: '100%', padding: '0 50px' }}>
           {/* Left Arrow Button */}
           <button
             onClick={(e) => {
@@ -129,9 +138,14 @@ export const Boutique: React.FC = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.3 }}
+                    className="boutique-card-item"
                     style={{
                       flex: '0 0 280px',
+                      width: '280px',
+                      maxWidth: '280px',
                       scrollSnapAlign: 'start',
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}
                   >
                     <Card product={product} />

@@ -294,7 +294,7 @@ export const Card: React.FC<CardProps> = ({ product }) => {
             </div>
           </div>
 
-        <div style={{ marginTop: '16px' }}>
+        <div style={{ marginTop: 'auto', paddingTop: '12px' }}>
           {isOutOfStock ? (
             <button
               disabled

@@ -909,6 +909,9 @@ export const adminService = {
   getSuperadminAuditLogById: (logId: string): Promise<SuperadminAuditLogRecord> =>
     apiGet<SuperadminAuditLogRecord>(`/superadmin/audit-logs/${logId}`),
 
+  getAdminAuditLogById: (logId: string): Promise<SuperadminAuditLogRecord> =>
+    apiGet<SuperadminAuditLogRecord>(`/superadmin/audit-logs/${logId}`),
+
   exportSuperadminAuditLogsCsv: async (params?: {
     date_from?: string;
     date_to?: string;

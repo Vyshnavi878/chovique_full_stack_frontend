@@ -21,7 +21,21 @@ export const CartPage: React.FC = () => {
 
   React.useEffect(() => {
     if (role !== 'guest') {
-      cartService.getAvailableCoupons().then(coupons => setAvailableCoupons(coupons)).catch(() => {});
+      cartService
+        .getAvailableCoupons()
+        .then((coupons) => {
+          const eligible = (coupons || []).filter(
+            (c: any) =>
+              c.is_active !== false &&
+              c.status !== 'Used' &&
+              c.status !== 'USED' &&
+              c.status !== 'Expired' &&
+              c.status !== 'EXPIRED' &&
+              c.status !== 'Not Available'
+          );
+          setAvailableCoupons(eligible);
+        })
+        .catch(() => {});
     }
   }, [role]);
 

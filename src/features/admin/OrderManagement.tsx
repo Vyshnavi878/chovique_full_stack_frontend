@@ -15,17 +15,41 @@ import { Pagination } from '../../components/ui/Pagination';
 
 // ─── Status Definitions ───────────────────────────────────────────────────────
 
-const FULFILLMENT_STATUSES = ['ALL', 'Processing', 'Confirmed', 'Shipped', 'Out_For_Delivery', 'Delivered', 'Cancelled'];
-const PAYMENT_STATUSES = ['ALL', 'PENDING', 'PAID', 'FAILED', 'REFUNDED'];
+const FULFILLMENT_STATUSES = [
+  'ALL',
+  'Pending',
+  'Confirmed',
+  'Processing',
+  'Shipped',
+  'Out for Delivery',
+  'Delivered',
+  'Cancelled',
+  'Returned',
+];
+
+const PAYMENT_STATUSES = [
+  'ALL',
+  'Pending',
+  'Processing',
+  'Paid',
+  'Failed',
+  'Cancelled',
+  'Refund Pending',
+  'Refunded',
+  'Partially Refunded',
+];
 
 // Valid forward-only transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  Processing: ['Confirmed', 'Cancelled'],
-  Confirmed: ['Shipped', 'Cancelled'],
-  Shipped: ['Out_For_Delivery', 'Cancelled'],
-  Out_For_Delivery: ['Delivered'],
-  Delivered: [],
+  Pending: ['Confirmed', 'Processing', 'Cancelled'],
+  Confirmed: ['Processing', 'Shipped', 'Cancelled'],
+  Processing: ['Confirmed', 'Shipped', 'Cancelled'],
+  Shipped: ['Out for Delivery', 'Delivered', 'Cancelled'],
+  'Out for Delivery': ['Delivered', 'Cancelled'],
+  Out_For_Delivery: ['Delivered', 'Cancelled'],
+  Delivered: ['Returned'],
   Cancelled: [],
+  Returned: [],
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,27 +57,44 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const FULFILLMENT_COLORS: Record<string, { bg: string; color: string }> = {
-  Processing: { bg: 'rgba(201,168,76,0.15)', color: '#c9a84c' },
+  Pending: { bg: 'rgba(243,156,18,0.15)', color: '#f39c12' },
   Confirmed: { bg: 'rgba(52,152,219,0.15)', color: '#3498db' },
+  Processing: { bg: 'rgba(201,168,76,0.15)', color: '#c9a84c' },
   Shipped: { bg: 'rgba(52,73,94,0.4)', color: '#a9c0d8' },
-  Out_For_Delivery: { bg: 'rgba(243,156,18,0.15)', color: '#f39c12' },
+  'Out for Delivery': { bg: 'rgba(230,126,34,0.15)', color: '#e67e22' },
+  Out_For_Delivery: { bg: 'rgba(230,126,34,0.15)', color: '#e67e22' },
   Delivered: { bg: 'rgba(46,204,113,0.15)', color: '#2ecc71' },
   Cancelled: { bg: 'rgba(231,76,60,0.15)', color: '#e74c3c' },
+  Returned: { bg: 'rgba(155,89,182,0.15)', color: '#9b59b6' },
 };
 
 const PAYMENT_COLORS: Record<string, { bg: string; color: string }> = {
+  Pending: { bg: 'rgba(243,156,18,0.15)', color: '#f39c12' },
   PENDING: { bg: 'rgba(243,156,18,0.15)', color: '#f39c12' },
+  Processing: { bg: 'rgba(52,152,219,0.15)', color: '#3498db' },
+  PROCESSING: { bg: 'rgba(52,152,219,0.15)', color: '#3498db' },
+  Paid: { bg: 'rgba(46,204,113,0.15)', color: '#2ecc71' },
   PAID: { bg: 'rgba(46,204,113,0.15)', color: '#2ecc71' },
+  Failed: { bg: 'rgba(231,76,60,0.15)', color: '#e74c3c' },
   FAILED: { bg: 'rgba(231,76,60,0.15)', color: '#e74c3c' },
+  Cancelled: { bg: 'rgba(231,76,60,0.15)', color: '#e74c3c' },
+  CANCELLED: { bg: 'rgba(231,76,60,0.15)', color: '#e74c3c' },
+  'Refund Pending': { bg: 'rgba(241,196,15,0.15)', color: '#f1c40f' },
+  'REFUND PENDING': { bg: 'rgba(241,196,15,0.15)', color: '#f1c40f' },
+  REFUND_PENDING: { bg: 'rgba(241,196,15,0.15)', color: '#f1c40f' },
+  Refunded: { bg: 'rgba(155,89,182,0.15)', color: '#9b59b6' },
   REFUNDED: { bg: 'rgba(155,89,182,0.15)', color: '#9b59b6' },
+  'Partially Refunded': { bg: 'rgba(142,68,173,0.15)', color: '#8e44ad' },
+  'PARTIALLY REFUNDED': { bg: 'rgba(142,68,173,0.15)', color: '#8e44ad' },
+  PARTIALLY_REFUNDED: { bg: 'rgba(142,68,173,0.15)', color: '#8e44ad' },
 };
 
-const IRREVERSIBLE = new Set(['Cancelled', 'Delivered']);
+const IRREVERSIBLE = new Set(['Cancelled', 'Returned']);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const StatusBadge: React.FC<{ status: string; map: Record<string, { bg: string; color: string }> }> = ({ status, map }) => {
-  const c = map[status] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
+  const c = map[status] || map[status?.toUpperCase?.()] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
   return (
     <span style={{
       display: 'inline-block',
@@ -166,12 +207,18 @@ export const OrderDetailModal: React.FC<{
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginBottom: '4px' }}>
-              Status: <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
+          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Order Status
+              </div>
+              <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-              Payment: <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Payment Status
+              </div>
+              <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -183,7 +230,7 @@ export const OrderDetailModal: React.FC<{
         {allowedNext.length > 0 && (
           <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '10px' }}>
-              Update Fulfillment Status:
+              Update Order Status:
             </div>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {allowedNext.map((st) => (
@@ -424,7 +471,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
       <div className="glass-panel" style={{ padding: '18px 22px', marginBottom: '18px', border: '1px solid var(--glass-border)' }}>
         <div style={{ marginBottom: '14px' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Fulfillment Status</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Order Status</span>
           <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
             {FULFILLMENT_STATUSES.map((st) => {
               const isActive = fulfillmentFilter === st;
@@ -506,7 +553,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                {['Order ID & Date', 'Customer', 'Items & Qty', 'Payment Method', 'Payment Status', 'Fulfillment Status', 'Total', 'Actions'].map((h) => (
+                {['Order ID & Date', 'Customer', 'Items & Qty', 'Payment Method', 'Payment Status', 'Order Status', 'Total', 'Actions'].map((h) => (
                   <th key={h} style={{ padding: '13px 15px', textAlign: 'left', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--gold)', background: 'rgba(201,168,76,0.05)', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>

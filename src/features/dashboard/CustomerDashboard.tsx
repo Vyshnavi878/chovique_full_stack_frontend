@@ -1842,10 +1842,11 @@ export const CustomerDashboard: React.FC = () => {
                     </button>
 
                     {/* Order Title Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
                       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
                         Order #{selectedOrder.id}
                       </h2>
+                      {/* Order Status Badge */}
                       <span
                         style={{
                           fontSize: '0.78rem',
@@ -1855,26 +1856,75 @@ export const CustomerDashboard: React.FC = () => {
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
                           background:
-                            selectedOrder.status === 'Delivered' || selectedOrder.status === 'Confirmed'
+                            selectedOrder.status === 'Delivered'
                               ? 'rgba(46, 204, 113, 0.18)'
+                              : selectedOrder.status === 'Confirmed'
+                              ? 'rgba(52, 152, 219, 0.18)'
                               : selectedOrder.status === 'Cancelled'
                               ? 'rgba(231, 76, 60, 0.18)'
+                              : selectedOrder.status === 'Returned'
+                              ? 'rgba(155, 89, 182, 0.18)'
                               : 'rgba(241, 196, 15, 0.18)',
                           color:
-                            selectedOrder.status === 'Delivered' || selectedOrder.status === 'Confirmed'
+                            selectedOrder.status === 'Delivered'
                               ? '#2ecc71'
+                              : selectedOrder.status === 'Confirmed'
+                              ? '#3498db'
                               : selectedOrder.status === 'Cancelled'
                               ? '#e74c3c'
+                              : selectedOrder.status === 'Returned'
+                              ? '#9b59b6'
                               : '#f1c40f',
                           border:
-                            selectedOrder.status === 'Delivered' || selectedOrder.status === 'Confirmed'
+                            selectedOrder.status === 'Delivered'
                               ? '1px solid rgba(46, 204, 113, 0.4)'
+                              : selectedOrder.status === 'Confirmed'
+                              ? '1px solid rgba(52, 152, 219, 0.4)'
                               : selectedOrder.status === 'Cancelled'
                               ? '1px solid rgba(231, 76, 60, 0.4)'
+                              : selectedOrder.status === 'Returned'
+                              ? '1px solid rgba(155, 89, 182, 0.4)'
                               : '1px solid rgba(241, 196, 15, 0.4)',
                         }}
                       >
-                        {selectedOrder.status}
+                        Order Status: {selectedOrder.status}
+                      </span>
+                      {/* Payment Status Badge */}
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          padding: '4px 14px',
+                          borderRadius: '6px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          background:
+                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                              ? 'rgba(46, 204, 113, 0.18)'
+                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                              ? 'rgba(231, 76, 60, 0.18)'
+                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                              ? 'rgba(155, 89, 182, 0.18)'
+                              : 'rgba(241, 196, 15, 0.18)',
+                          color:
+                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                              ? '#2ecc71'
+                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                              ? '#e74c3c'
+                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                              ? '#9b59b6'
+                              : '#f1c40f',
+                          border:
+                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                              ? '1px solid rgba(46, 204, 113, 0.4)'
+                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                              ? '1px solid rgba(231, 76, 60, 0.4)'
+                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                              ? '1px solid rgba(155, 89, 182, 0.4)'
+                              : '1px solid rgba(241, 196, 15, 0.4)',
+                        }}
+                      >
+                        Payment Status: {selectedOrder.payment_status || 'Paid'}
                       </span>
                     </div>
 
@@ -1882,7 +1932,7 @@ export const CustomerDashboard: React.FC = () => {
                       Placed on {selectedOrder.date} &nbsp;•&nbsp; Payment Method: <strong>{selectedOrder.paymentMethod || 'Cash on Delivery'}</strong>
                     </p>
 
-                    {/* Order Status Lifecycle Tracker Card */}
+                    {/* Order Status Lifecycle Tracker Card (Represents Order Status Only) */}
                     <div
                       style={{
                         background: 'rgba(18, 14, 11, 0.95)',
@@ -1893,69 +1943,158 @@ export const CustomerDashboard: React.FC = () => {
                         boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                       }}
                     >
-                      {selectedOrder.status === 'Cancelled' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(231, 76, 60, 0.2)', border: '1px solid #e74c3c', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <X size={20} />
-                          </div>
-                          <div>
-                            <h4 style={{ color: '#e74c3c', margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 700 }}>Order Cancelled</h4>
-                            <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '0.85rem' }}>This order has been cancelled and will not be fulfilled.</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-                          {/* Progress Line */}
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '20px',
-                              left: '40px',
-                              right: '40px',
-                              height: '2px',
-                              background: 'rgba(255, 255, 255, 0.12)',
-                              zIndex: 1,
-                            }}
-                          />
-                          {[
-                            { key: 'Placed', label: 'Placed', icon: Clock },
+                      {(() => {
+                        const currentSt = selectedOrder.status || 'Processing';
+
+                        if (currentSt === 'Cancelled') {
+                          const cancelledSteps = [
+                            { key: 'Placed', label: 'Order Placed', icon: Clock, isDone: true, isError: false },
+                            { key: 'Confirmed', label: 'Confirmed', icon: Check, isDone: true, isError: false },
+                            { key: 'Cancelled', label: 'Cancelled', icon: X, isDone: true, isError: true },
+                          ];
+                          return (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                              <div style={{ position: 'absolute', top: '20px', left: '40px', right: '40px', height: '2px', background: 'rgba(231, 76, 60, 0.3)', zIndex: 1 }} />
+                              {cancelledSteps.map((step) => {
+                                const StepIcon = step.icon;
+                                return (
+                                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
+                                    <div
+                                      style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '50%',
+                                        background: step.isError ? '#e74c3c' : '#2ecc71',
+                                        border: `2px solid ${step.isError ? '#e74c3c' : '#2ecc71'}`,
+                                        color: '#0f0c0a',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 0 14px ${step.isError ? 'rgba(231, 76, 60, 0.4)' : 'rgba(46, 204, 113, 0.4)'}`,
+                                      }}
+                                    >
+                                      <StepIcon size={18} />
+                                    </div>
+                                    <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: 700, color: step.isError ? '#e74c3c' : '#f5efe6' }}>
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+
+                        if (currentSt === 'Returned') {
+                          const returnedSteps = [
+                            { key: 'Placed', label: 'Order Placed', icon: Clock },
                             { key: 'Confirmed', label: 'Confirmed', icon: Check },
                             { key: 'Processing', label: 'Processing', icon: Package },
                             { key: 'Shipped', label: 'Shipped', icon: Truck },
                             { key: 'Delivered', label: 'Delivered', icon: PackageCheck },
-                          ].map((step, idx) => {
-                            const stepsOrder = ['Placed', 'Confirmed', 'Processing', 'Shipped', 'Delivered'];
-                            const currentIdx = stepsOrder.indexOf(selectedOrder.status || 'Confirmed');
-                            const isDone = idx <= (currentIdx >= 0 ? currentIdx : 1);
-                            const StepIcon = step.icon;
+                            { key: 'Returned', label: 'Returned', icon: RefreshCw },
+                          ];
+                          return (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                              <div style={{ position: 'absolute', top: '20px', left: '40px', right: '40px', height: '2px', background: 'rgba(155, 89, 182, 0.4)', zIndex: 1 }} />
+                              {returnedSteps.map((step) => {
+                                const StepIcon = step.icon;
+                                const isReturn = step.key === 'Returned';
+                                return (
+                                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
+                                    <div
+                                      style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '50%',
+                                        background: isReturn ? '#9b59b6' : '#2ecc71',
+                                        border: `2px solid ${isReturn ? '#9b59b6' : '#2ecc71'}`,
+                                        color: '#0f0c0a',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 0 14px ${isReturn ? 'rgba(155, 89, 182, 0.4)' : 'rgba(46, 204, 113, 0.4)'}`,
+                                      }}
+                                    >
+                                      <StepIcon size={18} />
+                                    </div>
+                                    <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: 700, color: isReturn ? '#9b59b6' : '#f5efe6' }}>
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
 
-                            return (
-                              <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
-                                <div
-                                  style={{
-                                    width: '40px',
-                                    height: '40px',
-                                    borderRadius: '50%',
-                                    background: isDone ? '#2ecc71' : 'rgba(18, 14, 11, 0.95)',
-                                    border: `2px solid ${isDone ? '#2ecc71' : 'rgba(255, 255, 255, 0.2)'}`,
-                                    color: isDone ? '#0f0c0a' : 'rgba(255, 255, 255, 0.4)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    boxShadow: isDone ? '0 0 14px rgba(46, 204, 113, 0.4)' : 'none',
-                                    transition: 'all 0.3s ease',
-                                  }}
-                                >
-                                  <StepIcon size={18} />
+                        // Normal flow: Placed → Confirmed → Processing → Shipped → Out for Delivery → Delivered
+                        const normalSteps = [
+                          { key: 'Pending', label: 'Order Placed', icon: Clock },
+                          { key: 'Confirmed', label: 'Confirmed', icon: Check },
+                          { key: 'Processing', label: 'Processing', icon: Package },
+                          { key: 'Shipped', label: 'Shipped', icon: Truck },
+                          { key: 'Out for Delivery', label: 'Out for Delivery', icon: Truck },
+                          { key: 'Delivered', label: 'Delivered', icon: PackageCheck },
+                        ];
+
+                        const statusHierarchy: Record<string, number> = {
+                          'Pending': 0,
+                          'Confirmed': 1,
+                          'Processing': 2,
+                          'Shipped': 3,
+                          'Out for Delivery': 4,
+                          'Out_For_Delivery': 4,
+                          'Delivered': 5,
+                        };
+
+                        const currentLevel = statusHierarchy[currentSt] !== undefined ? statusHierarchy[currentSt] : 2;
+
+                        return (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '20px',
+                                left: '40px',
+                                right: '40px',
+                                height: '2px',
+                                background: 'rgba(255, 255, 255, 0.12)',
+                                zIndex: 1,
+                              }}
+                            />
+                            {normalSteps.map((step, idx) => {
+                              const isDone = idx <= currentLevel;
+                              const StepIcon = step.icon;
+
+                              return (
+                                <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
+                                  <div
+                                    style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      borderRadius: '50%',
+                                      background: isDone ? '#2ecc71' : 'rgba(18, 14, 11, 0.95)',
+                                      border: `2px solid ${isDone ? '#2ecc71' : 'rgba(255, 255, 255, 0.2)'}`,
+                                      color: isDone ? '#0f0c0a' : 'rgba(255, 255, 255, 0.4)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      boxShadow: isDone ? '0 0 14px rgba(46, 204, 113, 0.4)' : 'none',
+                                      transition: 'all 0.3s ease',
+                                    }}
+                                  >
+                                    <StepIcon size={18} />
+                                  </div>
+                                  <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: isDone ? 700 : 500, color: isDone ? '#f5efe6' : 'rgba(255, 255, 255, 0.4)' }}>
+                                    {step.label}
+                                  </span>
                                 </div>
-                                <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: isDone ? 700 : 500, color: isDone ? '#f5efe6' : 'rgba(255, 255, 255, 0.4)' }}>
-                                  {step.label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Order Items Table Card */}
@@ -2095,7 +2234,7 @@ export const CustomerDashboard: React.FC = () => {
                                 ₹{selectedOrder.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                               <span style={{ display: 'block', fontSize: '0.75rem', color: '#2ecc71', fontWeight: 700 }}>
-                                ({selectedOrder.status === 'Cancelled' ? 'Cancelled' : selectedOrder.payment_status || 'Paid'})
+                                Payment: {selectedOrder.payment_status || 'Paid'}
                               </span>
                             </div>
                           </div>
@@ -2243,7 +2382,7 @@ export const CustomerDashboard: React.FC = () => {
                               <div><strong>Order No:</strong> {selectedOrder.id}</div>
                               <div><strong>Invoice Date:</strong> {selectedOrder.date}</div>
                               <div><strong>Payment Method:</strong> {selectedOrder.paymentMethod || 'Cash on Delivery'}</div>
-                              <div><strong>Payment Status:</strong> <span style={{ color: '#2ecc71', fontWeight: 700 }}>{selectedOrder.status === 'Cancelled' ? 'Cancelled' : selectedOrder.payment_status || 'Paid'}</span></div>
+                              <div><strong>Payment Status:</strong> <span style={{ color: '#2ecc71', fontWeight: 700 }}>{selectedOrder.payment_status || 'Paid'}</span></div>
                               <div><strong>Order Status:</strong> {selectedOrder.status}</div>
                             </div>
                           </div>
@@ -2338,7 +2477,7 @@ export const CustomerDashboard: React.FC = () => {
                               <div style={{ textAlign: 'right' }}>
                                 <span style={{ color: '#1a0d00' }}>₹{selectedOrder.total.toFixed(2)}</span>
                                 <span style={{ display: 'block', fontSize: '0.75rem', color: '#2ecc71', fontWeight: 700 }}>
-                                  ({selectedOrder.status === 'Cancelled' ? 'Cancelled' : selectedOrder.payment_status || 'Paid'})
+                                  Payment: {selectedOrder.payment_status || 'Paid'}
                                 </span>
                               </div>
                             </div>
@@ -2481,7 +2620,7 @@ export const CustomerDashboard: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '28px' }}>
                       {/* Status Filters */}
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {['All Orders', 'Processing', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'].map((statusOption) => {
+                        {['All Orders', 'Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Returned'].map((statusOption) => {
                           const filterVal = statusOption === 'All Orders' ? 'All' : statusOption;
                           const isActive = orderStatusFilter === filterVal;
                           return (
@@ -2643,37 +2782,88 @@ export const CustomerDashboard: React.FC = () => {
                                       <span style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.55)', display: 'block', marginBottom: '8px' }}>
                                         Placed on {ord.date} &nbsp;•&nbsp; {ord.paymentMethod || 'Cash on Delivery'}
                                       </span>
-                                      <span
-                                        style={{
-                                          fontSize: '0.72rem',
-                                          fontWeight: 800,
-                                          padding: '3px 10px',
-                                          borderRadius: '4px',
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.5px',
-                                          display: 'inline-block',
-                                          background:
-                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
-                                              ? 'rgba(46, 204, 113, 0.18)'
-                                              : ord.status === 'Cancelled'
-                                              ? 'rgba(231, 76, 60, 0.18)'
-                                              : 'rgba(241, 196, 15, 0.18)',
-                                          color:
-                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
-                                              ? '#2ecc71'
-                                              : ord.status === 'Cancelled'
-                                              ? '#e74c3c'
-                                              : '#f1c40f',
-                                          border:
-                                            ord.status === 'Delivered' || (ord.status as string) === 'Confirmed'
-                                              ? '1px solid rgba(46, 204, 113, 0.4)'
-                                              : ord.status === 'Cancelled'
-                                              ? '1px solid rgba(231, 76, 60, 0.4)'
-                                              : '1px solid rgba(241, 196, 15, 0.4)',
-                                        }}
-                                      >
-                                        {ord.status}
-                                      </span>
+                                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span
+                                          style={{
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            padding: '3px 10px',
+                                            borderRadius: '4px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            display: 'inline-block',
+                                            background:
+                                              ord.status === 'Delivered'
+                                                ? 'rgba(46, 204, 113, 0.18)'
+                                                : ord.status === 'Confirmed'
+                                                ? 'rgba(52, 152, 219, 0.18)'
+                                                : ord.status === 'Cancelled'
+                                                ? 'rgba(231, 76, 60, 0.18)'
+                                                : ord.status === 'Returned'
+                                                ? 'rgba(155, 89, 182, 0.18)'
+                                                : 'rgba(241, 196, 15, 0.18)',
+                                            color:
+                                              ord.status === 'Delivered'
+                                                ? '#2ecc71'
+                                                : ord.status === 'Confirmed'
+                                                ? '#3498db'
+                                                : ord.status === 'Cancelled'
+                                                ? '#e74c3c'
+                                                : ord.status === 'Returned'
+                                                ? '#9b59b6'
+                                                : '#f1c40f',
+                                            border:
+                                              ord.status === 'Delivered'
+                                                ? '1px solid rgba(46, 204, 113, 0.4)'
+                                                : ord.status === 'Confirmed'
+                                                ? '1px solid rgba(52, 152, 219, 0.4)'
+                                                : ord.status === 'Cancelled'
+                                                ? '1px solid rgba(231, 76, 60, 0.4)'
+                                                : ord.status === 'Returned'
+                                                ? '1px solid rgba(155, 89, 182, 0.4)'
+                                                : '1px solid rgba(241, 196, 15, 0.4)',
+                                          }}
+                                        >
+                                          {ord.status}
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            padding: '3px 10px',
+                                            borderRadius: '4px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            display: 'inline-block',
+                                            background:
+                                              (ord.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                                ? 'rgba(46, 204, 113, 0.18)'
+                                                : (ord.payment_status || '').toUpperCase() === 'FAILED'
+                                                ? 'rgba(231, 76, 60, 0.18)'
+                                                : (ord.payment_status || '').toUpperCase().includes('REFUND')
+                                                ? 'rgba(155, 89, 182, 0.18)'
+                                                : 'rgba(241, 196, 15, 0.18)',
+                                            color:
+                                              (ord.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                                ? '#2ecc71'
+                                                : (ord.payment_status || '').toUpperCase() === 'FAILED'
+                                                ? '#e74c3c'
+                                                : (ord.payment_status || '').toUpperCase().includes('REFUND')
+                                                ? '#9b59b6'
+                                                : '#f1c40f',
+                                            border:
+                                              (ord.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                                ? '1px solid rgba(46, 204, 113, 0.4)'
+                                                : (ord.payment_status || '').toUpperCase() === 'FAILED'
+                                                ? '1px solid rgba(231, 76, 60, 0.4)'
+                                                : (ord.payment_status || '').toUpperCase().includes('REFUND')
+                                                ? '1px solid rgba(155, 89, 182, 0.4)'
+                                                : '1px solid rgba(241, 196, 15, 0.4)',
+                                          }}
+                                        >
+                                          Payment: {ord.payment_status || 'Paid'}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
 
@@ -2724,12 +2914,12 @@ export const CustomerDashboard: React.FC = () => {
                                         ₹{ord.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                       <span style={{ fontSize: '0.78rem', color: '#2ecc71', fontWeight: 700, display: 'block', marginTop: '2px' }}>
-                                        ({ord.status === 'Cancelled' ? 'Cancelled' : ord.payment_status || 'Paid'})
+                                        Payment: {ord.payment_status || 'Paid'}
                                       </span>
                                     </div>
 
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: isMobileGrid ? 'flex-start' : 'flex-end', marginTop: '4px' }}>
-                                      {ord.status === 'Processing' && (
+                                      {(ord.status === 'Pending' || ord.status === 'Confirmed' || ord.status === 'Processing') && (
                                         <button
                                           type="button"
                                           disabled={cancellingOrderId === ord.id}

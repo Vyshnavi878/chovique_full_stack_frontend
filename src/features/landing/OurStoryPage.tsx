@@ -11,6 +11,7 @@ export const OurStoryPage: React.FC = () => {
   const [isMuted, setIsMuted] = useState(true);
   const [videoUrl, setVideoUrl] = useState('https://assets.mixkit.co/videos/preview/mixkit-pouring-melted-chocolate-on-a-muffin-34289-large.mp4');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     adminService.getStoryVideo()
@@ -21,6 +22,51 @@ export const OurStoryPage: React.FC = () => {
       })
       .catch(() => {});
   }, []);
+
+  // IntersectionObserver for video auto-play when visible, and auto-pause when scrolled away
+  useEffect(() => {
+    const el = videoContainerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (entry.isIntersecting) {
+          // Play automatically (starts muted for browser autoplay compatibility)
+          video.muted = isMuted;
+          video
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch(() => {
+              // If playback fails due to autoplay restrictions, enforce muted and retry
+              video.muted = true;
+              setIsMuted(true);
+              video
+                .play()
+                .then(() => {
+                  setIsPlaying(true);
+                })
+                .catch(() => {});
+            });
+        } else {
+          // Pause automatically when outside viewport
+          if (!video.paused) {
+            video.pause();
+            setIsPlaying(false);
+          }
+        }
+      },
+      { threshold: 0.25 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isMuted, videoUrl]);
 
   const steps = [
     {
@@ -106,6 +152,7 @@ export const OurStoryPage: React.FC = () => {
           >
             {/* Left: Proper Making Process Video */}
             <motion.div
+              ref={videoContainerRef}
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
