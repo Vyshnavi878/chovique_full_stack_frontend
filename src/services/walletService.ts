@@ -15,15 +15,46 @@ export interface RewardSettings {
   spend_per_coin: number;
   coins_per_rupee: number;
   max_redemption_percentage: number;
+  welcome_coins?: number;
+  first_order_coins?: number;
+  credit_delay_hours?: number;
 }
 
 export interface UserWallet {
   id: string;
   user_id: string;
   coin_balance: number;
+  available_coins?: number;
+  pending_coins?: number;
   rupee_value: number;
   settings: RewardSettings;
   recent_transactions: CoinTransaction[];
+}
+
+export interface AdminCustomerRewardStat {
+  user_id: string;
+  customer_name: string;
+  customer_email: string;
+  available_coins: number;
+  pending_coins: number;
+  total_coins_earned: number;
+  total_coins_redeemed: number;
+  total_coins_returned: number;
+  total_coins_reversed: number;
+  first_order_bonus_status: string;
+}
+
+export interface AdminCoinTransactionItem {
+  id: string;
+  customer_name: string;
+  customer_email: string;
+  coins: number;
+  transaction_type: string;
+  status: string;
+  reason: string;
+  order_id?: string;
+  created_at: string;
+  available_at?: string;
 }
 
 export interface CalculateRedemptionRequest {
@@ -70,4 +101,10 @@ export const walletService = {
 
   updateRewardSettings: (settings: RewardSettings): Promise<RewardSettings> =>
     apiPut<RewardSettings>('/admin/rewards/settings', settings),
+
+  adminGetCustomerRewards: (): Promise<AdminCustomerRewardStat[]> =>
+    apiGet<AdminCustomerRewardStat[]>('/admin/rewards/customers'),
+
+  adminGetCoinTransactions: (type = 'ALL'): Promise<AdminCoinTransactionItem[]> =>
+    apiGet<AdminCoinTransactionItem[]>(`/admin/rewards/transactions?type_filter=${type}`),
 };
