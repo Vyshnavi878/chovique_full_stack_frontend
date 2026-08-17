@@ -257,6 +257,8 @@ export const SuperadminDashboard: React.FC = () => {
   const defaultOverviewData: SuperadminOverviewResponse = {
     total_revenue: { current_value: 76986, previous_value: 68432, percentage_change: 12.5, comparison_label: 'vs last 7 days' },
     total_orders: { current_value: 124, previous_value: 114, percentage_change: 8.2, comparison_label: 'vs last 7 days' },
+    online_orders: { current_value: 88, previous_value: 80, percentage_change: 10.0, comparison_label: 'vs last 7 days' },
+    offline_orders: { current_value: 36, previous_value: 34, percentage_change: 5.9, comparison_label: 'vs last 7 days' },
     total_customers: { current_value: 248, previous_value: 232, percentage_change: 6.7, comparison_label: 'vs last 7 days' },
     active_admins: { current_value: 3, previous_value: 3, percentage_change: 0.0, comparison_label: 'vs last 7 days' },
     revenue_trend: [
@@ -2589,17 +2591,31 @@ export const SuperadminDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Card 2: TOTAL ORDERS */}
+                  {/* Card 2: ONLINE ORDERS */}
                   <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
                     <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                      TOTAL ORDERS
+                      ONLINE ORDERS
                     </span>
                     <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                      {displayOverview.total_orders.current_value.toLocaleString()}
+                      {(displayOverview.online_orders?.current_value ?? 0).toLocaleString()}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayOverview.total_orders.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                      <span>{displayOverview.total_orders.percentage_change >= 0 ? `+${displayOverview.total_orders.percentage_change}%` : `${displayOverview.total_orders.percentage_change}%`}</span>
-                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.total_orders.comparison_label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: ((displayOverview.online_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c') }}>
+                      <span>{(displayOverview.online_orders?.percentage_change ?? 0) >= 0 ? `+${displayOverview.online_orders?.percentage_change ?? 0}%` : `${displayOverview.online_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.online_orders?.comparison_label || displayOverview.total_revenue.comparison_label}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: OFFLINE ORDERS */}
+                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      OFFLINE ORDERS
+                    </span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {(displayOverview.offline_orders?.current_value ?? 0).toLocaleString()}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: ((displayOverview.offline_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c') }}>
+                      <span>{(displayOverview.offline_orders?.percentage_change ?? 0) >= 0 ? `+${displayOverview.offline_orders?.percentage_change ?? 0}%` : `${displayOverview.offline_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayOverview.offline_orders?.comparison_label || displayOverview.total_revenue.comparison_label}</span>
                     </div>
                   </div>
 

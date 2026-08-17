@@ -1062,6 +1062,8 @@ export interface RecentActivityItem {
 export interface SuperadminOverviewResponse {
   total_revenue: KPICardData;
   total_orders: KPICardData;
+  online_orders?: KPICardData;
+  offline_orders?: KPICardData;
   total_customers: KPICardData;
   active_admins: KPICardData;
   revenue_trend: RevenueTrendPoint[];
