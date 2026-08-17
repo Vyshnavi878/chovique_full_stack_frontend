@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Tag, HelpCircle, CheckCircle2, Calendar, Info, X, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Tag, HelpCircle, CheckCircle2, Calendar, Info, X, AlertCircle, Search } from 'lucide-react';
+import { productService } from '../../services/productService';
+import { categoryService, AdminCategory } from '../../services/categoryService';
+import type { Product } from '../../types';
 
 interface CreateCouponViewProps {
   onAddCoupon: (couponData: any) => Promise<void>;
@@ -32,9 +35,62 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  const [selectedApplicableIds, setSelectedApplicableIds] = useState<string[]>([]);
+  const [itemSearchText, setItemSearchText] = useState<string>('');
+  const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingItems(true);
+    Promise.all([
+      productService.getProducts({ per_page: 100 }).catch(() => ({ items: [] as Product[] })),
+      categoryService.adminGetAllCategories().catch(() => categoryService.getCategories().catch(() => [] as AdminCategory[])),
+    ]).then(([prodRes, catRes]) => {
+      if (!isMounted) return;
+      const prods = Array.isArray(prodRes) ? prodRes : (prodRes.items || (prodRes as any).products || []);
+      const cats = Array.isArray(catRes) ? catRes : [];
+      setProductsList(prods);
+      setCategoriesList(cats);
+    }).finally(() => {
+      if (isMounted) setIsLoadingItems(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleApplicabilityChange = (newApplicability: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      applicability: newApplicability,
+      applicable_ids: '',
+    }));
+    setSelectedApplicableIds([]);
+    setItemSearchText('');
+  };
+
+  const toggleItemSelection = (id: string) => {
+    setSelectedApplicableIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleSelectAll = (items: { id: string }[]) => {
+    const allIds = items.map((i) => i.id);
+    const allSelected = allIds.every((id) => selectedApplicableIds.includes(id));
+    if (allSelected) {
+      setSelectedApplicableIds((prev) => prev.filter((id) => !allIds.includes(id)));
+    } else {
+      setSelectedApplicableIds((prev) => Array.from(new Set([...prev, ...allIds])));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +113,16 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
       return;
     }
 
+    if (formData.applicability === 'SPECIFIC_PRODUCTS' && selectedApplicableIds.length === 0) {
+      addToast('error', 'Please select at least one product.', 'Validation Error');
+      return;
+    }
+
+    if (formData.applicability === 'SPECIFIC_CATEGORIES' && selectedApplicableIds.length === 0) {
+      addToast('error', 'Please select at least one category.', 'Validation Error');
+      return;
+    }
+
     const discountVal = parseFloat(formData.discount_value) || 0;
     const isPercentage = formData.discount_type === 'PERCENTAGE';
     const isFixed = formData.discount_type === 'FIXED_AMOUNT';
@@ -74,9 +140,7 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
       eligibility_rule: formData.eligibility_rule,
       eligibility_value: formData.eligibility_value || undefined,
       applicability: formData.applicability,
-      applicable_ids: formData.applicable_ids
-        ? formData.applicable_ids.split(',').map((s) => s.trim()).filter(Boolean)
-        : [],
+      applicable_ids: formData.applicability === 'ENTIRE_STORE' ? [] : selectedApplicableIds,
       usage_limit: parseInt(formData.usage_limit) || 0,
       per_user_usage_limit: parseInt(formData.per_user_usage_limit) || 1,
       start_at: formData.start_at ? `${formData.start_at}T00:00:00Z` : undefined,
@@ -107,6 +171,8 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
         start_at: '',
         expires_at: '',
       });
+      setSelectedApplicableIds([]);
+      setItemSearchText('');
     } catch (err: any) {
       addToast('error', err?.detail || err?.message || 'Failed to create coupon.', 'Error');
     } finally {
@@ -141,12 +207,46 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
     }
   };
 
+  const filteredProducts = productsList.filter((p) =>
+    (p.name || '').toLowerCase().includes(itemSearchText.toLowerCase())
+  );
+
+  const filteredCategories = categoriesList.filter((c) =>
+    (c.name || '').toLowerCase().includes(itemSearchText.toLowerCase())
+  );
+
   const applicabilityLabel = () => {
     switch (formData.applicability) {
-      case 'ENTIRE_STORE': return 'Entire Store';
-      case 'SPECIFIC_PRODUCTS': return 'Specific Products';
-      case 'SPECIFIC_CATEGORIES': return 'Specific Categories';
-      default: return '-';
+      case 'ENTIRE_STORE':
+        return 'Entire Store';
+      case 'SPECIFIC_PRODUCTS': {
+        if (selectedApplicableIds.length === 0) return 'Specific Products (None selected)';
+        if (selectedApplicableIds.length === 1) {
+          const prod = productsList.find((p) => p.id === selectedApplicableIds[0]);
+          return `1 Product (${prod?.name || selectedApplicableIds[0]})`;
+        }
+        const firstTwoNames = selectedApplicableIds
+          .slice(0, 2)
+          .map((id) => productsList.find((p) => p.id === id)?.name || id)
+          .join(', ');
+        const extraCount = selectedApplicableIds.length - 2;
+        return `${selectedApplicableIds.length} Products (${firstTwoNames}${extraCount > 0 ? `, +${extraCount} more` : ''})`;
+      }
+      case 'SPECIFIC_CATEGORIES': {
+        if (selectedApplicableIds.length === 0) return 'Specific Categories (None selected)';
+        if (selectedApplicableIds.length === 1) {
+          const cat = categoriesList.find((c) => c.id === selectedApplicableIds[0]);
+          return `1 Category (${cat?.name || selectedApplicableIds[0]})`;
+        }
+        const firstTwoNames = selectedApplicableIds
+          .slice(0, 2)
+          .map((id) => categoriesList.find((c) => c.id === id)?.name || id)
+          .join(', ');
+        const extraCount = selectedApplicableIds.length - 2;
+        return `${selectedApplicableIds.length} Categories (${firstTwoNames}${extraCount > 0 ? `, +${extraCount} more` : ''})`;
+      }
+      default:
+        return '-';
     }
   };
 
@@ -484,7 +584,7 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
                 </label>
                 <select
                   value={formData.applicability}
-                  onChange={(e) => handleChange('applicability', e.target.value)}
+                  onChange={(e) => handleApplicabilityChange(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '11px 14px',
@@ -503,34 +603,226 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
                   <option value="SPECIFIC_CATEGORIES">Specific Categories</option>
                 </select>
               </div>
+            </div>
 
-
-              {formData.applicability !== 'ENTIRE_STORE' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.83rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: '8px' }}>
-                    {formData.applicability === 'SPECIFIC_CATEGORIES' ? 'Category IDs' : 'Product IDs'} (comma-separated) <span style={{ color: '#e74c3c' }}>*</span>
+            {/* Dynamic Specific Products Selector */}
+            {formData.applicability === 'SPECIFIC_PRODUCTS' && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
+                    Select Products <span style={{ color: '#e74c3c' }}>*</span> ({selectedApplicableIds.length} selected)
                   </label>
+                  {filteredProducts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAll(filteredProducts)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#c9a84c',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      {filteredProducts.every((p) => selectedApplicableIds.includes(p.id)) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Filter */}
+                <div style={{ position: 'relative', marginBottom: '10px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
                   <input
                     type="text"
-                    placeholder="e.g. cat_123, cat_456"
-                    value={formData.applicable_ids}
-                    onChange={(e) => handleChange('applicable_ids', e.target.value)}
-                    required
+                    placeholder="Search products..."
+                    value={itemSearchText}
+                    onChange={(e) => setItemSearchText(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '11px 14px',
+                      padding: '9px 12px 9px 36px',
                       borderRadius: '6px',
                       border: '1px solid rgba(255,255,255,0.12)',
                       background: 'rgba(0,0,0,0.4)',
                       color: '#fff',
-                      fontSize: '0.88rem',
+                      fontSize: '0.84rem',
                       outline: 'none',
                       boxSizing: 'border-box',
                     }}
                   />
                 </div>
-              )}
-            </div>
+
+                {/* Products Checkboxes List */}
+                <div
+                  style={{
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: 'rgba(10,8,5,0.95)',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                  className="custom-scrollbar"
+                >
+                  {isLoadingItems ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem' }}>
+                      Loading products...
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem' }}>
+                      {itemSearchText ? 'No products matching search' : 'No products available'}
+                    </div>
+                  ) : (
+                    filteredProducts.map((product) => {
+                      const isSelected = selectedApplicableIds.includes(product.id);
+                      return (
+                        <div
+                          key={product.id}
+                          onClick={() => toggleItemSelection(product.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            background: isSelected ? 'rgba(201, 168, 76, 0.12)' : 'transparent',
+                            border: isSelected ? '1px solid rgba(201, 168, 76, 0.3)' : '1px solid transparent',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            style={{ accentColor: '#c9a84c', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', color: isSelected ? '#f5efe6' : 'rgba(255,255,255,0.8)', fontWeight: isSelected ? 600 : 400 }}>
+                            {product.name}
+                          </span>
+                          {product.price ? (
+                            <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: '#c9a84c' }}>
+                              ₹{product.price}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic Specific Categories Selector */}
+            {formData.applicability === 'SPECIFIC_CATEGORIES' && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
+                    Select Categories <span style={{ color: '#e74c3c' }}>*</span> ({selectedApplicableIds.length} selected)
+                  </label>
+                  {filteredCategories.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAll(filteredCategories)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#c9a84c',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      {filteredCategories.every((c) => selectedApplicableIds.includes(c.id)) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Filter */}
+                <div style={{ position: 'relative', marginBottom: '10px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                  <input
+                    type="text"
+                    placeholder="Search categories..."
+                    value={itemSearchText}
+                    onChange={(e) => setItemSearchText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px 9px 36px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(0,0,0,0.4)',
+                      color: '#fff',
+                      fontSize: '0.84rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Categories Checkboxes List */}
+                <div
+                  style={{
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: 'rgba(10,8,5,0.95)',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                  className="custom-scrollbar"
+                >
+                  {isLoadingItems ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem' }}>
+                      Loading categories...
+                    </div>
+                  ) : filteredCategories.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem' }}>
+                      {itemSearchText ? 'No categories matching search' : 'No categories available'}
+                    </div>
+                  ) : (
+                    filteredCategories.map((category) => {
+                      const isSelected = selectedApplicableIds.includes(category.id);
+                      return (
+                        <div
+                          key={category.id}
+                          onClick={() => toggleItemSelection(category.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            background: isSelected ? 'rgba(201, 168, 76, 0.12)' : 'transparent',
+                            border: isSelected ? '1px solid rgba(201, 168, 76, 0.3)' : '1px solid transparent',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            style={{ accentColor: '#c9a84c', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', color: isSelected ? '#f5efe6' : 'rgba(255,255,255,0.8)', fontWeight: isSelected ? 600 : 400 }}>
+                            {category.name}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* SECTION 5: Usage Limits */}
