@@ -121,7 +121,16 @@ export const CheckoutPage: React.FC = () => {
     }
   });
 
-  // Fetch user wallet data
+  const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [isCouponLoading, setIsCouponLoading] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user && user.role !== 'guest') {
+      cartService.getAvailableCoupons().then((coupons) => setAvailableCoupons(coupons)).catch(() => {});
+    }
+  }, [user]);
 
   // Pricing calculations (display-only; backend recalculates authoritatively)
   const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -130,7 +139,7 @@ export const CheckoutPage: React.FC = () => {
   // Calculate coin redemption when useCoins is toggled or subtotal/coupon changes
   useEffect(() => {
     if (wallet && wallet.coin_balance > 0 && useCoins) {
-      const requested = coinsToUse || wallet.coin_balance;
+      const requested = wallet.coin_balance;
       walletService
         .calculateRedemption({
           subtotal,
@@ -139,17 +148,19 @@ export const CheckoutPage: React.FC = () => {
         })
         .then((res) => {
           setCoinPreview(res);
-          if (!coinsToUse || coinsToUse > res.allowed_coins) {
-            setCoinsToUse(res.allowed_coins);
-          }
+          setCoinsToUse(res.allowed_coins);
         })
-        .catch(() => {});
+        .catch(() => {
+          setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: 'Available reward coins are insufficient for redemption on this order.' });
+          setCoinsToUse(0);
+        });
     } else {
       setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
+      setCoinsToUse(0);
     }
-  }, [wallet, useCoins, coinsToUse, subtotal, discountAmount]);
+  }, [wallet, useCoins, subtotal, discountAmount]);
 
-  const coinDiscountAmount = useCoins ? coinPreview.coin_discount : 0;
+  const coinDiscountAmount = useCoins && coinPreview.allowed_coins > 0 ? coinPreview.coin_discount : 0;
   
   // Shipping
   const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
@@ -163,11 +174,121 @@ export const CheckoutPage: React.FC = () => {
   // Total
   const total = Math.max(0, subtotal - discountAmount - coinDiscountAmount + shippingFee + taxAmount);
 
-  // Coupon handlers
+  const formatCouponExpiry = (rawExp: any): string => {
+    if (!rawExp) return '';
+    const strVal = String(rawExp).trim();
+    if (!strVal || strVal.toLowerCase() === 'no expiry' || strVal.toLowerCase() === 'none' || strVal.toLowerCase() === 'null' || strVal.toLowerCase() === 'undefined') {
+      return '';
+    }
 
+    const matchYMD = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (matchYMD) {
+      const [, y, m, d] = matchYMD;
+      return `${d}-${m}-${y}`;
+    }
+
+    const matchDMY = strVal.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if (matchDMY) {
+      return `${matchDMY[1]}-${matchDMY[2]}-${matchDMY[3]}`;
+    }
+
+    const matchSlashDMY = strVal.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (matchSlashDMY) {
+      const [, d, m, y] = matchSlashDMY;
+      return `${d}-${m}-${y}`;
+    }
+
+    const matchSlashYMD = strVal.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+    if (matchSlashYMD) {
+      const [, y, m, d] = matchSlashYMD;
+      return `${d}-${m}-${y}`;
+    }
+
+    try {
+      const d = new Date(rawExp);
+      if (!isNaN(d.getTime())) {
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const year = d.getUTCFullYear();
+        return `${day}-${month}-${year}`;
+      }
+    } catch {
+      // fallback
+    }
+
+    return strVal;
+  };
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponCode.trim()) return;
+
+    setCouponError('');
+    setIsCouponLoading(true);
+
+    try {
+      const formatted = couponCode.trim().toUpperCase();
+      const result = await cartService.validateCoupon(formatted);
+      if (result.valid) {
+        const discountVal = result.calculated_discount ?? (
+          result.discount_percent
+            ? Math.round(subtotal * (result.discount_percent / 100) * 100) / 100
+            : (result.discount_amount ?? 0)
+        );
+        const couponPayload: CheckoutCouponData = {
+          code: result.code || formatted,
+          discount_percent: result.discount_percent || 0,
+          discount_amount: discountVal,
+        };
+        setAppliedCoupon(couponPayload);
+        sessionStorage.setItem('chovique_checkout_coupon', JSON.stringify(couponPayload));
+        setCouponCode('');
+      } else {
+        setCouponError(result.message || 'Invalid coupon code.');
+      }
+    } catch {
+      setCouponError('Could not validate coupon. Please try again.');
+    } finally {
+      setIsCouponLoading(false);
+    }
+  };
+
+  const handleUseAvailableCoupon = async (code: string) => {
+    const formatted = code.trim().toUpperCase();
+    setCouponCode(formatted);
+    setCouponError('');
+    setIsCouponLoading(true);
+
+    try {
+      const result = await cartService.validateCoupon(formatted);
+      if (result.valid) {
+        const discountVal = result.calculated_discount ?? (
+          result.discount_percent
+            ? Math.round(subtotal * (result.discount_percent / 100) * 100) / 100
+            : (result.discount_amount ?? 0)
+        );
+        const couponPayload: CheckoutCouponData = {
+          code: result.code || formatted,
+          discount_percent: result.discount_percent || 0,
+          discount_amount: discountVal,
+        };
+        setAppliedCoupon(couponPayload);
+        sessionStorage.setItem('chovique_checkout_coupon', JSON.stringify(couponPayload));
+        setCouponCode('');
+      } else {
+        setCouponError(result.message || 'Invalid coupon code.');
+      }
+    } catch {
+      setCouponError('Could not validate coupon. Please try again.');
+    } finally {
+      setIsCouponLoading(false);
+    }
+  };
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
     sessionStorage.removeItem('chovique_checkout_coupon');
   };
 
@@ -239,11 +360,14 @@ export const CheckoutPage: React.FC = () => {
         delivery_option: deliveryOption,
         payment_method: paymentMethod,
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
-        coins_to_use: useCoins ? (coinsToUse || coinPreview.allowed_coins) : 0,
+        coins_to_use: useCoins && coinPreview.allowed_coins > 0 ? (coinsToUse || coinPreview.allowed_coins) : 0,
       };
 
       try {
         const order = await orderService.placeOrder(orderPayload);
+        if (!order || !order.id) {
+          throw new Error('Order creation failed. No confirmation received.');
+        }
         placeOrderLocal(order);
         setCreatedOrder(order);
         refreshWallet();
@@ -385,7 +509,7 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Promo Code Entry & Available Coupons Section */}
                 <div style={{ marginBottom: '25px' }}>
-                  {appliedCoupon && (
+                  {appliedCoupon ? (
                     <div
                       style={{
                         padding: '12px 16px',
@@ -404,17 +528,77 @@ export const CheckoutPage: React.FC = () => {
                           <span style={{ fontSize: '0.8rem', opacity: 0.9, display: 'block' }}>Saving -₹{discountAmount.toLocaleString()} on this order</span>
                         </div>
                       </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleRemoveCoupon();
-                            // Optional: navigate back to cart to edit/apply coupon
-                            navigate('/cart');
-                          }}
-                          style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Manual Promo Code input */}
+                      <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px', marginBottom: couponError ? '8px' : '20px' }}>
+                        <div style={{ flex: 1 }}>
+                          <Input
+                            value={couponCode}
+                            onChange={(e) => {
+                              setCouponCode(e.target.value);
+                              if (couponError) setCouponError('');
+                            }}
+                            placeholder="Enter promo code"
+                            style={{ textTransform: 'uppercase', height: '42px', width: '100%' }}
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          variant="gold"
+                          disabled={isCouponLoading || !couponCode.trim()}
+                          style={{ whiteSpace: 'nowrap', minWidth: '90px', height: '42px' }}
                         >
-                          Remove
-                        </button>
+                          {isCouponLoading ? <Loader2 size={16} className="animate-spin" /> : 'APPLY'}
+                        </Button>
+                      </form>
+
+                      {couponError && (
+                        <p style={{ color: '#e74c3c', fontSize: '0.8rem', margin: '0 0 15px 0' }}>{couponError}</p>
+                      )}
+
+                      {/* Available Coupons list */}
+                      {availableCoupons.length > 0 && (
+                        <div style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <h4 style={{ color: 'var(--gold)', fontSize: '0.9rem', marginBottom: '10px', marginTop: 0 }}>Available Coupons</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {availableCoupons.map((c) => {
+                              const rawExp = c.expires_at || c.expiryDate || c.expiry_date || c.expiresAt || c.end_date || c.exp;
+                              const expFormatted = formatCouponExpiry(rawExp);
+                              const desc = c.description || (c.name && c.name !== c.code ? c.name : (c.discount_percent ? `Get ${c.discount_percent}% off on your chocolate order` : ''));
+                              return (
+                                <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div>
+                                    <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.9rem' }}>{c.code}</div>
+                                    {desc && <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{desc}</div>}
+                                    {expFormatted && (
+                                      <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginTop: '2px' }}>
+                                        Expires: {expFormatted}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUseAvailableCoupon(c.code)}
+                                    disabled={isCouponLoading}
+                                    style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
+                                  >
+                                    Use
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -448,9 +632,13 @@ export const CheckoutPage: React.FC = () => {
                           type="checkbox"
                           checked={useCoins}
                           onChange={(e) => {
-                            setUseCoins(e.target.checked);
-                            if (e.target.checked) {
+                            const isChecked = e.target.checked;
+                            setUseCoins(isChecked);
+                            if (isChecked) {
                               setCoinsToUse(wallet.coin_balance);
+                            } else {
+                              setCoinsToUse(0);
+                              setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
                             }
                           }}
                           style={{ width: '18px', height: '18px', accentColor: 'var(--gold)', cursor: 'pointer' }}
@@ -474,6 +662,23 @@ export const CheckoutPage: React.FC = () => {
                       >
                         <span>✓ Redeeming {coinPreview.allowed_coins} coins</span>
                         <span style={{ fontWeight: 700 }}>-₹{coinPreview.coin_discount.toLocaleString()} Off</span>
+                      </div>
+                    )}
+
+                    {useCoins && coinPreview.allowed_coins <= 0 && (
+                      <div
+                        style={{
+                          marginTop: '12px',
+                          paddingTop: '10px',
+                          borderTop: '1px dashed rgba(231, 76, 60, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '0.85rem',
+                          color: '#e74c3c',
+                        }}
+                      >
+                        <span>{coinPreview.message || 'Available reward coins are insufficient for redemption on this order.'}</span>
                       </div>
                     )}
                   </div>
