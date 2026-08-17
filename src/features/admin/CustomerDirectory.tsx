@@ -25,6 +25,7 @@ interface CustomerDirectoryProps {
 }
 
 export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
+  adminOrders,
   addToast,
   onRefreshUsers,
 }) => {
@@ -178,7 +179,18 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     email: customerDetails.user.email,
     phone: customerDetails.user.phone,
     is_active: customerDetails.user.is_active,
+    orders_count: customerDetails.total_orders,
+    total_spent: customerDetails.total_spent,
+    reward_coins: customerDetails.reward_coins,
   } : null);
+
+  const customerOrdersList: any[] = (customerDetails?.recent_orders && customerDetails.recent_orders.length > 0)
+    ? customerDetails.recent_orders
+    : (adminOrders ? adminOrders.filter((o: any) => (o.user_id && o.user_id === selectedCust?.id) || (o.user && o.user.id === selectedCust?.id)) : []);
+
+  const totalOrdersCount = customerDetails?.total_orders != null ? customerDetails.total_orders : (customerOrdersList.length > 0 ? customerOrdersList.length : (selectedCust?.orders_count ?? 0));
+  const totalSpentAmount = customerDetails?.total_spent != null ? customerDetails.total_spent : (customerOrdersList.length > 0 ? customerOrdersList.filter((o: any) => o.status !== 'Cancelled').reduce((sum: number, o: any) => sum + (o.total || 0), 0) : (selectedCust?.total_spent ?? 0));
+  const totalRewardCoins = customerDetails?.reward_coins != null ? customerDetails.reward_coins : (selectedCust?.reward_coins ?? 0);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -403,22 +415,22 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Total Orders</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{customerDetails?.total_orders || 0}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{totalOrdersCount}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Total Spent</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{(customerDetails?.total_spent || 0).toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{totalSpentAmount.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Reward Coins</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f39c12', fontFamily: 'var(--font-display)' }}>{customerDetails?.reward_coins || 0}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f39c12', fontFamily: 'var(--font-display)' }}>{totalRewardCoins}</div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '18px', paddingBottom: '8px' }}>
                 {[
                   { id: 'profile', label: 'Profile' },
-                  { id: 'orders', label: `Orders (${customerDetails?.recent_orders?.length || 0})` },
+                  { id: 'orders', label: `Orders (${customerOrdersList.length})` },
                   { id: 'coins', label: 'Reward Coins' },
                   { id: 'tickets', label: `Support (${customerDetails?.support_tickets?.length || 0})` },
                 ].map((t) => (
@@ -442,10 +454,10 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
 
               {activeTab === 'orders' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
-                  {customerDetails?.recent_orders?.length === 0 ? (
+                  {customerOrdersList.length === 0 ? (
                     <div style={{ padding: '30px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>No orders placed by this customer yet.</div>
                   ) : (
-                    customerDetails?.recent_orders?.map((ord: any) => (
+                    customerOrdersList.map((ord: any) => (
                       <div key={ord.id} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div><div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.8rem', fontFamily: 'monospace' }}>{ord.id}</div><div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ord.created_at || ord.date}</div></div>
                         <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.85rem' }}>₹{ord.total?.toLocaleString()}</div><span style={{ fontSize: '0.68rem', fontWeight: 700, color: ord.status === 'Cancelled' ? '#e74c3c' : '#2ecc71' }}>{ord.status}</span></div>

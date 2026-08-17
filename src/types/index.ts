@@ -219,11 +219,17 @@ export interface CustomerAddress {
 
 export interface SupportNotification {
   id: string;
+  title?: string;
+  message?: string;
   text: string;
   date: string;
   read: boolean;
-  type: 'order' | 'support' | 'general';
+  is_read?: boolean;
+  type: 'order' | 'support' | 'reward' | 'coupon' | 'general' | string;
   referenceId?: string;
+  related_entity_type?: string;
+  related_entity_id?: string;
+  created_at?: string;
 }
 
 export interface UserCoupon {
@@ -232,16 +238,18 @@ export interface UserCoupon {
   name?: string;
   description?: string;
   desc?: string;
+  coupon_type?: string;
   discount_type?: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING' | string;
   discount_percent?: number;
   discount_amount?: number;
   discountPercent?: number;
   maximum_discount_amount?: number;
   minimum_order_amount?: number;
+  start_at?: string;
   expires_at?: string;
   exp?: string;
   is_active?: boolean;
-  status?: 'ACTIVE' | 'INACTIVE';
+  status?: string;
 }
 
 // =============================================================================

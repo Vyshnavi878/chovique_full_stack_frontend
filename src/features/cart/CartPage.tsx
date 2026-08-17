@@ -333,22 +333,54 @@ export const CartPage: React.FC = () => {
               <div style={{ marginBottom: '24px', background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 style={{ color: 'var(--gold)', fontSize: '0.9rem', marginBottom: '10px' }}>Available Coupons</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {availableCoupons.map((c) => (
-                    <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.9rem' }}>{c.code}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{c.description}</div>
+                  {availableCoupons.map((c) => {
+                    let expText = '';
+                    const rawExp = c.expires_at || c.expiryDate || c.expiry_date || c.expiresAt || c.end_date || c.exp;
+                    if (rawExp) {
+                      const strVal = String(rawExp).trim();
+                      const matchYMD = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                      const matchDMY = strVal.match(/^(\d{2})-(\d{2})-(\d{4})/);
+                      const matchSlashDMY = strVal.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+                      if (matchYMD) {
+                        expText = `Expires: ${matchYMD[3]}-${matchYMD[2]}-${matchYMD[1]}`;
+                      } else if (matchDMY) {
+                        expText = `Expires: ${matchDMY[1]}-${matchDMY[2]}-${matchDMY[3]}`;
+                      } else if (matchSlashDMY) {
+                        expText = `Expires: ${matchSlashDMY[1]}-${matchSlashDMY[2]}-${matchSlashDMY[3]}`;
+                      } else {
+                        try {
+                          const d = new Date(rawExp);
+                          if (!isNaN(d.getTime())) {
+                            const day = String(d.getUTCDate()).padStart(2, '0');
+                            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                            const year = d.getUTCFullYear();
+                            expText = `Expires: ${day}-${month}-${year}`;
+                          }
+                        } catch {
+                          expText = `Expires: ${rawExp}`;
+                        }
+                      }
+                    }
+                    return (
+                      <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: 'var(--cream)', fontSize: '0.9rem' }}>{c.code}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{c.description}</div>
+                          {expText && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginTop: '2px' }}>{expText}</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleUseAvailableCoupon(c.code)}
+                          disabled={isCouponLoading}
+                          style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Use
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleUseAvailableCoupon(c.code)}
-                        disabled={isCouponLoading}
-                        style={{ fontSize: '0.8rem', color: 'var(--gold)', background: 'none', border: '1px solid var(--gold)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
-                      >
-                        Use
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

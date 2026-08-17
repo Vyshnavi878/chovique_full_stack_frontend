@@ -176,25 +176,13 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
     }
 
     const availableStock = selectedProduct.stock || 0;
-    if (availableStock <= 0) {
-      setItemError(`Product '${selectedProduct.name}' is completely out of stock.`);
-      return;
-    }
+    const unitPrice = selectedProduct.price || 0;
+    const sku = selectedProduct.sku || selectedProduct.id || 'N/A';
 
     // Check existing quantity in basket
     const existingIndex = basket.findIndex((item) => item.product_id === selectedProduct.id);
     const existingQty = existingIndex >= 0 ? basket[existingIndex].quantity : 0;
     const totalDesiredQty = existingQty + itemQuantity;
-
-    if (totalDesiredQty > availableStock) {
-      setItemError(
-        `Cannot add ${itemQuantity} more. Available stock: ${availableStock}, already in basket: ${existingQty}.`
-      );
-      return;
-    }
-
-    const unitPrice = selectedProduct.price || 0;
-    const sku = selectedProduct.sku || selectedProduct.id || 'N/A';
 
     if (existingIndex >= 0) {
       const updatedBasket = [...basket];
@@ -366,7 +354,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
 
       addToast(
         'success',
-        `Offline Sale ${result.receipt_id || result.id} recorded successfully! Inventory updated & ledger logged.`,
+        `Offline Sale ${result.receipt_id || result.id} recorded successfully! Ledger logged.`,
         'Transaction Recorded'
       );
 
@@ -570,7 +558,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           const skuCode = p.sku || p.id.substring(0, 8).toUpperCase();
                           return (
                             <option key={p.id} value={p.id}>
-                              {p.name} ({skuCode}) — ₹{(p.price || 0).toLocaleString('en-IN')} | Stock: {p.stock || 0} units
+                              {p.name} ({skuCode}) — ₹{(p.price || 0).toLocaleString('en-IN')}
                             </option>
                           );
                         })
@@ -585,7 +573,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                     <input
                       type="number"
                       min={1}
-                      max={selectedProduct ? selectedProduct.stock || 1 : 100}
                       value={itemQuantity}
                       onChange={(e) => {
                         setItemQuantity(parseInt(e.target.value) || 1);
@@ -608,7 +595,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   <button
                     type="button"
                     onClick={handleAddToBasket}
-                    disabled={!selectedProduct || (selectedProduct.stock || 0) <= 0}
+                    disabled={!selectedProduct}
                     style={{
                       height: '40px',
                       padding: '0 16px',
@@ -618,8 +605,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                       color: '#0f0c0a',
                       fontWeight: 700,
                       fontSize: '0.82rem',
-                      cursor: !selectedProduct || (selectedProduct.stock || 0) <= 0 ? 'not-allowed' : 'pointer',
-                      opacity: !selectedProduct || (selectedProduct.stock || 0) <= 0 ? 0.5 : 1,
+                      cursor: !selectedProduct ? 'not-allowed' : 'pointer',
+                      opacity: !selectedProduct ? 0.5 : 1,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -630,11 +617,10 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </button>
                 </div>
 
-                {/* Selected Product Pricing & Stock Badge */}
+                {/* Selected Product Pricing */}
                 {selectedProduct && (
                   <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', display: 'flex', justifyContent: 'space-between', marginBottom: '14px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <span>Unit Price: <strong style={{ color: '#c9a84c' }}>₹{(selectedProduct.price || 0).toLocaleString('en-IN')}</strong></span>
-                    <span>Available Stock: <strong style={{ color: (selectedProduct.stock || 0) > 5 ? '#2ecc71' : '#e74c3c' }}>{selectedProduct.stock || 0} units</strong></span>
                     <span>Line Total: <strong style={{ color: '#c9a84c' }}>₹{currentLineTotal.toLocaleString('en-IN')}</strong></span>
                   </div>
                 )}
@@ -923,6 +909,277 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                 </div>
 
 
+                {/* Cash Additional Fields */}
+                {paymentMethod === 'Cash' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', padding: '18px', background: 'rgba(201, 168, 76, 0.05)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Received Amount (₹) <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <input
+                        id="cash-received-amount"
+                        type="number"
+                        min={0}
+                        step="any"
+                        placeholder="e.g. 5000"
+                        value={paymentDetails.received_amount}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, received_amount: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.received_amount ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {formErrors.received_amount && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.received_amount}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <select
+                        id="cash-payment-status"
+                        value={paymentDetails.payment_status}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Receipt Number <span style={{ color: 'var(--gold)', fontWeight: 400 }}>(Auto-generated)</span>
+                      </label>
+                      <input
+                        id="cash-receipt-number"
+                        type="text"
+                        readOnly
+                        disabled
+                        value={`REC-${new Date().getFullYear()}-XXXXXX (Auto-generated)`}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.5)',
+                          border: '1px dashed rgba(201, 168, 76, 0.35)',
+                          borderRadius: '6px',
+                          color: '#c9a84c',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          cursor: 'not-allowed',
+                          fontFamily: 'monospace',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Card Additional Fields */}
+                {paymentMethod === 'Card' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', padding: '18px', background: 'rgba(201, 168, 76, 0.05)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Card Type <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <select
+                        id="card-type"
+                        value={paymentDetails.card_type}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, card_type: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.card_type ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                      </select>
+                      {formErrors.card_type && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.card_type}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Last 4 Digits <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <input
+                        id="card-last4"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="e.g. 4242"
+                        value={paymentDetails.card_last4}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, card_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.card_last4 ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {formErrors.card_last4 && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.card_last4}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Transaction ID <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <input
+                        id="card-transaction-id"
+                        type="text"
+                        placeholder="e.g. TXN-8923410"
+                        value={paymentDetails.transaction_id}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, transaction_id: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.transaction_id ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {formErrors.transaction_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.transaction_id}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <select
+                        id="card-payment-status"
+                        value={paymentDetails.payment_status}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* UPI Additional Fields */}
+                {paymentMethod === 'UPI' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', padding: '18px', background: 'rgba(201, 168, 76, 0.05)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        UPI ID <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <input
+                        id="upi-id"
+                        type="text"
+                        placeholder="e.g. merchant@okhdfcbank or 9876543210@upi"
+                        value={paymentDetails.upi_id}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, upi_id: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.upi_id ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {formErrors.upi_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.upi_id}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Transaction ID / UTR Number <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <input
+                        id="upi-transaction-id"
+                        type="text"
+                        placeholder="e.g. 412890312384"
+                        value={paymentDetails.transaction_id}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, transaction_id: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.transaction_id ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {formErrors.transaction_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.transaction_id}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
+                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
+                      </label>
+                      <select
+                        id="upi-payment-status"
+                        value={paymentDetails.payment_status}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: 'rgba(10, 8, 6, 0.85)',
+                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Transfer Additional Fields */}
                 {paymentMethod === 'Bank Transfer' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', padding: '18px', background: 'rgba(201, 168, 76, 0.05)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
                     <div>
@@ -930,6 +1187,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Bank Name <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
+                        id="bank-name"
                         type="text"
                         placeholder="e.g. HDFC Bank"
                         value={paymentDetails.bank_name}
@@ -954,6 +1212,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Account Holder Name <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
+                        id="bank-account-holder"
                         type="text"
                         placeholder="e.g. Rajesh Sharma"
                         value={paymentDetails.account_holder}
@@ -978,6 +1237,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         UTR / Transaction ID <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
+                        id="bank-transaction-id"
                         type="text"
                         placeholder="e.g. UTR-9823471029"
                         value={paymentDetails.transaction_id}
@@ -1002,6 +1262,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Payment Status <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <select
+                        id="bank-payment-status"
                         value={paymentDetails.payment_status}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
                         style={{
@@ -1191,7 +1452,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {filteredLedger.map((entry) => {
-                    const receipt = entry.receipt_id || entry.id;
+                    const receipt = entry.receipt_number || entry.receipt_id || entry.id;
                     const compName = entry.company_name || 'Direct Customer';
                     const contact = entry.contact_person || 'Walk-in';
                     const phone = entry.phone || '';
@@ -1267,7 +1528,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                             <div style={{ fontSize: '0.75rem', color: '#c9a84c', marginTop: '4px', background: 'rgba(201, 168, 76, 0.08)', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                               {method === 'Cash' && (
                                 <span>
-                                  Cash Details: Received ₹{entry.received_amount != null ? entry.received_amount.toLocaleString('en-IN') : total.toLocaleString('en-IN')} {entry.receipt_number ? `• Receipt #${entry.receipt_number}` : ''}
+                                  Cash Details: Received ₹{entry.received_amount != null ? entry.received_amount.toLocaleString('en-IN') : total.toLocaleString('en-IN')} {receipt ? `• Receipt #${receipt}` : ''}
                                 </span>
                               )}
                               {method === 'Card' && (

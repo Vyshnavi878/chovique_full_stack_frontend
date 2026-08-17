@@ -14,18 +14,22 @@ import {
 } from 'lucide-react';
 import { useApp } from '../app/providers';
 import { adminService, AdminNotification } from '../services/adminService';
+import { notificationService } from '../services/notificationService';
 
 interface NotificationHeaderDropdownProps {
   onNavigateTab: (tab: string, entityId?: string) => void;
   isSuperadmin?: boolean;
+  isCustomer?: boolean;
 }
 
 export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProps> = ({
   onNavigateTab,
   isSuperadmin: isSuperadminProp,
+  isCustomer: isCustomerProp,
 }) => {
   const { role } = useApp();
   const isSuperadmin = isSuperadminProp ?? (role === 'superadmin');
+  const isCustomer = isCustomerProp ?? (role === 'customer');
 
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -38,12 +42,17 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
       if (isSuperadmin) {
         const res = await (adminService as any).getSuperadminNotifications({ limit: 6, is_read: false });
         const unreadItems = (res.items || []).filter((n: any) => !n.is_read);
-        setNotifications(unreadItems);
+        setNotifications(res.items || []);
         setUnreadCount(res.unread_count || 0);
+      } else if (isCustomer || role === 'customer') {
+        const res = await notificationService.getNotifications();
+        const unreadItems = res.filter((n: any) => !n.is_read && !n.read);
+        setNotifications(res.slice(0, 8));
+        setUnreadCount(unreadItems.length);
       } else {
         const res = await adminService.getAdminNotifications({ limit: 6, is_read: false });
         const unreadItems = (res.items || []).filter((n: any) => !n.is_read);
-        setNotifications(unreadItems);
+        setNotifications(res.items || []);
         setUnreadCount(res.unread_count || 0);
       }
     } catch (err) {
@@ -60,7 +69,7 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
       clearInterval(interval);
       window.removeEventListener('notification_updated', handleUpdate);
     };
-  }, [isSuperadmin]);
+  }, [isSuperadmin, isCustomer, role]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -77,10 +86,12 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
     try {
       if (isSuperadmin) {
         await (adminService as any).markAllSuperadminNotificationsAsRead();
+      } else if (isCustomer || role === 'customer') {
+        await notificationService.markAllAsRead();
       } else {
         await adminService.markAllNotificationsAsRead();
       }
-      setNotifications([]);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read: true })));
       setUnreadCount(0);
       window.dispatchEvent(new CustomEvent('notification_updated'));
     } catch (err) {
@@ -89,14 +100,19 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   };
 
   const handleNotificationClick = async (notif: any) => {
-    if (!notif.is_read) {
+    const isUnread = notif.is_read === false || notif.read === false;
+    if (isUnread) {
       try {
         if (isSuperadmin) {
           await (adminService as any).markSuperadminNotificationAsRead(notif.id);
+        } else if (isCustomer || role === 'customer') {
+          await notificationService.markAsRead(notif.id);
         } else {
           await adminService.markNotificationAsRead(notif.id);
         }
-        setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true, read: true } : n))
+        );
         setUnreadCount((prev) => Math.max(0, prev - 1));
         window.dispatchEvent(new CustomEvent('notification_updated'));
       } catch (err) {
@@ -119,6 +135,25 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           break;
         case 'BUSINESS':
           onNavigateTab('revenue', notif.related_entity_id || undefined);
+          break;
+        default:
+          onNavigateTab('notifications');
+          break;
+      }
+    } else if (isCustomer || role === 'customer') {
+      // Customer routing
+      switch (notif.type) {
+        case 'order':
+          onNavigateTab('orders', notif.reference_id || notif.referenceId || notif.related_entity_id);
+          break;
+        case 'support':
+          onNavigateTab('help', notif.reference_id || notif.referenceId || notif.related_entity_id);
+          break;
+        case 'reward':
+          onNavigateTab('rewards');
+          break;
+        case 'coupon':
+          onNavigateTab('coupons');
           break;
         default:
           onNavigateTab('notifications');
@@ -164,6 +199,21 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           return <AlertTriangle size={16} color="#e5c875" />;
         case 'BUSINESS':
           return <ShoppingBag size={16} color="#2ecc71" />;
+        default:
+          return <Bell size={16} color="#c9a84c" />;
+      }
+    }
+
+    if (isCustomer || role === 'customer') {
+      switch (notif.type) {
+        case 'order':
+          return <ShoppingBag size={16} color="#c9a84c" />;
+        case 'support':
+          return <MessageSquare size={16} color="#c9a84c" />;
+        case 'reward':
+          return <Coins size={16} color="#c9a84c" />;
+        case 'coupon':
+          return <Tag size={16} color="#c9a84c" />;
         default:
           return <Bell size={16} color="#c9a84c" />;
       }
@@ -329,78 +379,86 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
             {notifications.length === 0 ? (
               <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
-                No unread notifications.
+                No notifications found.
               </div>
             ) : (
-              notifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  onClick={() => handleNotificationClick(notif)}
-                  style={{
-                    padding: '14px 20px',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                    background: notif.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.05)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px',
-                    transition: 'background 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(201, 168, 76, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = notif.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.05)';
-                  }}
-                >
-                  {/* Icon Circle */}
+              notifications.map((notif) => {
+                const notifTitle = notif.title || (notif.type ? notif.type.replace('_', ' ').toUpperCase() : 'Notification');
+                const notifMsg = notif.message || notif.text || '';
+                const isUnread = notif.is_read === false || notif.read === false;
+                const notifDate = notif.created_at ? formatTimeAgo(notif.created_at) : (notif.date || '');
+
+                return (
                   <div
+                    key={notif.id}
+                    onClick={() => handleNotificationClick(notif)}
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      background: 'rgba(201, 168, 76, 0.12)',
-                      border: '1px solid rgba(201, 168, 76, 0.25)',
+                      padding: '14px 20px',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      background: isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent',
+                      cursor: 'pointer',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginTop: '2px',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      transition: 'background 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent';
                     }}
                   >
-                    {getNotificationIcon(notif)}
-                  </div>
-
-                  {/* Body */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: notif.is_read ? 600 : 700, color: '#f5efe6' }}>
-                        {notif.title}
-                      </span>
-                      <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>
-                        {formatTimeAgo(notif.created_at)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.4 }}>
-                      {notif.message}
-                    </p>
-                  </div>
-
-                  {/* Unread Indicator Dot */}
-                  {!notif.is_read && (
+                    {/* Icon Circle */}
                     <div
                       style={{
-                        width: '7px',
-                        height: '7px',
+                        width: '32px',
+                        height: '32px',
                         borderRadius: '50%',
-                        background: '#c9a84c',
-                        marginTop: '6px',
+                        background: 'rgba(201, 168, 76, 0.12)',
+                        border: '1px solid rgba(201, 168, 76, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         flexShrink: 0,
+                        marginTop: '2px',
                       }}
-                    />
-                  )}
-                </div>
-              ))
+                    >
+                      {getNotificationIcon(notif)}
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: isUnread ? 700 : 500, color: '#f5efe6' }}>
+                          {notifTitle}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', flexShrink: 0, marginLeft: '8px' }}>
+                          {notifDate}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.4 }}>
+                        {notifMsg}
+                      </p>
+                    </div>
+
+                    {/* Unread Indicator Dot */}
+                    {isUnread && (
+                      <div
+                        style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          background: '#c9a84c',
+                          marginTop: '6px',
+                          flexShrink: 0,
+                          boxShadow: '0 0 6px rgba(201, 168, 76, 0.8)',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
 

@@ -32,7 +32,8 @@ import {
   Package,
   Clock,
   PackageCheck,
-  LogOut
+  LogOut,
+  MessageSquare,
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
@@ -44,6 +45,7 @@ import { userService } from '../../services/userService';
 import { BASE_URL } from '../../lib/api';
 import { orderService } from '../../services/orderService';
 import { walletService, type CoinTransaction } from '../../services/walletService';
+import { NotificationHeaderDropdown } from '../../components/NotificationHeaderDropdown';
 import type { UserCoupon, CustomerAddress } from '../../types';
 import { WishlistPage } from '../wishlist/WishlistPage';
 
@@ -79,7 +81,10 @@ export const CustomerDashboard: React.FC = () => {
     deleteAddress,
     setDefaultAddress,
     notifications,
-    removeNotification
+    removeNotification,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    refreshNotifications,
   } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
@@ -105,6 +110,13 @@ export const CustomerDashboard: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'order' | 'reward' | 'coupon' | 'support'>('all');
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(text);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
@@ -135,6 +147,7 @@ export const CustomerDashboard: React.FC = () => {
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'profile', label: 'My Profile', icon: User },
         { id: 'addresses', label: 'Addresses', icon: MapPin },
+        { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'settings', label: 'Account Settings', icon: Settings },
       ],
     },
@@ -467,6 +480,7 @@ export const CustomerDashboard: React.FC = () => {
   }, [activeTab]);
 
   // --- Rewards & Wallet Transactions State ---
+  const [rewardsTab, setRewardsTab] = useState<'balance' | 'rules'>('balance');
   const [walletTxs, setWalletTxs] = useState<CoinTransaction[]>([]);
   const [walletTxsTotal, setWalletTxsTotal] = useState(0);
   const [walletTxsPage, setWalletTxsPage] = useState(1);
@@ -498,6 +512,49 @@ export const CustomerDashboard: React.FC = () => {
       fetchWalletTransactions();
     }
   }, [activeTab, fetchWalletTransactions]);
+
+  // --- Coupon Expiry Date Formatter Helper ---
+  const formatCouponExpiry = (rawExp: any): string => {
+    if (!rawExp) return 'No expiry';
+    const strVal = String(rawExp).trim();
+    if (!strVal || strVal.toLowerCase() === 'no expiry' || strVal.toLowerCase() === 'none' || strVal.toLowerCase() === 'null') {
+      return 'No expiry';
+    }
+
+    const matchYMD = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (matchYMD) {
+      const [, y, m, d] = matchYMD;
+      return `${d}-${m}-${y}`;
+    }
+
+    const matchDMY = strVal.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if (matchDMY) {
+      return `${matchDMY[1]}-${matchDMY[2]}-${matchDMY[3]}`;
+    }
+
+    const matchSlashDMY = strVal.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (matchSlashDMY) {
+      const [, d, m, y] = matchSlashDMY;
+      return `${d}-${m}-${y}`;
+    }
+
+    try {
+      const d = new Date(rawExp);
+      if (!isNaN(d.getTime())) {
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const year = d.getUTCFullYear();
+        return `${day}-${month}-${year}`;
+      }
+    } catch {
+      // fallback
+    }
+
+    return strVal;
+  };
+
+  // --- Support Form Toggle State ---
+  const [showSupportForm, setShowSupportForm] = useState(false);
 
   // --- Address Management State & Handlers ---
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -979,15 +1036,23 @@ export const CustomerDashboard: React.FC = () => {
 
         {/* Right Main Content Workspace Panel */}
         <main className="customer-workspace-main">
-          {/* Mobile Drawer Trigger Button */}
-          <button
-            className="dashboard-mobile-trigger"
-            onClick={() => setIsSidebarOpen(true)}
-            style={{ marginBottom: '20px' }}
-          >
-            <Menu size={18} />
-            <span>Customer Dashboard Menu</span>
-          </button>
+          {/* Top Header Bar with Mobile Drawer Trigger & Notification Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+            <button
+              className="dashboard-mobile-trigger"
+              onClick={() => setIsSidebarOpen(true)}
+              style={{ margin: 0 }}
+            >
+              <Menu size={18} />
+              <span>Customer Dashboard Menu</span>
+            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <NotificationHeaderDropdown
+                onNavigateTab={(tab) => setActiveTab(tab as CustomerTab)}
+                isCustomer={true}
+              />
+            </div>
+          </div>
 
           {/* OVERVIEW PANEL */}
           {activeTab === 'overview' && (
@@ -1292,9 +1357,10 @@ export const CustomerDashboard: React.FC = () => {
                         if ((coupon.minimum_order_amount ?? 0) > 0) {
                           termsParts.push(`Min. order: ₹${coupon.minimum_order_amount}`);
                         }
-                        if (coupon.expires_at) {
-                          const expDate = new Date(coupon.expires_at);
-                          termsParts.push(`Valid till ${expDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`);
+                        const rawExp = coupon.expires_at || (coupon as any).expiryDate || (coupon as any).expiry_date || (coupon as any).expiresAt || (coupon as any).end_date || (coupon as any).endDate || (coupon as any).exp;
+                        const expFormatted = formatCouponExpiry(rawExp);
+                        if (expFormatted && expFormatted.toLowerCase() !== 'no expiry') {
+                          termsParts.push(`Expires: ${expFormatted}`);
                         } else {
                           termsParts.push('No Expiry');
                         }
@@ -1336,137 +1402,6 @@ export const CustomerDashboard: React.FC = () => {
             </div>
           )}
 
-            {/* REWARDS PANEL */}
-            {activeTab === 'rewards' && (
-              <div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '24px' }}>
-                  Chovique Reward Coins & Wallet
-                </h2>
-
-                {/* Coin balance card */}
-                <div
-                  className="glass-panel"
-                  style={{
-                    padding: '24px',
-                    border: '1px solid var(--gold)',
-                    borderRadius: '8px',
-                    background: 'rgba(212, 175, 55, 0.08)',
-                    marginBottom: '30px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '20px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div
-                      style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        background: 'var(--gradient-gold)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--dark-chocolate)',
-                        boxShadow: '0 0 15px rgba(212, 175, 55, 0.4)',
-                      }}
-                    >
-                      <Coins size={30} />
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-                        Available Reward Balance
-                      </span>
-                      <h3 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--cream)', margin: '2px 0 0 0' }}>
-                        {wallet?.coin_balance ?? 0} <span style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--beige)' }}>Coins</span>
-                      </h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--grey-light)', margin: '4px 0 0 0' }}>
-                        Equivalent value: <strong style={{ color: 'var(--gold)' }}>₹{wallet?.rupee_value ?? 0}</strong>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      padding: '12px 18px',
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: '6px',
-                      fontSize: '0.85rem',
-                      color: 'var(--beige)',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    <div><strong>Earn Rule:</strong> ₹{wallet?.settings?.spend_per_coin ?? 10} spent = 1 Coin</div>
-                    <div><strong>Redeem Rule:</strong> {wallet?.settings?.coins_per_rupee ?? 10} Coins = ₹1 Discount</div>
-                    <div><strong>Max Usage:</strong> Up to {wallet?.settings?.max_redemption_percentage ?? 20}% per order</div>
-                  </div>
-                </div>
-
-                {/* Coin Transactions Audit History */}
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', marginBottom: '16px' }}>
-                  Transaction Ledger & Audit History
-                </h3>
-
-                {wallet?.recent_transactions && wallet.recent_transactions.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--glass-border)', color: 'var(--gold)' }}>
-                          <th style={{ padding: '12px' }}>Date</th>
-                          <th style={{ padding: '12px' }}>Type</th>
-                          <th style={{ padding: '12px' }}>Coins</th>
-                          <th style={{ padding: '12px' }}>Description</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {wallet.recent_transactions.map((tx) => (
-                          <tr key={tx.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--cream)' }}>
-                            <td style={{ padding: '12px', color: 'var(--grey-light)', fontSize: '0.85rem' }}>
-                              {new Date(tx.created_at).toLocaleDateString()}
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                              <span
-                                style={{
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: '3px',
-                                  background:
-                                    tx.type === 'EARN' || tx.type === 'REFUND'
-                                      ? 'rgba(46, 204, 113, 0.2)'
-                                      : tx.type === 'REDEEM'
-                                      ? 'rgba(231, 76, 60, 0.2)'
-                                      : 'rgba(241, 196, 15, 0.2)',
-                                  color:
-                                    tx.type === 'EARN' || tx.type === 'REFUND'
-                                      ? '#2ecc71'
-                                      : tx.type === 'REDEEM'
-                                      ? '#e74c3c'
-                                      : '#f1c40f',
-                                }}
-                              >
-                                {tx.type}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px', fontWeight: 700, color: tx.coins > 0 ? '#2ecc71' : '#e74c3c' }}>
-                              {tx.coins > 0 ? `+${tx.coins}` : tx.coins}
-                            </td>
-                            <td style={{ padding: '12px', color: 'var(--beige)', fontSize: '0.85rem' }}>
-                              {tx.description || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--grey-light)', fontStyle: 'italic' }}>No coin transactions recorded yet.</p>
-                )}
-              </div>
-            )}
 
             {/* PROFILE PANEL */}
             {activeTab === 'profile' && (
@@ -3326,458 +3261,547 @@ export const CustomerDashboard: React.FC = () => {
             {/* REWARDS & COINS / WALLET PANEL */}
             {activeTab === 'rewards' && (
               <div>
-                {/* Page Title & Subtitle */}
-                <div style={{ marginBottom: '28px' }}>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
-                    Chovique Reward Coins &amp; Wallet
-                  </h2>
-                  <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
-                    Track your coin balance, redemption history, and reward rules.
-                  </p>
-                </div>
-
-                {/* 1. WALLET BALANCE CARD */}
-                <div
-                  style={{
-                    background: 'rgba(18, 14, 11, 0.96)',
-                    border: '1px solid rgba(201, 168, 76, 0.35)',
-                    borderRadius: '14px',
-                    padding: '28px',
-                    marginBottom: '32px',
-                    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                  }}
-                >
-                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'rgba(201, 168, 76, 0.85)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                    AVAILABLE REWARD BALANCE
-                  </div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#f5efe6', fontFamily: 'var(--font-display)', margin: '8px 0 4px 0' }}>
-                    {wallet?.coin_balance ?? 0} Coins
-                  </div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: '#c9a84c' }}>
-                    Equivalent value: ₹{((wallet?.coin_balance ?? 0) / 10).toFixed(2)}
+                {/* Page Title & Subtitle + Tab Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                      Chovique Reward Coins &amp; Wallet
+                    </h2>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
+                      Track your coin balance, redemption history, and reward rules.
+                    </p>
                   </div>
 
-                  <div style={{ borderTop: '1px solid rgba(201, 168, 76, 0.18)', margin: '20px 0' }} />
-
-                  {/* 3 Rules Cards Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr', gap: '16px' }}>
-                    <div
+                  {/* Two Buttons / Tabs */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Button
+                      variant="gold"
+                      glow={rewardsTab === 'balance'}
+                      onClick={() => setRewardsTab('balance')}
                       style={{
-                        background: 'rgba(0, 0, 0, 0.35)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '8px',
-                        padding: '14px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        fontWeight: 600,
+                        ...(rewardsTab === 'balance' ? {} : {
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: 'var(--cream)',
+                        }),
                       }}
                     >
-                      <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', marginBottom: '4px' }}>Earn Rule</div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f5efe6' }}>₹10 spent = 1 Coin</div>
-                    </div>
-
-                    <div
+                      <Coins size={18} />
+                      Reward Balance
+                    </Button>
+                    <Button
+                      variant="gold"
+                      glow={rewardsTab === 'rules'}
+                      onClick={() => setRewardsTab('rules')}
                       style={{
-                        background: 'rgba(0, 0, 0, 0.35)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '8px',
-                        padding: '14px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        fontWeight: 600,
+                        ...(rewardsTab === 'rules' ? {} : {
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: 'var(--cream)',
+                        }),
                       }}
                     >
-                      <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', marginBottom: '4px' }}>Redeem Rule</div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f5efe6' }}>10 Coins = ₹1 Discount</div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.35)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '8px',
-                        padding: '14px 16px',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', marginBottom: '4px' }}>Max Usage</div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f5efe6' }}>Up to 20% per order</div>
-                    </div>
+                      <FileText size={18} />
+                      Reward Rules
+                    </Button>
                   </div>
                 </div>
 
-                {/* 2. TRANSACTION LEDGER & AUDIT HISTORY */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                      Transaction Ledger &amp; Audit History
-                    </h3>
-
-                    {/* Filter Tabs Row */}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {[
-                        { key: 'ALL', label: 'All' },
-                        { key: 'EARN', label: 'Earned' },
-                        { key: 'REDEEM', label: 'Redeemed' },
-                        { key: 'ADJUSTMENT', label: 'Adjustments' },
-                      ].map((t) => {
-                        const isActive = walletTxTypeFilter === t.key;
-                        return (
-                          <button
-                            key={t.key}
-                            type="button"
-                            onClick={() => {
-                              setWalletTxTypeFilter(t.key as any);
-                              setWalletTxsPage(1);
-                            }}
-                            style={{
-                              padding: '6px 14px',
-                              borderRadius: '6px',
-                              border: isActive ? '1px solid #c9a84c' : '1px solid rgba(255, 255, 255, 0.12)',
-                              background: isActive ? '#c9a84c' : 'rgba(255, 255, 255, 0.05)',
-                              color: isActive ? '#0f0c0a' : '#f5efe6',
-                              fontSize: '0.82rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                            }}
-                          >
-                            {t.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Optional Date Filters Row */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>From Date:</span>
-                      <input
-                        type="date"
-                        value={walletDateFrom}
-                        onChange={(e) => setWalletDateFrom(e.target.value)}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '6px',
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(201,168,76,0.3)',
-                          color: '#f5efe6',
-                          fontSize: '0.82rem',
-                          colorScheme: 'dark',
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>To Date:</span>
-                      <input
-                        type="date"
-                        value={walletDateTo}
-                        onChange={(e) => setWalletDateTo(e.target.value)}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '6px',
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(201,168,76,0.3)',
-                          color: '#f5efe6',
-                          fontSize: '0.82rem',
-                          colorScheme: 'dark',
-                        }}
-                      />
-                    </div>
-
-                    {(walletDateFrom || walletDateTo) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWalletDateFrom('');
-                          setWalletDateTo('');
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#c9a84c',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Reset Dates
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Loading State */}
-                  {isWalletTxsLoading ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'rgba(255, 255, 255, 0.7)', padding: '48px 0', justifyContent: 'center' }}>
-                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#c9a84c' }} />
-                      <span style={{ fontSize: '0.95rem' }}>Loading reward transactions...</span>
-                    </div>
-                  ) : walletTxsError ? (
+                {/* 1. REWARD BALANCE TAB (Default) */}
+                {rewardsTab === 'balance' && (
+                  <div>
+                    {/* AVAILABLE REWARD BALANCE CARD */}
                     <div
                       style={{
-                        padding: '20px',
-                        background: 'rgba(231, 76, 60, 0.12)',
-                        border: '1px solid #e74c3c',
-                        borderRadius: '10px',
-                        color: '#e74c3c',
-                        textAlign: 'center',
+                        background: 'rgba(18, 14, 11, 0.96)',
+                        border: '1px solid rgba(201, 168, 76, 0.35)',
+                        borderRadius: '14px',
+                        padding: '28px',
+                        marginBottom: '32px',
+                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                       }}
                     >
-                      <p style={{ margin: '0 0 12px 0', fontWeight: 600 }}>{walletTxsError}</p>
-                      <Button variant="gold" size="sm" onClick={() => fetchWalletTransactions()}>
-                        Retry
-                      </Button>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'rgba(201, 168, 76, 0.85)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        AVAILABLE REWARD BALANCE
+                      </div>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#f5efe6', fontFamily: 'var(--font-display)', margin: '8px 0 4px 0' }}>
+                        {wallet?.coin_balance ?? 0} Coins
+                      </div>
+                      <div style={{ fontSize: '1rem', fontWeight: 700, color: '#c9a84c' }}>
+                        Equivalent value: ₹{(wallet?.rupee_value !== undefined ? wallet.rupee_value : ((wallet?.coin_balance ?? 0) / (wallet?.settings?.coins_per_rupee || 10))).toFixed(2)}
+                      </div>
                     </div>
-                  ) : (() => {
-                    const filteredTxs = walletTxs.filter((tx) => {
-                      if (!tx.created_at) return true;
-                      const txTime = new Date(tx.created_at).getTime();
-                      if (walletDateFrom) {
-                        const fromTime = new Date(walletDateFrom).getTime();
-                        if (txTime < fromTime) return false;
-                      }
-                      if (walletDateTo) {
-                        const toTime = new Date(walletDateTo).setHours(23, 59, 59, 999);
-                        if (txTime > toTime) return false;
-                      }
-                      return true;
-                    });
 
-                    if (filteredTxs.length === 0) {
-                      return (
-                        <div
-                          style={{
-                            padding: '56px 24px',
-                            background: 'rgba(18, 14, 11, 0.95)',
-                            border: '1px dashed rgba(201, 168, 76, 0.3)',
-                            borderRadius: '14px',
-                            textAlign: 'center',
-                            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: '72px',
-                              height: '72px',
-                              borderRadius: '50%',
-                              background: 'rgba(201, 168, 76, 0.1)',
-                              border: '1px solid rgba(201, 168, 76, 0.3)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginBottom: '20px',
-                            }}
-                          >
-                            <Coins size={36} style={{ color: '#c9a84c' }} />
-                          </div>
-                          <h3 style={{ color: '#f5efe6', margin: '0 0 8px 0', fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-                            No Reward Transactions Yet
-                          </h3>
-                          <p style={{ color: 'rgba(255, 255, 255, 0.65)', margin: '0 0 28px 0', fontSize: '0.92rem' }}>
-                            Earn Chovique Coins by shopping and redeem them on future orders.
-                          </p>
-                          <Button variant="gold" size="md" glow onClick={() => navigate('/shop')}>
-                            SHOP NOW
-                          </Button>
-                        </div>
-                      );
-                    }
+                    {/* TRANSACTION LEDGER & AUDIT HISTORY */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                          Transaction Ledger &amp; Audit History
+                        </h3>
 
-                    return (
-                      <div
-                        style={{
-                          background: 'rgba(18, 14, 11, 0.95)',
-                          border: '1px solid rgba(201, 168, 76, 0.25)',
-                          borderRadius: '14px',
-                          overflow: 'hidden',
-                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                        }}
-                      >
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-                            <thead>
-                              <tr style={{ background: 'rgba(0, 0, 0, 0.4)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
-                                <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Date</th>
-                                <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Type</th>
-                                <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Amount</th>
-                                <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Description</th>
-                                <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700, textAlign: 'right' }}>Order Ref</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filteredTxs.map((tx) => {
-                                const isEarn = tx.type === 'EARN';
-                                const isRedeem = tx.type === 'REDEEM';
-
-                                const typeLabel = isEarn ? 'EARN' : isRedeem ? 'REDEEM' : 'ADJUSTMENT';
-                                const typeBadgeColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#f1c40f';
-                                const typeBadgeBg = isEarn ? 'rgba(46, 204, 113, 0.15)' : isRedeem ? 'rgba(231, 76, 60, 0.15)' : 'rgba(241, 196, 15, 0.15)';
-
-                                const absCoins = Math.abs(tx.coins);
-                                const isPositive = tx.coins > 0 || isEarn;
-                                const formattedCoins = isPositive ? `+${absCoins} Coins` : `−${absCoins} Coins`;
-                                const coinsColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#c9a84c';
-
-                                let dateStr = 'Recently';
-                                if (tx.created_at) {
-                                  try {
-                                    dateStr = new Date(tx.created_at).toLocaleDateString('en-GB', {
-                                      day: '2-digit',
-                                      month: 'short',
-                                      year: 'numeric',
-                                    });
-                                  } catch {
-                                    dateStr = tx.created_at;
-                                  }
-                                }
-
-                                return (
-                                  <tr
-                                    key={tx.id}
-                                    style={{
-                                      borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                                      transition: 'background 0.2s ease',
-                                    }}
-                                  >
-                                    {/* Date */}
-                                    <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.8)' }}>
-                                      {dateStr}
-                                    </td>
-
-                                    {/* Type Badge */}
-                                    <td style={{ padding: '14px 18px' }}>
-                                      <span
-                                        style={{
-                                          fontSize: '0.72rem',
-                                          fontWeight: 800,
-                                          letterSpacing: '0.5px',
-                                          padding: '4px 10px',
-                                          borderRadius: '6px',
-                                          background: typeBadgeBg,
-                                          color: typeBadgeColor,
-                                          border: `1px solid ${typeBadgeColor}`,
-                                          textTransform: 'uppercase',
-                                        }}
-                                      >
-                                        ● {typeLabel}
-                                      </span>
-                                    </td>
-
-                                    {/* Coins Amount */}
-                                    <td style={{ padding: '14px 18px', fontWeight: 800, color: coinsColor, fontSize: '0.95rem' }}>
-                                      {formattedCoins}
-                                    </td>
-
-                                    {/* Description */}
-                                    <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.7)' }}>
-                                      {tx.description || (isEarn ? 'Coins earned for purchase' : isRedeem ? 'Coins redeemed on order' : 'Reward adjustment')}
-                                    </td>
-
-                                    {/* Related Order Ref */}
-                                    <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                                      {tx.order_id ? (
-                                        <span
-                                          onClick={() => setActiveTab('orders')}
-                                          style={{
-                                            fontSize: '0.8rem',
-                                            fontWeight: 700,
-                                            color: '#c9a84c',
-                                            background: 'rgba(201, 168, 76, 0.1)',
-                                            border: '1px solid rgba(201, 168, 76, 0.3)',
-                                            padding: '4px 10px',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          Order #{tx.order_id.slice(-8)}
-                                        </span>
-                                      ) : (
-                                        <span style={{ color: 'rgba(255, 255, 255, 0.35)', fontSize: '0.8rem' }}>—</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Pagination Footer */}
-                        <div
-                          style={{
-                            padding: '16px 20px',
-                            background: 'rgba(0, 0, 0, 0.3)',
-                            borderTop: '1px solid rgba(201, 168, 76, 0.15)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: '12px',
-                            fontSize: '0.84rem',
-                            color: 'rgba(255, 255, 255, 0.65)',
-                          }}
-                        >
-                          <div>
-                            Showing <strong style={{ color: '#f5efe6' }}>{walletTxsTotal > 0 ? (walletTxsPage - 1) * 10 + 1 : 0}</strong>–<strong style={{ color: '#f5efe6' }}>{Math.min(walletTxsPage * 10, walletTxsTotal)}</strong> of <strong style={{ color: '#f5efe6' }}>{walletTxsTotal}</strong> transactions
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <button
-                              type="button"
-                              disabled={walletTxsPage <= 1}
-                              onClick={() => setWalletTxsPage((p) => Math.max(1, p - 1))}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                background: walletTxsPage > 1 ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                                color: walletTxsPage > 1 ? '#c9a84c' : 'rgba(255, 255, 255, 0.3)',
-                                border: walletTxsPage > 1 ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                                cursor: walletTxsPage > 1 ? 'pointer' : 'not-allowed',
-                              }}
-                            >
-                              ← Previous
-                            </button>
-
-                            {Array.from({ length: walletTxsPages }, (_, i) => i + 1).map((pg) => (
+                        {/* Filter Tabs Row */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {[
+                            { key: 'ALL', label: 'All' },
+                            { key: 'EARN', label: 'Earned' },
+                            { key: 'REDEEM', label: 'Redeemed' },
+                            { key: 'ADJUSTMENT', label: 'Adjustments' },
+                          ].map((t) => {
+                            const isActive = walletTxTypeFilter === t.key;
+                            return (
                               <button
-                                key={pg}
+                                key={t.key}
                                 type="button"
-                                onClick={() => setWalletTxsPage(pg)}
+                                onClick={() => {
+                                  setWalletTxTypeFilter(t.key as any);
+                                  setWalletTxsPage(1);
+                                }}
                                 style={{
-                                  padding: '6px 10px',
+                                  padding: '6px 14px',
                                   borderRadius: '6px',
-                                  background: pg === walletTxsPage ? '#c9a84c' : 'rgba(255, 255, 255, 0.05)',
-                                  color: pg === walletTxsPage ? '#0f0c0a' : '#f5efe6',
-                                  border: pg === walletTxsPage ? '1px solid #c9a84c' : '1px solid rgba(255, 255, 255, 0.1)',
-                                  fontSize: '0.8rem',
+                                  border: isActive ? '1px solid #c9a84c' : '1px solid rgba(255, 255, 255, 0.12)',
+                                  background: isActive ? '#c9a84c' : 'rgba(255, 255, 255, 0.05)',
+                                  color: isActive ? '#0f0c0a' : '#f5efe6',
+                                  fontSize: '0.82rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
                                 }}
                               >
-                                {pg}
+                                {t.label}
                               </button>
-                            ))}
-
-                            <button
-                              type="button"
-                              disabled={walletTxsPage >= walletTxsPages}
-                              onClick={() => setWalletTxsPage((p) => Math.min(walletTxsPages, p + 1))}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                background: walletTxsPage < walletTxsPages ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                                color: walletTxsPage < walletTxsPages ? '#c9a84c' : 'rgba(255, 255, 255, 0.3)',
-                                border: walletTxsPage < walletTxsPages ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                                cursor: walletTxsPage < walletTxsPages ? 'pointer' : 'not-allowed',
-                              }}
-                            >
-                              Next →
-                            </button>
-                          </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })()}
-                </div>
+
+                      {/* Date Filters Row */}
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>From Date:</span>
+                          <input
+                            type="date"
+                            value={walletDateFrom}
+                            onChange={(e) => setWalletDateFrom(e.target.value)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid rgba(201,168,76,0.3)',
+                              color: '#f5efe6',
+                              fontSize: '0.82rem',
+                              colorScheme: 'dark',
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>To Date:</span>
+                          <input
+                            type="date"
+                            value={walletDateTo}
+                            onChange={(e) => setWalletDateTo(e.target.value)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid rgba(201,168,76,0.3)',
+                              color: '#f5efe6',
+                              fontSize: '0.82rem',
+                              colorScheme: 'dark',
+                            }}
+                          />
+                        </div>
+
+                        {(walletDateFrom || walletDateTo) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWalletDateFrom('');
+                              setWalletDateTo('');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#c9a84c',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Reset Dates
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Loading State */}
+                      {isWalletTxsLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'rgba(255, 255, 255, 0.7)', padding: '48px 0', justifyContent: 'center' }}>
+                          <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#c9a84c' }} />
+                          <span style={{ fontSize: '0.95rem' }}>Loading reward transactions...</span>
+                        </div>
+                      ) : walletTxsError ? (
+                        <div
+                          style={{
+                            padding: '20px',
+                            background: 'rgba(231, 76, 60, 0.12)',
+                            border: '1px solid #e74c3c',
+                            borderRadius: '10px',
+                            color: '#e74c3c',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <p style={{ margin: '0 0 12px 0', fontWeight: 600 }}>{walletTxsError}</p>
+                          <Button variant="gold" size="sm" onClick={() => fetchWalletTransactions()}>
+                            Retry
+                          </Button>
+                        </div>
+                      ) : (() => {
+                        const filteredTxs = walletTxs.filter((tx) => {
+                          if (!tx.created_at) return true;
+                          const txTime = new Date(tx.created_at).getTime();
+                          if (walletDateFrom) {
+                            const fromTime = new Date(walletDateFrom).getTime();
+                            if (txTime < fromTime) return false;
+                          }
+                          if (walletDateTo) {
+                            const toTime = new Date(walletDateTo).setHours(23, 59, 59, 999);
+                            if (txTime > toTime) return false;
+                          }
+                          return true;
+                        });
+
+                        if (filteredTxs.length === 0) {
+                          return (
+                            <div
+                              style={{
+                                padding: '56px 24px',
+                                background: 'rgba(18, 14, 11, 0.95)',
+                                border: '1px dashed rgba(201, 168, 76, 0.3)',
+                                borderRadius: '14px',
+                                textAlign: 'center',
+                                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: '72px',
+                                  height: '72px',
+                                  borderRadius: '50%',
+                                  background: 'rgba(201, 168, 76, 0.1)',
+                                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginBottom: '20px',
+                                }}
+                              >
+                                <Coins size={36} style={{ color: '#c9a84c' }} />
+                              </div>
+                              <h3 style={{ color: '#f5efe6', margin: '0 0 8px 0', fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+                                No Reward Transactions Yet
+                              </h3>
+                              <p style={{ color: 'rgba(255, 255, 255, 0.65)', margin: '0 0 28px 0', fontSize: '0.92rem' }}>
+                                Earn Chovique Coins by shopping and redeem them on future orders.
+                              </p>
+                              <Button variant="gold" size="md" glow onClick={() => navigate('/shop')}>
+                                SHOP NOW
+                              </Button>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            style={{
+                              background: 'rgba(18, 14, 11, 0.95)',
+                              border: '1px solid rgba(201, 168, 76, 0.25)',
+                              borderRadius: '14px',
+                              overflow: 'hidden',
+                              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
+                            }}
+                          >
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                                <thead>
+                                  <tr style={{ background: 'rgba(0, 0, 0, 0.4)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Date</th>
+                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Type</th>
+                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Amount</th>
+                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Description</th>
+                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700, textAlign: 'right' }}>Order Ref</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredTxs.map((tx) => {
+                                    const isEarn = tx.type === 'EARN';
+                                    const isRedeem = tx.type === 'REDEEM';
+
+                                    const typeLabel = isEarn ? 'EARN' : isRedeem ? 'REDEEM' : 'ADJUSTMENT';
+                                    const typeBadgeColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#f1c40f';
+                                    const typeBadgeBg = isEarn ? 'rgba(46, 204, 113, 0.15)' : isRedeem ? 'rgba(231, 76, 60, 0.15)' : 'rgba(241, 196, 15, 0.15)';
+
+                                    const absCoins = Math.abs(tx.coins);
+                                    const isPositive = tx.coins > 0 || isEarn;
+                                    const formattedCoins = isPositive ? `+${absCoins} Coins` : `−${absCoins} Coins`;
+                                    const coinsColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#c9a84c';
+
+                                    let dateStr = 'Recently';
+                                    if (tx.created_at) {
+                                      try {
+                                        dateStr = new Date(tx.created_at).toLocaleDateString('en-GB', {
+                                          day: '2-digit',
+                                          month: 'short',
+                                          year: 'numeric',
+                                        });
+                                      } catch {
+                                        dateStr = tx.created_at;
+                                      }
+                                    }
+
+                                    return (
+                                      <tr
+                                        key={tx.id}
+                                        style={{
+                                          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                                          transition: 'background 0.2s ease',
+                                        }}
+                                      >
+                                        {/* Date */}
+                                        <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.8)' }}>
+                                          {dateStr}
+                                        </td>
+
+                                        {/* Type Badge */}
+                                        <td style={{ padding: '14px 18px' }}>
+                                          <span
+                                            style={{
+                                              fontSize: '0.72rem',
+                                              fontWeight: 800,
+                                              letterSpacing: '0.5px',
+                                              padding: '4px 10px',
+                                              borderRadius: '6px',
+                                              background: typeBadgeBg,
+                                              color: typeBadgeColor,
+                                              border: `1px solid ${typeBadgeColor}`,
+                                              textTransform: 'uppercase',
+                                            }}
+                                          >
+                                            ● {typeLabel}
+                                          </span>
+                                        </td>
+
+                                        {/* Coins Amount */}
+                                        <td style={{ padding: '14px 18px', fontWeight: 800, color: coinsColor, fontSize: '0.95rem' }}>
+                                          {formattedCoins}
+                                        </td>
+
+                                        {/* Description */}
+                                        <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.7)' }}>
+                                          {tx.description || (isEarn ? 'Coins earned for purchase' : isRedeem ? 'Coins redeemed on order' : 'Reward adjustment')}
+                                        </td>
+
+                                        {/* Related Order Ref */}
+                                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                          {tx.order_id ? (
+                                            <span
+                                              onClick={() => setActiveTab('orders')}
+                                              style={{
+                                                fontSize: '0.8rem',
+                                                fontWeight: 700,
+                                                color: '#c9a84c',
+                                                background: 'rgba(201, 168, 76, 0.1)',
+                                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                                padding: '4px 10px',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                              }}
+                                            >
+                                              Order #{tx.order_id.slice(-8)}
+                                            </span>
+                                          ) : (
+                                            <span style={{ color: 'rgba(255, 255, 255, 0.35)', fontSize: '0.8rem' }}>—</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Pagination Footer */}
+                            <div
+                              style={{
+                                padding: '16px 20px',
+                                background: 'rgba(0, 0, 0, 0.3)',
+                                borderTop: '1px solid rgba(201, 168, 76, 0.15)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: '12px',
+                                fontSize: '0.84rem',
+                                color: 'rgba(255, 255, 255, 0.65)',
+                              }}
+                            >
+                              <div>
+                                Showing <strong style={{ color: '#f5efe6' }}>{walletTxsTotal > 0 ? (walletTxsPage - 1) * 10 + 1 : 0}</strong>–<strong style={{ color: '#f5efe6' }}>{Math.min(walletTxsPage * 10, walletTxsTotal)}</strong> of <strong style={{ color: '#f5efe6' }}>{walletTxsTotal}</strong> transactions
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  disabled={walletTxsPage <= 1}
+                                  onClick={() => setWalletTxsPage((p) => Math.max(1, p - 1))}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    background: walletTxsPage > 1 ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                    color: walletTxsPage > 1 ? '#c9a84c' : 'rgba(255, 255, 255, 0.3)',
+                                    border: walletTxsPage > 1 ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: walletTxsPage > 1 ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  ← Previous
+                                </button>
+
+                                {Array.from({ length: walletTxsPages }, (_, i) => i + 1).map((pg) => (
+                                  <button
+                                    key={pg}
+                                    type="button"
+                                    onClick={() => setWalletTxsPage(pg)}
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: '6px',
+                                      background: pg === walletTxsPage ? '#c9a84c' : 'rgba(255, 255, 255, 0.05)',
+                                      color: pg === walletTxsPage ? '#0f0c0a' : '#f5efe6',
+                                      border: pg === walletTxsPage ? '1px solid #c9a84c' : '1px solid rgba(255, 255, 255, 0.1)',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {pg}
+                                  </button>
+                                ))}
+
+                                <button
+                                  type="button"
+                                  disabled={walletTxsPage >= walletTxsPages}
+                                  onClick={() => setWalletTxsPage((p) => Math.min(walletTxsPages, p + 1))}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    background: walletTxsPage < walletTxsPages ? 'rgba(201, 168, 76, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                    color: walletTxsPage < walletTxsPages ? '#c9a84c' : 'rgba(255, 255, 255, 0.3)',
+                                    border: walletTxsPage < walletTxsPages ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: walletTxsPage < walletTxsPages ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  Next →
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. REWARD RULES TAB */}
+                {rewardsTab === 'rules' && (
+                  <div
+                    style={{
+                      background: 'rgba(18, 14, 11, 0.96)',
+                      border: '1px solid rgba(201, 168, 76, 0.35)',
+                      borderRadius: '14px',
+                      padding: '28px',
+                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
+                    }}
+                  >
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: '#c9a84c', margin: '0 0 16px 0', fontWeight: 700 }}>
+                      Chovique Reward Rules
+                    </h3>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.9rem', marginBottom: '24px', lineHeight: 1.6 }}>
+                      Every purchase at Chovique earns you reward coins that can be redeemed for direct discounts on your future orders.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr', gap: '20px' }}>
+                      <div
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          border: '1px solid rgba(201, 168, 76, 0.25)',
+                          borderRadius: '10px',
+                          padding: '20px',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.8rem', color: '#c9a84c', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>
+                          Earn Rule
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f5efe6', marginBottom: '6px' }}>
+                          ₹{wallet?.settings?.spend_per_coin ?? 10} spent = 1 Coin
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.55)', margin: 0 }}>
+                          Earn coins automatically whenever an order is successfully completed.
+                        </p>
+                      </div>
+
+                      <div
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          border: '1px solid rgba(201, 168, 76, 0.25)',
+                          borderRadius: '10px',
+                          padding: '20px',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.8rem', color: '#c9a84c', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>
+                          Redeem Rule
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f5efe6', marginBottom: '6px' }}>
+                          {wallet?.settings?.coins_per_rupee ?? 10} Coins = ₹1 Discount
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.55)', margin: 0 }}>
+                          Redeem your collected coins directly at checkout for instant savings.
+                        </p>
+                      </div>
+
+                      <div
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          border: '1px solid rgba(201, 168, 76, 0.25)',
+                          borderRadius: '10px',
+                          padding: '20px',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.8rem', color: '#c9a84c', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>
+                          Max Usage
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f5efe6', marginBottom: '6px' }}>
+                          Up to {wallet?.settings?.max_redemption_percentage ?? 20}% per order
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.55)', margin: 0 }}>
+                          Apply coin discounts up to 20% of your total order amount.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3876,27 +3900,59 @@ export const CustomerDashboard: React.FC = () => {
                               ? 'FREE SHIPPING'
                               : 'SPECIAL OFFER';
 
-                          const isExpired = c.expires_at ? new Date(c.expires_at).getTime() < Date.now() : false;
-                          const isUsed = couponItem.status === 'USED';
-                          const isActive = (c.status === 'ACTIVE' || (c.is_active !== false && c.status !== 'INACTIVE')) && !isExpired && !isUsed;
-                          const statusLabel = isUsed ? 'USED' : isExpired ? 'EXPIRED' : 'ACTIVE';
+                          const rawExpiry = c.expires_at || couponItem.expiryDate || couponItem.expiry_date || couponItem.expiresAt || couponItem.end_date || couponItem.endDate || couponItem.exp;
+                          const rawStart = c.start_at || couponItem.startDate || couponItem.start_date || couponItem.startsAt || couponItem.begin_date;
 
-                          let expiryStr = 'No expiry';
-                          if (c.expires_at) {
-                            try {
-                              const d = new Date(c.expires_at);
-                              expiryStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                            } catch {
-                              expiryStr = c.expires_at;
+                          let expiryDateObj: Date | null = null;
+                          if (rawExpiry) {
+                            const d = new Date(rawExpiry);
+                            if (!isNaN(d.getTime())) {
+                              expiryDateObj = d;
                             }
-                          } else if (couponItem.exp) {
-                            expiryStr = couponItem.exp;
                           }
+
+                          let startDateObj: Date | null = null;
+                          if (rawStart) {
+                            const d = new Date(rawStart);
+                            if (!isNaN(d.getTime())) {
+                              startDateObj = d;
+                            }
+                          }
+
+                          const nowMs = Date.now();
+                          const isExpired = expiryDateObj ? expiryDateObj.getTime() < nowMs : false;
+                          const isNotStarted = startDateObj ? startDateObj.getTime() > nowMs : false;
+                          const isUsed = couponItem.status === 'USED' || couponItem.status === 'Used';
+
+                          let statusLabel = 'Available';
+                          let isActive = true;
+
+                          if (isUsed) {
+                            statusLabel = 'Used';
+                            isActive = false;
+                          } else if (isExpired || c.status === 'Expired' || c.status === 'EXPIRED') {
+                            statusLabel = 'Expired';
+                            isActive = false;
+                          } else if (isNotStarted || c.status === 'Not Available') {
+                            statusLabel = 'Not Available';
+                            isActive = false;
+                          } else if (c.is_active === false || c.status === 'INACTIVE' || c.status === 'Inactive') {
+                            statusLabel = 'Expired';
+                            isActive = false;
+                          } else {
+                            statusLabel = 'Available';
+                            isActive = true;
+                          }
+
+                          const expiryStr = formatCouponExpiry(rawExpiry);
 
                           const titleText = (c.name || couponItem.title || c.code || 'CHOCOLATE DELIGHT').toUpperCase();
                           const minOrderStr = c.minimum_order_amount && c.minimum_order_amount > 0
                             ? `₹${c.minimum_order_amount.toLocaleString('en-IN')}`
                             : 'None';
+                          const maxDiscountStr = c.maximum_discount_amount && c.maximum_discount_amount > 0
+                            ? `₹${c.maximum_discount_amount.toLocaleString('en-IN')}`
+                            : null;
                           const descText = c.description || couponItem.desc || `Get ${discountStr.toLowerCase()} on your chocolate order.`;
 
                           const isCopied = copiedCode === c.code;
@@ -3944,12 +4000,22 @@ export const CustomerDashboard: React.FC = () => {
                                       ? 'rgba(46, 204, 113, 0.15)'
                                       : isUsed
                                       ? 'rgba(255, 255, 255, 0.1)'
+                                      : statusLabel === 'Not Available'
+                                      ? 'rgba(241, 196, 15, 0.15)'
                                       : 'rgba(231, 76, 60, 0.15)',
-                                    color: isActive ? '#2ecc71' : isUsed ? 'rgba(255, 255, 255, 0.6)' : '#e74c3c',
+                                    color: isActive
+                                      ? '#2ecc71'
+                                      : isUsed
+                                      ? 'rgba(255, 255, 255, 0.6)'
+                                      : statusLabel === 'Not Available'
+                                      ? '#f1c40f'
+                                      : '#e74c3c',
                                     border: isActive
                                       ? '1px solid #2ecc71'
                                       : isUsed
                                       ? '1px solid rgba(255, 255, 255, 0.2)'
+                                      : statusLabel === 'Not Available'
+                                      ? '1px solid #f1c40f'
                                       : '1px solid #e74c3c',
                                   }}
                                 >
@@ -4032,14 +4098,26 @@ export const CustomerDashboard: React.FC = () => {
                                   borderTop: '1px solid rgba(201, 168, 76, 0.15)',
                                   paddingTop: '12px',
                                   display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
+                                  flexDirection: 'column',
+                                  gap: '6px',
                                   fontSize: '0.8rem',
                                   color: 'rgba(255, 255, 255, 0.55)',
                                 }}
                               >
-                                <span>Minimum order: <strong style={{ color: '#f5efe6' }}>{minOrderStr}</strong></span>
-                                <span>Valid until: <strong style={{ color: '#f5efe6' }}>{expiryStr}</strong></span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span>Minimum order: <strong style={{ color: '#f5efe6' }}>{minOrderStr}</strong></span>
+                                  <span>Expires: <strong style={{ color: '#f5efe6' }}>{expiryStr}</strong></span>
+                                </div>
+                                {maxDiscountStr ? (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>Maximum discount: <strong style={{ color: '#f5efe6' }}>{maxDiscountStr}</strong></span>
+                                    <span>Status: <strong style={{ color: isActive ? '#2ecc71' : isUsed ? 'rgba(255, 255, 255, 0.6)' : statusLabel === 'Not Available' ? '#f1c40f' : '#e74c3c' }}>{statusLabel}</strong></span>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <span>Status: <strong style={{ color: isActive ? '#2ecc71' : isUsed ? 'rgba(255, 255, 255, 0.6)' : statusLabel === 'Not Available' ? '#f1c40f' : '#e74c3c' }}>{statusLabel}</strong></span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -4051,64 +4129,260 @@ export const CustomerDashboard: React.FC = () => {
             )}
 
             {/* NOTIFICATIONS PANEL */}
-            {activeTab === 'notifications' && (
-              <div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '24px' }}>
-                  Activity Alerts
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {notifications.length === 0 ? (
-                    <p style={{ color: 'var(--grey-light)', fontSize: '0.9rem', fontStyle: 'italic', textAlign: 'center', margin: '40px 0' }}>
-                      No new activity alerts or notifications.
-                    </p>
-                  ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
+            {activeTab === 'notifications' && (() => {
+              const unreadTotal = notifications.filter(n => !n.read && !n.is_read).length;
+              const filteredList = notifications.filter(n => {
+                if (notifFilter === 'all') return true;
+                return n.type === notifFilter;
+              });
+
+              return (
+                <div>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                        Notifications & Alerts
+                      </h2>
+                      <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
+                        Stay updated on your orders, wallet rewards, coupons, and support tickets.
+                      </p>
+                    </div>
+
+                    {unreadTotal > 0 && (
+                      <button
+                        onClick={() => markAllNotificationsAsRead()}
                         style={{
-                          padding: '16px',
-                          borderRadius: '4px',
-                          background: 'rgba(201, 168, 76, 0.04)',
-                          border: '1px solid var(--gold)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
+                          background: 'rgba(201, 168, 76, 0.12)',
+                          border: '1px solid rgba(201, 168, 76, 0.35)',
+                          color: '#c9a84c',
+                          borderRadius: '8px',
+                          padding: '8px 16px',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
                           alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s ease',
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ color: 'var(--cream)', fontSize: '0.9rem' }}>{n.text}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>{n.date}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <Button
-                            variant="glass"
-                            size="sm"
-                            onClick={() => {
-                              removeNotification(n.id);
-                              if (n.type === 'support') {
-                                setActiveTab('help');
-                              } else if (n.type === 'order') {
-                                setActiveTab('orders');
-                              }
+                        <Check size={16} /> Mark all as read ({unreadTotal})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: 'All', count: notifications.length },
+                      { id: 'order', label: 'Orders', count: notifications.filter(n => n.type === 'order').length },
+                      { id: 'reward', label: 'Rewards', count: notifications.filter(n => n.type === 'reward').length },
+                      { id: 'coupon', label: 'Coupons', count: notifications.filter(n => n.type === 'coupon').length },
+                      { id: 'support', label: 'Support', count: notifications.filter(n => n.type === 'support').length },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setNotifFilter(tab.id as any)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          border: notifFilter === tab.id ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,0.1)',
+                          background: notifFilter === tab.id ? 'rgba(201, 168, 76, 0.18)' : 'rgba(255,255,255,0.03)',
+                          color: notifFilter === tab.id ? '#f5efe6' : 'rgba(255,255,255,0.6)',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>{tab.label}</span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({tab.count})</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Notifications List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {filteredList.length === 0 ? (
+                      <div
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px dashed rgba(255, 255, 255, 0.15)',
+                          borderRadius: '12px',
+                          padding: '48px 24px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Bell size={36} color="#c9a84c" style={{ margin: '0 auto 12px auto', opacity: 0.6 }} />
+                        <h4 style={{ color: '#f5efe6', fontSize: '1.1rem', margin: '0 0 6px 0' }}>No notifications</h4>
+                        <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.85rem', margin: 0 }}>
+                          You don't have any notifications in this category.
+                        </p>
+                      </div>
+                    ) : (
+                      filteredList.map((n) => {
+                        const isUnread = !n.read && !n.is_read;
+                        const notifTitle = n.title || (n.type ? n.type.replace('_', ' ').toUpperCase() : 'Notification');
+                        const notifMsg = n.message || n.text || '';
+
+                        const getNotifIcon = () => {
+                          switch (n.type) {
+                            case 'order':
+                              return <ShoppingBag size={18} color="#c9a84c" />;
+                            case 'support':
+                              return <MessageSquare size={18} color="#c9a84c" />;
+                            case 'reward':
+                              return <Coins size={18} color="#c9a84c" />;
+                            case 'coupon':
+                              return <Tag size={18} color="#c9a84c" />;
+                            default:
+                              return <Bell size={18} color="#c9a84c" />;
+                          }
+                        };
+
+                        return (
+                          <div
+                            key={n.id}
+                            style={{
+                              padding: '18px 20px',
+                              borderRadius: '10px',
+                              background: isUnread ? 'rgba(201, 168, 76, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                              border: isUnread ? '1px solid rgba(201, 168, 76, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '16px',
+                              flexWrap: 'wrap',
+                              transition: 'all 0.2s ease',
+                              boxShadow: isUnread ? '0 4px 16px rgba(201, 168, 76, 0.08)' : 'none',
                             }}
                           >
-                            View
-                          </Button>
-                          <Button
-                            variant="text"
-                            size="sm"
-                            onClick={() => removeNotification(n.id)}
-                            style={{ color: 'var(--rose-gold)' }}
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1, minWidth: '240px' }}>
+                              <div
+                                style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  borderRadius: '50%',
+                                  background: 'rgba(201, 168, 76, 0.12)',
+                                  border: '1px solid rgba(201, 168, 76, 0.25)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  marginTop: '2px',
+                                }}
+                              >
+                                {getNotifIcon()}
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ color: '#f5efe6', fontSize: '0.95rem', fontWeight: isUnread ? 700 : 600 }}>
+                                    {notifTitle}
+                                  </span>
+                                  {isUnread && (
+                                    <span
+                                      style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        background: '#c9a84c',
+                                        boxShadow: '0 0 6px rgba(201, 168, 76, 0.8)',
+                                        display: 'inline-block',
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <span style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                                  {notifMsg}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.45)', marginTop: '2px' }}>
+                                  {n.date}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
+                              {isUnread && (
+                                <button
+                                  onClick={() => markNotificationAsRead(n.id)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid rgba(201, 168, 76, 0.3)',
+                                    color: '#c9a84c',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                >
+                                  Mark Read
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  if (isUnread) {
+                                    markNotificationAsRead(n.id);
+                                  }
+                                  if (n.type === 'support') {
+                                    setActiveTab('help');
+                                  } else if (n.type === 'order') {
+                                    setActiveTab('orders');
+                                  } else if (n.type === 'coupon') {
+                                    setActiveTab('coupons');
+                                  } else if (n.type === 'reward') {
+                                    setActiveTab('rewards');
+                                  }
+                                }}
+                                style={{
+                                  background: 'linear-gradient(135deg, #c9a84c 0%, #b8973b 100%)',
+                                  border: 'none',
+                                  color: '#0f0c0a',
+                                  borderRadius: '6px',
+                                  padding: '6px 14px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                }}
+                              >
+                                View
+                              </button>
+
+                              <button
+                                onClick={() => removeNotification(n.id)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'rgba(255, 255, 255, 0.4)',
+                                  padding: '6px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: '6px',
+                                  transition: 'all 0.2s ease',
+                                }}
+                                title="Dismiss notification"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* SETTINGS PANEL */}
             {activeTab === 'settings' && (
@@ -4476,16 +4750,54 @@ export const CustomerDashboard: React.FC = () => {
             {/* HELP & COMPLAINTS PANEL */}
             {activeTab === 'help' && (
               <div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', marginBottom: '24px' }}>
-                  Help & Support Center
-                </h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--cream)', margin: '0 0 6px 0' }}>
+                      Help & Support Center
+                    </h2>
+                    <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: 0 }}>
+                      Our Atelier support desk will inspect and resolve your issue within 24-48 business hours.
+                    </p>
+                  </div>
+                  {!showSupportForm && (
+                    <Button
+                      variant="gold"
+                      glow
+                      onClick={() => setShowSupportForm(true)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+                    >
+                      <Plus size={18} />
+                      Help & Support
+                    </Button>
+                  )}
+                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.2fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-                  {/* Raise Complaint Form */}
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '15px' }}>
-                      Submit a New Support Complaint
-                    </h3>
+                {/* Raise Complaint Form */}
+                {showSupportForm && (
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)', margin: 0 }}>
+                        Submit a New Support Complaint
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowSupportForm(false)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--beige)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: 0.7,
+                        }}
+                        title="Close form"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                     <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
                       Our Atelier support desk will inspect and resolve your issue within 24-48 business hours.
                     </p>
@@ -4500,6 +4812,7 @@ export const CustomerDashboard: React.FC = () => {
                       try {
                         await addSupportTicket(cat, desc, orderIdVal);
                         form.reset();
+                        setShowSupportForm(false);
                         alert('Support complaint raised successfully. You can view its status and related order details in your history log.');
                       } catch (err: any) {
                         alert(err?.detail || err?.message || 'Failed to submit support complaint.');
@@ -4579,178 +4892,190 @@ export const CustomerDashboard: React.FC = () => {
                         />
                       </div>
 
-                      <Button variant="gold" type="submit" glow>
-                        Submit Support Ticket
-                      </Button>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <Button variant="gold" type="submit" glow>
+                          Submit Support Ticket
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={() => setShowSupportForm(false)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            color: 'var(--cream)',
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
                     </form>
                   </div>
+                )}
 
-                  {/* Complaint Logs History */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', marginBottom: '15px' }}>
-                        Your Support History
-                      </h3>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        {tickets.filter(t => t.customerId === user.id).length === 0 ? (
-                          <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                            You have no support complaints raised.
-                          </p>
-                        ) : (
-                          tickets.filter(t => t.customerId === user.id).map(ticket => {
-                            const isResolved = ticket.status === 'Resolved';
-                            const relatedOrderId = ticket.orderId || ticket.order_id;
-                            return (
-                              <div
-                                key={ticket.id}
+                {/* Complaint Logs History - directly displayed on the page */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', marginBottom: '15px' }}>
+                    Your Support History
+                  </h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {tickets.filter(t => t.customerId === user.id).length === 0 ? (
+                      <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', fontSize: '0.85rem', margin: 0 }}>
+                        You have no support complaints raised.
+                      </p>
+                    ) : (
+                      tickets.filter(t => t.customerId === user.id).map(ticket => {
+                        const isResolved = ticket.status === 'Resolved';
+                        const relatedOrderId = ticket.orderId || ticket.order_id;
+                        return (
+                          <div
+                            key={ticket.id}
+                            style={{
+                              padding: '16px',
+                              background: 'rgba(0,0,0,0.2)',
+                              borderRadius: '6px',
+                              borderLeft: isResolved ? '3px solid #2ecc71' : '3px solid var(--gold)',
+                              borderTop: '1px solid var(--glass-border)',
+                              borderRight: '1px solid var(--glass-border)',
+                              borderBottom: '1px solid var(--glass-border)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem' }}>
+                                {ticket.id}
+                              </span>
+                              <span
                                 style={{
-                                  padding: '16px',
-                                  background: 'rgba(0,0,0,0.2)',
-                                  borderRadius: '6px',
-                                  borderLeft: isResolved ? '3px solid #2ecc71' : '3px solid var(--gold)',
-                                  borderTop: '1px solid var(--glass-border)',
-                                  borderRight: '1px solid var(--glass-border)',
-                                  borderBottom: '1px solid var(--glass-border)',
+                                  fontSize: '0.7rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  background: isResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
+                                  color: isResolved ? '#2ecc71' : 'var(--gold)',
+                                  fontWeight: 600,
                                 }}
                               >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                  <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem' }}>
-                                    {ticket.id}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: '0.7rem',
-                                      padding: '2px 8px',
-                                      borderRadius: '12px',
-                                      background: isResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
-                                      color: isResolved ? '#2ecc71' : 'var(--gold)',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {ticket.status}
-                                  </span>
-                                </div>
+                                {ticket.status}
+                              </span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'gap 6px' }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                                Category: <strong style={{ color: 'var(--cream)' }}>{ticket.category}</strong> · Opened: {ticket.date}
+                              </span>
+                              {relatedOrderId ? (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const relOrd = await orderService.getOrder(relatedOrderId);
+                                      setSelectedOrder(relOrd);
+                                      setOrderSubView('details');
+                                      setActiveTab('orders');
+                                    } catch (err: any) {
+                                      alert(err?.detail || err?.message || 'Failed to load related order.');
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '3px 10px',
+                                    fontSize: '0.75rem',
+                                    background: 'rgba(201, 168, 76, 0.15)',
+                                    color: 'var(--gold)',
+                                    border: '1px solid rgba(201, 168, 76, 0.35)',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}
+                                >
+                                  View Related Order (#{relatedOrderId})
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
+                                  No related order
+                                </span>
+                              )}
+                            </div>
+                            
+                            <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--cream)', lineHeight: '1.4' }}>
+                              {ticket.description}
+                            </p>
+
+                            {ticket.adminNotes && (
+                              <div
+                                style={{
+                                  padding: '10px 12px',
+                                  background: 'rgba(201, 168, 76, 0.08)',
+                                  border: '1px dashed rgba(201, 168, 76, 0.3)',
+                                  borderRadius: '4px',
+                                  fontSize: '0.8rem',
+                                  color: 'var(--beige)',
+                                  marginBottom: '12px',
+                                }}
+                              >
+                                <strong style={{ color: 'var(--gold)', display: 'block', marginBottom: '4px' }}>Atelier Resolution Notes:</strong>
+                                {ticket.adminNotes}
+                              </div>
+                            )}
+
+                            {isResolved && (
+                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', marginTop: '10px' }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--cream)', display: 'block', marginBottom: '6px' }}>
+                                  Was this issue resolved to your satisfaction?
+                                </span>
                                 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
-                                    Category: <strong style={{ color: 'var(--cream)' }}>{ticket.category}</strong> · Opened: {ticket.date}
+                                {ticket.customerResolutionFeedback ? (
+                                  <span style={{ fontSize: '0.8rem', color: ticket.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', fontWeight: 600 }}>
+                                    Feedback submitted: {ticket.customerResolutionFeedback === 'Resolved' ? 'Resolved ✓' : 'Not Resolved ✗'}
                                   </span>
-                                  {relatedOrderId ? (
+                                ) : (
+                                  <div style={{ display: 'flex', gap: '10px' }}>
                                     <button
-                                      type="button"
-                                      onClick={async () => {
-                                        try {
-                                          const relOrd = await orderService.getOrder(relatedOrderId);
-                                          setSelectedOrder(relOrd);
-                                          setOrderSubView('details');
-                                          setActiveTab('orders');
-                                        } catch (err: any) {
-                                          alert(err?.detail || err?.message || 'Failed to load related order.');
-                                        }
+                                      onClick={() => {
+                                        submitTicketFeedback(ticket.id, 'Resolved');
+                                        acknowledgeTicketNotification(ticket.id);
                                       }}
                                       style={{
-                                        padding: '3px 10px',
+                                        padding: '4px 10px',
                                         fontSize: '0.75rem',
-                                        background: 'rgba(201, 168, 76, 0.15)',
-                                        color: 'var(--gold)',
-                                        border: '1px solid rgba(201, 168, 76, 0.35)',
+                                        background: 'rgba(46, 204, 113, 0.15)',
+                                        color: '#2ecc71',
+                                        border: '1px solid rgba(46, 204, 113, 0.3)',
                                         borderRadius: '4px',
                                         cursor: 'pointer',
                                         fontWeight: 600,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
                                       }}
                                     >
-                                      View Related Order (#{relatedOrderId})
+                                      Yes, Resolved
                                     </button>
-                                  ) : (
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
-                                      No related order
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--cream)', lineHeight: '1.4' }}>
-                                  {ticket.description}
-                                </p>
-
-                                {ticket.adminNotes && (
-                                  <div
-                                    style={{
-                                      padding: '10px 12px',
-                                      background: 'rgba(201, 168, 76, 0.08)',
-                                      border: '1px dashed rgba(201, 168, 76, 0.3)',
-                                      borderRadius: '4px',
-                                      fontSize: '0.8rem',
-                                      color: 'var(--beige)',
-                                      marginBottom: '12px',
-                                    }}
-                                  >
-                                    <strong style={{ color: 'var(--gold)', display: 'block', marginBottom: '4px' }}>Atelier Resolution Notes:</strong>
-                                    {ticket.adminNotes}
-                                  </div>
-                                )}
-
-                                {isResolved && (
-                                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', marginTop: '10px' }}>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--cream)', display: 'block', marginBottom: '6px' }}>
-                                      Was this issue resolved to your satisfaction?
-                                    </span>
-                                    
-                                    {ticket.customerResolutionFeedback ? (
-                                      <span style={{ fontSize: '0.8rem', color: ticket.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', fontWeight: 600 }}>
-                                        Feedback submitted: {ticket.customerResolutionFeedback === 'Resolved' ? 'Resolved ✓' : 'Not Resolved ✗'}
-                                      </span>
-                                    ) : (
-                                      <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button
-                                          onClick={() => {
-                                            submitTicketFeedback(ticket.id, 'Resolved');
-                                            acknowledgeTicketNotification(ticket.id);
-                                          }}
-                                          style={{
-                                            padding: '4px 10px',
-                                            fontSize: '0.75rem',
-                                            background: 'rgba(46, 204, 113, 0.15)',
-                                            color: '#2ecc71',
-                                            border: '1px solid rgba(46, 204, 113, 0.3)',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: 600,
-                                          }}
-                                        >
-                                          Yes, Resolved
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            submitTicketFeedback(ticket.id, 'Not Resolved');
-                                            acknowledgeTicketNotification(ticket.id);
-                                          }}
-                                          style={{
-                                            padding: '4px 10px',
-                                            fontSize: '0.75rem',
-                                            background: 'rgba(183, 110, 121, 0.15)',
-                                            color: 'var(--rose-gold)',
-                                            border: '1px solid rgba(183, 110, 121, 0.3)',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: 600,
-                                          }}
-                                        >
-                                          No, Still Broken
-                                        </button>
-                                      </div>
-                                    )}
+                                    <button
+                                      onClick={() => {
+                                        submitTicketFeedback(ticket.id, 'Not Resolved');
+                                        acknowledgeTicketNotification(ticket.id);
+                                      }}
+                                      style={{
+                                        padding: '4px 10px',
+                                        fontSize: '0.75rem',
+                                        background: 'rgba(183, 110, 121, 0.15)',
+                                        color: 'var(--rose-gold)',
+                                        border: '1px solid rgba(183, 110, 121, 0.3)',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      No, Still Broken
+                                    </button>
                                   </div>
                                 )}
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>

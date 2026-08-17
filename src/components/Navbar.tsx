@@ -5,6 +5,7 @@ import { ShoppingBag, Heart, User, LogOut, ChevronDown, Menu, X, Bell } from 'lu
 import { useApp } from '../app/providers';
 import { Button } from './ui/Button';
 import { BASE_URL } from '../lib/api';
+import { NotificationHeaderDropdown } from './NotificationHeaderDropdown';
 
 export const Navbar: React.FC = () => {
   const { role, cart, wishlist, logout, user, notifications, removeNotification } = useApp();
@@ -181,106 +182,11 @@ export const Navbar: React.FC = () => {
               </Link>
 
               {/* Notifications Bell */}
-              <div ref={notificationRef} style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowNotifications((prev) => !prev)}
-                  className="nav-icon-btn"
-                  aria-label="Notifications"
-                  title="Notifications"
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  <Bell size={20} />
-                  {notifications.length > 0 && (
-                    <span className="nav-badge" style={{ backgroundColor: '#ff3b30', color: '#ffffff' }}>{notifications.length}</span>
-                  )}
-                </button>
-
-                <AnimatePresence>
-                  {showNotifications && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      style={{
-                        position: 'absolute',
-                        top: '35px',
-                        right: '-10px',
-                        width: '320px',
-                        background: 'var(--dark-chocolate)',
-                        border: '1px solid var(--gold)',
-                        borderRadius: '8px',
-                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
-                        padding: '16px',
-                        zIndex: 100,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '8px' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gold)' }}>Notifications</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{notifications.length} Active</span>
-                      </div>
-
-                      <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {notifications.length === 0 ? (
-                          <p style={{ fontSize: '0.8rem', color: 'var(--grey-light)', textAlign: 'center', margin: '20px 0', fontStyle: 'italic' }}>
-                            No new notifications.
-                          </p>
-                        ) : (
-                          notifications.map((n) => (
-                            <div
-                              key={n.id}
-                              onClick={() => {
-                                removeNotification(n.id);
-                                if (n.type === 'support') {
-                                  navigate('/dashboard', { state: { tab: 'help' } });
-                                } else if (n.type === 'order') {
-                                  navigate('/dashboard', { state: { tab: 'orders' } });
-                                } else {
-                                  navigate('/dashboard', { state: { tab: 'notifications' } });
-                                }
-                              }}
-                              style={{
-                                padding: '10px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid var(--glass-border)',
-                                borderRadius: '6px',
-                                fontSize: '0.8rem',
-                                color: 'var(--cream)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'flex-start',
-                                textAlign: 'left',
-                              }}
-                            >
-                              <div style={{ flex: 1, marginRight: '10px' }}>
-                                <p style={{ margin: 0, lineHeight: '1.4' }}>{n.text}</p>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--grey-light)', display: 'block', marginTop: '4px' }}>{n.date}</span>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeNotification(n.id);
-                                }}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: 'var(--grey-light)',
-                                  cursor: 'pointer',
-                                  fontSize: '0.75rem',
-                                  padding: '2px 4px',
-                                }}
-                              >
-                                <X size={12} />
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <NotificationHeaderDropdown
+                onNavigateTab={(tab) => navigate('/dashboard', { state: { tab } })}
+                isCustomer={role === 'customer'}
+                isSuperadmin={role === 'superadmin'}
+              />
 
               <div
                 style={{ position: 'relative' }}

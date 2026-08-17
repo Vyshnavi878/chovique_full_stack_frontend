@@ -5414,147 +5414,94 @@ export const AdminDashboard: React.FC = () => {
         {/* CONTACT MESSAGES & CUSTOMER SUPPORT MGMT TAB */}
         {activeTab === 'contact-messages' && (
           <div>
-            {/* Page Header */}
-            <div style={{ marginBottom: '35px' }}>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
-                Contact Form Messages &amp; Customer Support Settings
-              </h1>
-              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginTop: '6px', marginBottom: 0 }}>
-                Manage customer inquiries received via the contact form and configure customer support channels.
-              </p>
+            {/* Page Header with Action Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                  Contact Form Messages &amp; Customer Support Settings
+                </h1>
+                <p style={{ color: 'var(--beige)', fontSize: '0.9rem', marginTop: '4px', margin: 0 }}>
+                  Manage customer inquiries received via the contact form and configure customer support channels.
+                </p>
+              </div>
+              <Button
+                variant="gold"
+                glow
+                onClick={openEditSupportModal}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+              >
+                <Headphones size={18} />
+                Customer Support Info
+              </Button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.3fr 1fr', gap: '30px', alignItems: 'flex-start' }}>
-              {/* 1. Messages Table */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                  Received Customer Inquiries ({contactMessages.length})
-                </h3>
-                <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
-                  <table className="admin-table">
-                    <thead>
+            {/* Messages Table */}
+            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
+                Received Customer Inquiries ({contactMessages.length})
+              </h3>
+              <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Subject</th>
+                      <th>Message</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contactMessages.length === 0 ? (
                       <tr>
-                        <th>Date</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Subject</th>
-                        <th>Message</th>
-                        <th>Action</th>
+                        <td colSpan={7} style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px' }}>
+                          No customer contact messages received yet.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {contactMessages.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px' }}>
-                            No customer contact messages received yet.
+                    ) : (
+                      contactMessages.map((msg) => (
+                        <tr key={msg.id}>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
+                          <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
+                          <td>
+                            <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>
+                              {msg.email}
+                            </a>
+                          </td>
+                          <td>{msg.phone || '—'}</td>
+                          <td>
+                            <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                              {msg.subject || 'General'}
+                            </span>
+                          </td>
+                          <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
+                            {msg.message?.length > 70 ? `${msg.message.slice(0, 70)}...` : msg.message}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => setSelectedContactMessage(msg)}
+                                style={{ background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                title="View complete message"
+                              >
+                                <Eye size={14} /> View
+                              </button>
+                              <button
+                                onClick={() => handleDeleteContactMessage(msg.id)}
+                                style={{ background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                title="Delete message"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ) : (
-                        contactMessages.map((msg) => (
-                          <tr key={msg.id}>
-                            <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
-                            <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
-                            <td>
-                              <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>
-                                {msg.email}
-                              </a>
-                            </td>
-                            <td>{msg.phone || '—'}</td>
-                            <td>
-                              <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                                {msg.subject || 'General'}
-                              </span>
-                            </td>
-                            <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
-                              {msg.message?.length > 70 ? `${msg.message.slice(0, 70)}...` : msg.message}
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <button
-                                  onClick={() => setSelectedContactMessage(msg)}
-                                  style={{ background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  title="View complete message"
-                                >
-                                  <Eye size={14} /> View
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteContactMessage(msg.id)}
-                                  style={{ background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  title="Delete message"
-                                >
-                                  <Trash2 size={14} /> Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* 2. Customer Support Info Summary Card */}
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.4)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Headphones size={20} color="var(--gold)" />
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
-                      Customer Support Info
-                    </h3>
-                  </div>
-                  <Button
-                    variant="glass"
-                    onClick={openEditSupportModal}
-                    style={{ fontSize: '0.78rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
-                  >
-                    <Edit3 size={13} /> EDIT DETAILS
-                  </Button>
-                </div>
-
-                <p style={{ color: 'var(--beige)', fontSize: '0.82rem', marginBottom: '18px', lineHeight: 1.5 }}>
-                  Current support details active and displayed across the customer-facing Contact Page.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <Phone size={13} color="var(--gold)" /> Customer Support Phone
-                    </span>
-                    <strong style={{ color: 'var(--cream)', fontSize: '0.95rem' }}>{supportContactData.phone}</strong>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <MessageSquare size={13} color="#2ecc71" /> WhatsApp Support Number
-                    </span>
-                    <strong style={{ color: 'var(--cream)', fontSize: '0.95rem' }}>{supportContactData.whatsapp}</strong>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <Mail size={13} color="var(--gold)" /> Customer Support Email
-                    </span>
-                    <a href={`mailto:${supportContactData.email}`} style={{ color: 'var(--gold)', fontWeight: 600, fontSize: '0.95rem', textDecoration: 'none' }}>
-                      {supportContactData.email}
-                    </a>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <Clock size={13} color="var(--gold)" /> Support Hours
-                    </span>
-                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', lineHeight: 1.4 }}>{supportContactData.support_hours}</span>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <MapPin size={13} color="var(--gold)" /> Atelier Address
-                    </span>
-                    <span style={{ color: 'var(--cream)', fontSize: '0.9rem', lineHeight: 1.4 }}>{supportContactData.address || '—'}</span>
-                  </div>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 

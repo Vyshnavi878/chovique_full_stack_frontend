@@ -135,6 +135,9 @@ interface AppContextType {
   // Notifications
   notifications: SupportNotification[];
   removeNotification: (id: string) => void;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
   addNotification: (
     text: string,
     type: SupportNotification['type'],
@@ -1056,10 +1059,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => [notif, ...prev]);
   };
 
+  const refreshNotifications = async () => {
+    try {
+      const res = await notificationService.getNotifications();
+      setNotifications(res);
+    } catch (err) {
+      console.error('Failed to refresh notifications:', err);
+    }
+  };
+
+  const markNotificationAsRead = async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true, is_read: true } : n))
+    );
+    try {
+      await notificationService.markAsRead(id);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, read: true, is_read: true }))
+    );
+    try {
+      await notificationService.markAllAsRead();
+      window.dispatchEvent(new CustomEvent('notification_updated'));
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
+
   const removeNotification = (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     // Best-effort server delete (no await — fire and forget)
     notificationService.deleteNotification(id).catch(() => { });
+    window.dispatchEvent(new CustomEvent('notification_updated'));
   };
 
   // ---------------------------------------------------------------------------
@@ -1128,6 +1165,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshWallet,
         notifications,
         removeNotification,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        refreshNotifications,
         addNotification,
       }}
     >
