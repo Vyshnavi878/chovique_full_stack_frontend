@@ -12,9 +12,11 @@ import { apiGet, apiPatch, apiPost, apiDelete } from '../lib/api';
 import type { SupportNotification } from '../types';
 
 export const notificationService = {
-  /** Fetch all notifications for the authenticated user */
-  getNotifications: (): Promise<SupportNotification[]> =>
-    apiGet<SupportNotification[]>('/users/me/notifications'),
+  /** Fetch notifications for the authenticated user (optionally filtered by read status) */
+  getNotifications: (params?: { is_read?: boolean }): Promise<SupportNotification[]> => {
+    const query = params?.is_read !== undefined ? `?is_read=${params.is_read}` : '';
+    return apiGet<SupportNotification[]>(`/users/me/notifications${query}`);
+  },
 
   /** Get unread notification count for the authenticated user */
   getUnreadCount: (): Promise<{ unread_count: number }> =>

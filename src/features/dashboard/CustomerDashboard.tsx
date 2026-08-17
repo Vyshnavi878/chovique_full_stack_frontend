@@ -28,6 +28,10 @@ import {
   Printer,
   ArrowLeft,
   Check,
+  CheckCheck,
+  RefreshCw,
+  Filter,
+  ExternalLink,
   Truck,
   Package,
   Clock,
@@ -39,14 +43,14 @@ import { useApp } from '../../app/providers';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { pageTransition } from '../../lib/framer';
 import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
 import { BASE_URL } from '../../lib/api';
 import { orderService } from '../../services/orderService';
 import { walletService, type CoinTransaction } from '../../services/walletService';
-import { NotificationHeaderDropdown } from '../../components/NotificationHeaderDropdown';
-import type { UserCoupon, CustomerAddress } from '../../types';
+import type { UserCoupon, CustomerAddress, SupportNotification } from '../../types';
 import { WishlistPage } from '../wishlist/WishlistPage';
 
 type CustomerTab =
@@ -110,7 +114,10 @@ export const CustomerDashboard: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [notifFilter, setNotifFilter] = useState<'all' | 'order' | 'reward' | 'coupon' | 'support'>('all');
+  const [notifCategory, setNotifCategory] = useState<'all' | 'orders' | 'coupons' | 'rewards' | 'support' | 'system'>('all');
+  const [notifReadFilter, setNotifReadFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [isNotifLoading, setIsNotifLoading] = useState(false);
+  const [notifActionSuccess, setNotifActionSuccess] = useState<string | null>(null);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -147,7 +154,6 @@ export const CustomerDashboard: React.FC = () => {
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'profile', label: 'My Profile', icon: User },
         { id: 'addresses', label: 'Addresses', icon: MapPin },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'settings', label: 'Account Settings', icon: Settings },
       ],
     },
@@ -517,24 +523,34 @@ export const CustomerDashboard: React.FC = () => {
   const formatCouponExpiry = (rawExp: any): string => {
     if (!rawExp) return 'No expiry';
     const strVal = String(rawExp).trim();
-    if (!strVal || strVal.toLowerCase() === 'no expiry' || strVal.toLowerCase() === 'none' || strVal.toLowerCase() === 'null') {
+    if (!strVal || strVal.toLowerCase() === 'no expiry' || strVal.toLowerCase() === 'none' || strVal.toLowerCase() === 'null' || strVal.toLowerCase() === 'undefined') {
       return 'No expiry';
     }
 
+    // Match YYYY-MM-DD (e.g. 2026-08-31 or 2026-08-31T23:59:59Z)
     const matchYMD = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (matchYMD) {
       const [, y, m, d] = matchYMD;
       return `${d}-${m}-${y}`;
     }
 
+    // Match DD-MM-YYYY (e.g. 31-08-2026)
     const matchDMY = strVal.match(/^(\d{2})-(\d{2})-(\d{4})/);
     if (matchDMY) {
       return `${matchDMY[1]}-${matchDMY[2]}-${matchDMY[3]}`;
     }
 
+    // Match DD/MM/YYYY (e.g. 31/08/2026)
     const matchSlashDMY = strVal.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
     if (matchSlashDMY) {
       const [, d, m, y] = matchSlashDMY;
+      return `${d}-${m}-${y}`;
+    }
+
+    // Match YYYY/MM/DD (e.g. 2026/08/31)
+    const matchSlashYMD = strVal.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+    if (matchSlashYMD) {
+      const [, y, m, d] = matchSlashYMD;
       return `${d}-${m}-${y}`;
     }
 
@@ -551,6 +567,32 @@ export const CustomerDashboard: React.FC = () => {
     }
 
     return strVal;
+  };
+
+  const parseCouponDate = (val: any): Date | null => {
+    if (!val) return null;
+    if (val instanceof Date && !isNaN(val.getTime())) return val;
+    const str = String(val).trim();
+    if (!str || str.toLowerCase() === 'no expiry' || str.toLowerCase() === 'none' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+      return null;
+    }
+    const matchYMD = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}):(\d{2}))?/);
+    if (matchYMD) {
+      const [, y, m, d, h = '23', min = '59', s = '59'] = matchYMD;
+      return new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s));
+    }
+    const matchDMY = str.match(/^(\d{2})-(\d{2})-(\d{4})(?:[T\s](\d{2}):(\d{2}):(\d{2}))?/);
+    if (matchDMY) {
+      const [, d, m, y, h = '23', min = '59', s = '59'] = matchDMY;
+      return new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s));
+    }
+    const matchSlashDMY = str.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[T\s](\d{2}):(\d{2}):(\d{2}))?/);
+    if (matchSlashDMY) {
+      const [, d, m, y, h = '23', min = '59', s = '59'] = matchSlashDMY;
+      return new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s));
+    }
+    const parsed = new Date(val);
+    return !isNaN(parsed.getTime()) ? parsed : null;
   };
 
   // --- Support Form Toggle State ---
@@ -1036,7 +1078,7 @@ export const CustomerDashboard: React.FC = () => {
 
         {/* Right Main Content Workspace Panel */}
         <main className="customer-workspace-main">
-          {/* Top Header Bar with Mobile Drawer Trigger & Notification Dropdown */}
+          {/* Top Header Bar with Mobile Drawer Trigger */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
             <button
               className="dashboard-mobile-trigger"
@@ -1046,12 +1088,6 @@ export const CustomerDashboard: React.FC = () => {
               <Menu size={18} />
               <span>Customer Dashboard Menu</span>
             </button>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <NotificationHeaderDropdown
-                onNavigateTab={(tab) => setActiveTab(tab as CustomerTab)}
-                isCustomer={true}
-              />
-            </div>
           </div>
 
           {/* OVERVIEW PANEL */}
@@ -1357,7 +1393,7 @@ export const CustomerDashboard: React.FC = () => {
                         if ((coupon.minimum_order_amount ?? 0) > 0) {
                           termsParts.push(`Min. order: ₹${coupon.minimum_order_amount}`);
                         }
-                        const rawExp = coupon.expires_at || (coupon as any).expiryDate || (coupon as any).expiry_date || (coupon as any).expiresAt || (coupon as any).end_date || (coupon as any).endDate || (coupon as any).exp;
+                        const rawExp = coupon.expires_at || coupon.expiryDate || coupon.expiry_date || coupon.expiresAt || coupon.end_date || coupon.endDate || coupon.exp || (coupon as any).expiry;
                         const expFormatted = formatCouponExpiry(rawExp);
                         if (expFormatted && expFormatted.toLowerCase() !== 'no expiry') {
                           termsParts.push(`Expires: ${expFormatted}`);
@@ -3900,24 +3936,11 @@ export const CustomerDashboard: React.FC = () => {
                               ? 'FREE SHIPPING'
                               : 'SPECIAL OFFER';
 
-                          const rawExpiry = c.expires_at || couponItem.expiryDate || couponItem.expiry_date || couponItem.expiresAt || couponItem.end_date || couponItem.endDate || couponItem.exp;
-                          const rawStart = c.start_at || couponItem.startDate || couponItem.start_date || couponItem.startsAt || couponItem.begin_date;
+                          const rawExpiry = c.expires_at || c.expiryDate || c.expiry_date || c.expiresAt || c.end_date || c.endDate || c.exp || (c as any).expiry || (c as any).valid_until || (c as any).validUntil;
+                          const rawStart = c.start_at || c.startDate || c.start_date || c.startsAt || c.begin_date || c.beginDate || (c as any).valid_from || (c as any).validFrom;
 
-                          let expiryDateObj: Date | null = null;
-                          if (rawExpiry) {
-                            const d = new Date(rawExpiry);
-                            if (!isNaN(d.getTime())) {
-                              expiryDateObj = d;
-                            }
-                          }
-
-                          let startDateObj: Date | null = null;
-                          if (rawStart) {
-                            const d = new Date(rawStart);
-                            if (!isNaN(d.getTime())) {
-                              startDateObj = d;
-                            }
-                          }
+                          const expiryDateObj = parseCouponDate(rawExpiry);
+                          const startDateObj = parseCouponDate(rawStart);
 
                           const nowMs = Date.now();
                           const isExpired = expiryDateObj ? expiryDateObj.getTime() < nowMs : false;
@@ -4130,254 +4153,409 @@ export const CustomerDashboard: React.FC = () => {
 
             {/* NOTIFICATIONS PANEL */}
             {activeTab === 'notifications' && (() => {
-              const unreadTotal = notifications.filter(n => !n.read && !n.is_read).length;
-              const filteredList = notifications.filter(n => {
-                if (notifFilter === 'all') return true;
-                return n.type === notifFilter;
+              const unreadTotal = notifications.filter((n) => !n.read && !n.is_read).length;
+
+              const filteredNotifications = notifications.filter((notif) => {
+                // Category tab filter
+                if (notifCategory !== 'all') {
+                  if (notifCategory === 'orders' && notif.type !== 'order') return false;
+                  if (notifCategory === 'coupons' && notif.type !== 'coupon') return false;
+                  if (notifCategory === 'rewards' && notif.type !== 'reward') return false;
+                  if (notifCategory === 'support' && notif.type !== 'support') return false;
+                  if (notifCategory === 'system' && notif.type !== 'system' && notif.type !== 'general') return false;
+                }
+
+                // Read / Unread status filter
+                const isUnread = notif.is_read === false || notif.read === false;
+                if (notifReadFilter === 'unread' && !isUnread) return false;
+                if (notifReadFilter === 'read' && isUnread) return false;
+
+                return true;
               });
 
+              const handleRefreshNotifs = async () => {
+                setIsNotifLoading(true);
+                try {
+                  await refreshNotifications();
+                  setNotifActionSuccess('Notifications refreshed');
+                  setTimeout(() => setNotifActionSuccess(null), 2500);
+                } catch (err) {
+                  console.error('Failed to refresh notifications:', err);
+                } finally {
+                  setIsNotifLoading(false);
+                }
+              };
+
+              const handleMarkAll = async () => {
+                try {
+                  await markAllNotificationsAsRead();
+                  setNotifActionSuccess('All notifications marked as read');
+                  setTimeout(() => setNotifActionSuccess(null), 2500);
+                } catch (err) {
+                  console.error('Failed to mark all as read:', err);
+                }
+              };
+
+              const handleMarkSingleRead = async (id: string) => {
+                try {
+                  await markNotificationAsRead(id);
+                  setNotifActionSuccess('Notification marked as read');
+                  setTimeout(() => setNotifActionSuccess(null), 2500);
+                } catch (err) {
+                  console.error('Failed to mark notification read:', err);
+                }
+              };
+
+              const handleViewRelatedEntity = (notif: SupportNotification) => {
+                if (!notif.is_read && !notif.read) {
+                  markNotificationAsRead(notif.id);
+                }
+                const targetType = notif.type;
+                if (targetType === 'order') {
+                  setActiveTab('orders');
+                } else if (targetType === 'coupon') {
+                  setActiveTab('coupons');
+                } else if (targetType === 'reward') {
+                  setActiveTab('rewards');
+                } else if (targetType === 'support') {
+                  setActiveTab('help');
+                }
+              };
+
+              const getCustomerTypeBadge = (type: string) => {
+                const labels: Record<string, { label: string; bg: string; color: string }> = {
+                  order: { label: 'Order', bg: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71' },
+                  coupon: { label: 'Coupon', bg: 'rgba(155, 89, 182, 0.15)', color: '#9b59b6' },
+                  reward: { label: 'Rewards', bg: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c' },
+                  support: { label: 'Support', bg: 'rgba(230, 126, 34, 0.15)', color: '#e67e22' },
+                  system: { label: 'System', bg: 'rgba(52, 152, 219, 0.15)', color: '#3498db' },
+                  general: { label: 'System', bg: 'rgba(52, 152, 219, 0.15)', color: '#3498db' },
+                };
+
+                const style = labels[type] || { label: type ? type.replace('_', ' ').toUpperCase() : 'General', bg: 'rgba(201, 168, 76, 0.12)', color: '#c9a84c' };
+                return (
+                  <span
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      background: style.bg,
+                      color: style.color,
+                      border: `1px solid ${style.color}40`,
+                    }}
+                  >
+                    {style.label}
+                  </span>
+                );
+              };
+
+              const categoryTabs: { id: 'all' | 'orders' | 'coupons' | 'rewards' | 'support' | 'system'; label: string }[] = [
+                { id: 'all', label: 'All Notifications' },
+                { id: 'orders', label: 'Orders' },
+                { id: 'coupons', label: 'Coupons' },
+                { id: 'rewards', label: 'Rewards' },
+                { id: 'support', label: 'Support' },
+                { id: 'system', label: 'System' },
+              ];
+
               return (
-                <div>
-                  {/* Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <div style={{ width: '100%', maxWidth: '1280px', margin: '0 auto', paddingBottom: '48px', color: '#f5efe6' }}>
+                  {/* Header Row */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
                     <div>
-                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
-                        Notifications & Alerts
-                      </h2>
-                      <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
-                        Stay updated on your orders, wallet rewards, coupons, and support tickets.
-                      </p>
+                      <span style={{ color: 'rgba(201, 168, 76, 0.85)', fontSize: '0.78rem', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                        — CUSTOMER CENTER
+                      </span>
+                      <h1 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '2.4rem', color: '#f5efe6', fontWeight: 700, margin: 0 }}>
+                        Notifications
+                      </h1>
                     </div>
 
-                    {unreadTotal > 0 && (
+                    {/* Global Action Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <button
-                        onClick={() => markAllNotificationsAsRead()}
+                        onClick={handleRefreshNotifs}
+                        disabled={isNotifLoading}
                         style={{
-                          background: 'rgba(201, 168, 76, 0.12)',
-                          border: '1px solid rgba(201, 168, 76, 0.35)',
-                          color: '#c9a84c',
+                          padding: '10px 16px',
+                          background: 'rgba(20, 16, 13, 0.85)',
+                          border: '1px solid rgba(201, 168, 76, 0.3)',
                           borderRadius: '8px',
-                          padding: '8px 16px',
-                          fontSize: '0.85rem',
+                          color: '#c9a84c',
+                          fontSize: '0.82rem',
                           fontWeight: 600,
                           cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        <Check size={16} /> Mark all as read ({unreadTotal})
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Filter Tabs */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
-                    {[
-                      { id: 'all', label: 'All', count: notifications.length },
-                      { id: 'order', label: 'Orders', count: notifications.filter(n => n.type === 'order').length },
-                      { id: 'reward', label: 'Rewards', count: notifications.filter(n => n.type === 'reward').length },
-                      { id: 'coupon', label: 'Coupons', count: notifications.filter(n => n.type === 'coupon').length },
-                      { id: 'support', label: 'Support', count: notifications.filter(n => n.type === 'support').length },
-                    ].map(tab => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setNotifFilter(tab.id as any)}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '20px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          border: notifFilter === tab.id ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,0.1)',
-                          background: notifFilter === tab.id ? 'rgba(201, 168, 76, 0.18)' : 'rgba(255,255,255,0.03)',
-                          color: notifFilter === tab.id ? '#f5efe6' : 'rgba(255,255,255,0.6)',
-                          transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
+                          transition: 'all 0.2s ease',
                         }}
                       >
-                        <span>{tab.label}</span>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({tab.count})</span>
+                        <RefreshCw size={15} className={isNotifLoading ? 'animate-spin' : ''} /> Refresh
                       </button>
-                    ))}
+
+                      {unreadTotal > 0 && (
+                        <button
+                          onClick={handleMarkAll}
+                          style={{
+                            padding: '10px 18px',
+                            background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 50%, #c9a84c 100%)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: '#0f0c0a',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 4px 14px rgba(201, 168, 76, 0.25)',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <CheckCheck size={16} /> Mark all as read ({unreadTotal})
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Notifications List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {filteredList.length === 0 ? (
-                      <div
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.02)',
-                          border: '1px dashed rgba(255, 255, 255, 0.15)',
-                          borderRadius: '12px',
-                          padding: '48px 24px',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <Bell size={36} color="#c9a84c" style={{ margin: '0 auto 12px auto', opacity: 0.6 }} />
-                        <h4 style={{ color: '#f5efe6', fontSize: '1.1rem', margin: '0 0 6px 0' }}>No notifications</h4>
-                        <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.85rem', margin: 0 }}>
-                          You don't have any notifications in this category.
-                        </p>
-                      </div>
-                    ) : (
-                      filteredList.map((n) => {
-                        const isUnread = !n.read && !n.is_read;
-                        const notifTitle = n.title || (n.type ? n.type.replace('_', ' ').toUpperCase() : 'Notification');
-                        const notifMsg = n.message || n.text || '';
+                  {/* Action Success Toast Banner */}
+                  {notifActionSuccess && (
+                    <div
+                      style={{
+                        marginBottom: '20px',
+                        padding: '12px 18px',
+                        background: 'rgba(46, 204, 113, 0.12)',
+                        border: '1px solid rgba(46, 204, 113, 0.3)',
+                        borderRadius: '8px',
+                        color: '#2ecc71',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <Check size={16} /> {notifActionSuccess}
+                    </div>
+                  )}
 
-                        const getNotifIcon = () => {
-                          switch (n.type) {
-                            case 'order':
-                              return <ShoppingBag size={18} color="#c9a84c" />;
-                            case 'support':
-                              return <MessageSquare size={18} color="#c9a84c" />;
-                            case 'reward':
-                              return <Coins size={18} color="#c9a84c" />;
-                            case 'coupon':
-                              return <Tag size={18} color="#c9a84c" />;
-                            default:
-                              return <Bell size={18} color="#c9a84c" />;
-                          }
-                        };
-
+                  {/* Category Tabs & Filter Toolbar */}
+                  <div
+                    style={{
+                      background: 'rgba(20, 16, 13, 0.85)',
+                      border: '1px solid rgba(201, 168, 76, 0.2)',
+                      borderRadius: '12px',
+                      padding: '16px 20px',
+                      marginBottom: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '16px',
+                    }}
+                  >
+                    {/* Categories */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {categoryTabs.map((tab) => {
+                        const isActive = notifCategory === tab.id;
                         return (
-                          <div
-                            key={n.id}
+                          <button
+                            key={tab.id}
+                            onClick={() => setNotifCategory(tab.id)}
                             style={{
-                              padding: '18px 20px',
-                              borderRadius: '10px',
-                              background: isUnread ? 'rgba(201, 168, 76, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                              border: isUnread ? '1px solid rgba(201, 168, 76, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: '16px',
-                              flexWrap: 'wrap',
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
+                              background: isActive ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
+                              color: isActive ? '#f5efe6' : 'rgba(255,255,255,0.6)',
+                              fontWeight: isActive ? 700 : 500,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
                               transition: 'all 0.2s ease',
-                              boxShadow: isUnread ? '0 4px 16px rgba(201, 168, 76, 0.08)' : 'none',
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1, minWidth: '240px' }}>
-                              <div
-                                style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '50%',
-                                  background: 'rgba(201, 168, 76, 0.12)',
-                                  border: '1px solid rgba(201, 168, 76, 0.25)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  marginTop: '2px',
-                                }}
-                              >
-                                {getNotifIcon()}
-                              </div>
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ color: '#f5efe6', fontSize: '0.95rem', fontWeight: isUnread ? 700 : 600 }}>
-                                    {notifTitle}
-                                  </span>
-                                  {isUnread && (
-                                    <span
-                                      style={{
-                                        width: '8px',
-                                        height: '8px',
-                                        borderRadius: '50%',
-                                        background: '#c9a84c',
-                                        boxShadow: '0 0 6px rgba(201, 168, 76, 0.8)',
-                                        display: 'inline-block',
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                                <span style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.85rem', lineHeight: '1.4' }}>
-                                  {notifMsg}
-                                </span>
-                                <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.45)', marginTop: '2px' }}>
-                                  {n.date}
-                                </span>
-                              </div>
-                            </div>
+                    {/* Read / Unread Status Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Filter size={14} /> Status:
+                      </span>
+                      <select
+                        value={notifReadFilter}
+                        onChange={(e) => setNotifReadFilter(e.target.value as any)}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'rgba(10, 8, 6, 0.8)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          borderRadius: '6px',
+                          color: '#f5efe6',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="all">All Status</option>
+                        <option value="unread">Unread Only</option>
+                        <option value="read">Read Only</option>
+                      </select>
+                    </div>
+                  </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-                              {isUnread && (
-                                <button
-                                  onClick={() => markNotificationAsRead(n.id)}
+                  {/* Main List / Table Container */}
+                  <div
+                    style={{
+                      background: 'rgba(20, 16, 13, 0.85)',
+                      border: '1px solid rgba(201, 168, 76, 0.2)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {isNotifLoading ? (
+                      <div style={{ padding: '60px', textAlign: 'center', color: '#c9a84c' }}>
+                        <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px auto' }} />
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>Loading notifications...</p>
+                      </div>
+                    ) : filteredNotifications.length === 0 ? (
+                      <div style={{ padding: '60px 20px' }}>
+                        <EmptyState
+                          title="No Notifications Found"
+                          description="You have no notifications matching the selected filter."
+                          icon={<Bell size={48} color="#c9a84c" />}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ width: '100%', overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
+                              <th style={{ padding: '16px 20px', fontWeight: 700 }}>NOTIFICATION</th>
+                              <th style={{ padding: '16px 20px', fontWeight: 700 }}>TYPE</th>
+                              <th style={{ padding: '16px 20px', fontWeight: 700 }}>DATE &amp; TIME</th>
+                              <th style={{ padding: '16px 20px', fontWeight: 700 }}>STATUS</th>
+                              <th style={{ padding: '16px 20px', fontWeight: 700, textAlign: 'right' }}>ACTIONS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredNotifications.map((notif) => {
+                              const isUnread = notif.is_read === false || notif.read === false;
+                              const notifTitle = notif.title || (notif.type ? notif.type.replace('_', ' ').toUpperCase() : 'Notification');
+                              const notifMsg = notif.message || notif.text || '';
+
+                              let dateDisplay = '';
+                              if (notif.created_at) {
+                                const dt = new Date(notif.created_at);
+                                if (!isNaN(dt.getTime())) {
+                                  dateDisplay = dt.toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  });
+                                }
+                              }
+                              if (!dateDisplay && notif.date) {
+                                dateDisplay = notif.date;
+                              }
+
+                              return (
+                                <tr
+                                  key={notif.id}
                                   style={{
-                                    background: 'transparent',
-                                    border: '1px solid rgba(201, 168, 76, 0.3)',
-                                    color: '#c9a84c',
-                                    borderRadius: '6px',
-                                    padding: '6px 12px',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
+                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                    background: isUnread ? 'rgba(201, 168, 76, 0.04)' : 'transparent',
+                                    transition: 'background 0.2s ease',
                                   }}
                                 >
-                                  Mark Read
-                                </button>
-                              )}
+                                  {/* Title & Message */}
+                                  <td style={{ padding: '16px 20px', maxWidth: '400px' }}>
+                                    <div style={{ fontWeight: isUnread ? 700 : 600, color: '#f5efe6', marginBottom: '4px' }}>
+                                      {notifTitle}
+                                    </div>
+                                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>
+                                      {notifMsg}
+                                    </div>
+                                  </td>
 
-                              <button
-                                onClick={() => {
-                                  if (isUnread) {
-                                    markNotificationAsRead(n.id);
-                                  }
-                                  if (n.type === 'support') {
-                                    setActiveTab('help');
-                                  } else if (n.type === 'order') {
-                                    setActiveTab('orders');
-                                  } else if (n.type === 'coupon') {
-                                    setActiveTab('coupons');
-                                  } else if (n.type === 'reward') {
-                                    setActiveTab('rewards');
-                                  }
-                                }}
-                                style={{
-                                  background: 'linear-gradient(135deg, #c9a84c 0%, #b8973b 100%)',
-                                  border: 'none',
-                                  color: '#0f0c0a',
-                                  borderRadius: '6px',
-                                  padding: '6px 14px',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease',
-                                }}
-                              >
-                                View
-                              </button>
+                                  {/* Type Badge */}
+                                  <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                                    {getCustomerTypeBadge(notif.type)}
+                                  </td>
 
-                              <button
-                                onClick={() => removeNotification(n.id)}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: 'rgba(255, 255, 255, 0.4)',
-                                  padding: '6px',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  borderRadius: '6px',
-                                  transition: 'all 0.2s ease',
-                                }}
-                                title="Dismiss notification"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
+                                  {/* Date & Time */}
+                                  <td style={{ padding: '16px 20px', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                                    {dateDisplay}
+                                  </td>
+
+                                  {/* Status */}
+                                  <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                                    {!isUnread ? (
+                                      <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <Check size={14} color="rgba(255,255,255,0.3)" /> Read
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '0.78rem', color: '#c9a84c', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c' }} /> Unread
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions */}
+                                  <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                      {isUnread && (
+                                        <button
+                                          onClick={() => handleMarkSingleRead(notif.id)}
+                                          style={{
+                                            padding: '6px 12px',
+                                            background: 'rgba(201, 168, 76, 0.12)',
+                                            border: '1px solid rgba(201, 168, 76, 0.3)',
+                                            borderRadius: '6px',
+                                            color: '#c9a84c',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
+                                          }}
+                                        >
+                                          Mark as read
+                                        </button>
+                                      )}
+
+                                      <button
+                                        onClick={() => handleViewRelatedEntity(notif)}
+                                        style={{
+                                          padding: '6px 12px',
+                                          background: 'rgba(255, 255, 255, 0.08)',
+                                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                                          borderRadius: '6px',
+                                          color: '#f5efe6',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          transition: 'all 0.2s ease',
+                                        }}
+                                      >
+                                        View Related <ExternalLink size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -4959,7 +5137,7 @@ export const CustomerDashboard: React.FC = () => {
                               </span>
                             </div>
                             
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'gap 6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                               <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
                                 Category: <strong style={{ color: 'var(--cream)' }}>{ticket.category}</strong> · Opened: {ticket.date}
                               </span>

@@ -184,8 +184,8 @@ export const Navbar: React.FC = () => {
               {/* Notifications Bell */}
               <NotificationHeaderDropdown
                 onNavigateTab={(tab) => navigate('/dashboard', { state: { tab } })}
-                isCustomer={role === 'customer'}
-                isSuperadmin={role === 'superadmin'}
+                isCustomer={true}
+                isSuperadmin={false}
               />
 
               <div

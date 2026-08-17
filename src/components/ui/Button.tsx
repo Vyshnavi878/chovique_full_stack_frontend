@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { buttonHover } from '../../lib/framer';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'gold' | 'glass' | 'text';
+  variant?: 'primary' | 'secondary' | 'gold' | 'glass' | 'text' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   glow?: boolean;
   fullWidth?: boolean;
@@ -28,6 +28,7 @@ export const Button: React.FC<ButtonProps> = ({
           border: '1px solid var(--chocolate-brown)',
         };
       case 'secondary':
+      case 'outline':
         return {
           background: 'transparent',
           color: 'var(--cream)',

@@ -45,10 +45,12 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
         setNotifications(res.items || []);
         setUnreadCount(res.unread_count || 0);
       } else if (isCustomer || role === 'customer') {
-        const res = await notificationService.getNotifications();
-        const unreadItems = res.filter((n: any) => !n.is_read && !n.read);
-        setNotifications(res.slice(0, 8));
-        setUnreadCount(unreadItems.length);
+        const [unreadItems, countRes] = await Promise.all([
+          notificationService.getNotifications({ is_read: false }),
+          notificationService.getUnreadCount(),
+        ]);
+        setNotifications(unreadItems);
+        setUnreadCount(countRes.unread_count ?? unreadItems.length);
       } else {
         const res = await adminService.getAdminNotifications({ limit: 6, is_read: false });
         const unreadItems = (res.items || []).filter((n: any) => !n.is_read);
@@ -86,12 +88,14 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
     try {
       if (isSuperadmin) {
         await (adminService as any).markAllSuperadminNotificationsAsRead();
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read: true })));
       } else if (isCustomer || role === 'customer') {
         await notificationService.markAllAsRead();
+        setNotifications([]);
       } else {
         await adminService.markAllNotificationsAsRead();
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read: true })));
       }
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read: true })));
       setUnreadCount(0);
       window.dispatchEvent(new CustomEvent('notification_updated'));
     } catch (err) {
@@ -105,14 +109,18 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
       try {
         if (isSuperadmin) {
           await (adminService as any).markSuperadminNotificationAsRead(notif.id);
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, is_read: true, read: true } : n))
+          );
         } else if (isCustomer || role === 'customer') {
           await notificationService.markAsRead(notif.id);
+          setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
         } else {
           await adminService.markNotificationAsRead(notif.id);
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, is_read: true, read: true } : n))
+          );
         }
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true, read: true } : n))
-        );
         setUnreadCount((prev) => Math.max(0, prev - 1));
         window.dispatchEvent(new CustomEvent('notification_updated'));
       } catch (err) {
@@ -488,7 +496,7 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
                 gap: '6px',
               }}
             >
-              View All Notifications <ChevronRight size={14} />
+              View All Notifications →
             </button>
           </div>
         </div>

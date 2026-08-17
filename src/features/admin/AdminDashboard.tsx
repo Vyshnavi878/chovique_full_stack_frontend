@@ -5001,7 +5001,7 @@ export const AdminDashboard: React.FC = () => {
                               />
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
-                              <Button variant="outline" size="sm" type="submit" name="update_status">
+                              <Button variant="secondary" size="sm" type="submit" name="update_status">
                                 Update Status
                               </Button>
                               <Button variant="gold" size="sm" type="submit" name="resolve" glow>

@@ -88,6 +88,7 @@ export interface Product {
   stock?: number;
   is_available?: boolean;
   isAvailable?: boolean;
+  nutrition?: NutritionInfo;
 }
 
 export interface CartItem {
@@ -118,17 +119,6 @@ export interface Order {
   paymentMethod: string;
   customerName?: string;
   customerEmail?: string;
-  invoice_url?: string;
-  razorpay_order_id?: string;
-  razorpay_payment_id?: string;
-}
-
-export interface ProductUpdatePayload {
-  name?: string;
-  category_id?: string;
-  category?: string;
-  is_available?: boolean;
-  isAvailable?: boolean;
   invoice_url?: string;
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
@@ -247,6 +237,21 @@ export interface UserCoupon {
   minimum_order_amount?: number;
   start_at?: string;
   expires_at?: string;
+  startDate?: string;
+  expiryDate?: string;
+  start_date?: string;
+  expiry_date?: string;
+  expiresAt?: string;
+  startAt?: string;
+  startsAt?: string;
+  end_date?: string;
+  endDate?: string;
+  begin_date?: string;
+  beginDate?: string;
+  valid_until?: string;
+  validUntil?: string;
+  valid_from?: string;
+  validFrom?: string;
   exp?: string;
   is_active?: boolean;
   status?: string;
@@ -451,6 +456,7 @@ export interface OrderPayload {
 
 export interface ProductUpdatePayload {
   name?: string;
+  category_id?: string;
   category?: Product['category'];
   price?: number;
   weight?: string;
@@ -458,6 +464,9 @@ export interface ProductUpdatePayload {
   badge?: Product['badge'];
   description?: string;
   ingredients?: string;
+  nutrition?: NutritionInfo;
+  is_available?: boolean;
+  isAvailable?: boolean;
 }
 
 export interface ProfileUpdatePayload {
