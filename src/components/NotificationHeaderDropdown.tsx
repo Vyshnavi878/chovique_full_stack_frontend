@@ -330,13 +330,14 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
           {/* Dropdown Header */}
           <div
             style={{
-              padding: '16px 20px',
+              padding: '14px 16px',
               borderBottom: '1px solid rgba(201, 168, 76, 0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
+            {/* Left: Title + unread badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h4
                 style={{
@@ -365,20 +366,37 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
               )}
             </div>
 
-            {unreadCount > 0 && (
+            {/* Right: Clear All button — always visible when there are notifications */}
+            {notifications.length > 0 && (
               <button
                 onClick={handleMarkAllRead}
+                title="Clear all notifications"
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#c9a84c',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
+                  background: 'rgba(231, 76, 60, 0.08)',
+                  border: '1px solid rgba(231, 76, 60, 0.25)',
+                  borderRadius: '8px',
+                  color: '#e74c3c',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  padding: 0,
+                  padding: '4px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  transition: 'all 0.18s ease',
+                  letterSpacing: '0.3px',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.18)';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.08)';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.25)';
                 }}
               >
-                Mark all as read
+                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>×</span>
+                Clear All
               </button>
             )}
           </div>

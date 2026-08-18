@@ -221,6 +221,37 @@ export const SuperadminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('enterprise');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
 
+  const [selectedPaymentMetric, setSelectedPaymentMetric] = useState<'completed' | 'pending' | 'cancelled' | null>(null);
+  const [paymentMetricOrders, setPaymentMetricOrders] = useState<any[]>([]);
+  const [isPaymentMetricLoading, setIsPaymentMetricLoading] = useState(false);
+  const [paymentMetricPage, setPaymentMetricPage] = useState(1);
+  const [paymentMetricTotalPages, setPaymentMetricTotalPages] = useState(1);
+  const [paymentMetricTotalItems, setPaymentMetricTotalItems] = useState(0);
+
+  const fetchPaymentMetricOrders = async (metric: 'completed' | 'pending' | 'cancelled', page: number = 1) => {
+    setIsPaymentMetricLoading(true);
+    try {
+      const res = await adminService.getOnlineSalesLedger({
+        payment_status_filter: metric,
+        page,
+        limit: 10
+      });
+      setPaymentMetricOrders(res.items);
+      setPaymentMetricTotalPages(Math.ceil(res.total / res.limit));
+      setPaymentMetricTotalItems(res.total);
+    } catch (err) {
+      console.error('Failed to fetch payment metric orders:', err);
+    } finally {
+      setIsPaymentMetricLoading(false);
+    }
+  };
+
+  const handlePaymentMetricClick = (metric: 'completed' | 'pending' | 'cancelled') => {
+    setSelectedPaymentMetric(metric);
+    setPaymentMetricPage(1);
+    fetchPaymentMetricOrders(metric, 1);
+  };
+
   // --- Logout Modal State ---
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -261,6 +292,11 @@ export const SuperadminDashboard: React.FC = () => {
     offline_orders: { current_value: 36, previous_value: 34, percentage_change: 5.9, comparison_label: 'vs last 7 days' },
     total_customers: { current_value: 248, previous_value: 232, percentage_change: 6.7, comparison_label: 'vs last 7 days' },
     active_admins: { current_value: 3, previous_value: 3, percentage_change: 0.0, comparison_label: 'vs last 7 days' },
+    payment_metrics: {
+      completed: 110,
+      pending: 10,
+      cancelled: 4,
+    },
     revenue_trend: [
       { date: '1 Aug', revenue: 6000 },
       { date: '6 Aug', revenue: 12000 },
@@ -2648,6 +2684,46 @@ export const SuperadminDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Payment Metrics Section */}
+                {displayOverview.payment_metrics && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: 'var(--cream)', marginBottom: '16px', fontWeight: 700 }}>
+                      PAYMENT METRICS
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                      {/* Completed Payments */}
+                      <div className="glass-panel" onClick={() => handlePaymentMetricClick('completed')} style={{ cursor: 'pointer', padding: '16px', border: '1px solid rgba(46, 204, 113, 0.3)', borderRadius: '12px', background: 'rgba(46, 204, 113, 0.05)' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          Completed
+                        </span>
+                        <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#2ecc71', display: 'block', fontFamily: 'var(--font-display)' }}>
+                          {displayOverview.payment_metrics.completed.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Pending Payments */}
+                      <div className="glass-panel" onClick={() => handlePaymentMetricClick('pending')} style={{ cursor: 'pointer', padding: '16px', border: '1px solid rgba(243, 156, 18, 0.3)', borderRadius: '12px', background: 'rgba(243, 156, 18, 0.05)' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          Pending
+                        </span>
+                        <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f39c12', display: 'block', fontFamily: 'var(--font-display)' }}>
+                          {displayOverview.payment_metrics.pending.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Cancelled/Failed Payments */}
+                      <div className="glass-panel" onClick={() => handlePaymentMetricClick('cancelled')} style={{ cursor: 'pointer', padding: '16px', border: '1px solid rgba(231, 76, 60, 0.3)', borderRadius: '12px', background: 'rgba(231, 76, 60, 0.05)' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          Cancelled / Failed
+                        </span>
+                        <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#e74c3c', display: 'block', fontFamily: 'var(--font-display)' }}>
+                          {displayOverview.payment_metrics.cancelled.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* ROW 1: Revenue Trend Chart & Sales Source Donut Chart */}
                 <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.4fr 1fr', gap: '24px', marginBottom: '24px' }}>
                   {/* Revenue Trend Chart */}
@@ -3292,8 +3368,21 @@ export const SuperadminDashboard: React.FC = () => {
             {/* Top 4 KPI Cards (Matching mockup values & styling) */}
             <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               {/* Card 1: TOTAL UNITS SOLD */}
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              <div
+                className="dashboard-stat-card glass-panel"
+                onClick={() => { setSalesSubTab('products'); setSalesProductsPage(1); }}
+                style={{
+                  padding: '20px',
+                  border: `1px solid ${salesSubTab === 'products' ? '#c9a84c' : 'rgba(201, 168, 76, 0.25)'}`,
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.22s ease',
+                  background: salesSubTab === 'products' ? 'rgba(201,168,76,0.07)' : undefined,
+                  boxShadow: salesSubTab === 'products' ? '0 0 18px rgba(201,168,76,0.18)' : undefined,
+                }}
+                title="Click to view Products"
+              >
+                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'products' ? '#c9a84c' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                   TOTAL UNITS SOLD
                 </span>
                 <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
@@ -3303,11 +3392,27 @@ export const SuperadminDashboard: React.FC = () => {
                   <span>{displaySalesProducts.kpis.units_pct_change >= 0 ? `+${displaySalesProducts.kpis.units_pct_change}%` : `${displaySalesProducts.kpis.units_pct_change}%`}</span>
                   <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
                 </div>
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#c9a84c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
+                  <span>View Products →</span>
+                </div>
               </div>
 
               {/* Card 2: TOTAL REVENUE */}
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              <div
+                className="dashboard-stat-card glass-panel"
+                onClick={() => { setSalesSubTab('products'); setSalesProductsPage(1); }}
+                style={{
+                  padding: '20px',
+                  border: `1px solid ${salesSubTab === 'products' ? '#c9a84c' : 'rgba(201, 168, 76, 0.25)'}`,
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.22s ease',
+                  background: salesSubTab === 'products' ? 'rgba(201,168,76,0.07)' : undefined,
+                  boxShadow: salesSubTab === 'products' ? '0 0 18px rgba(201,168,76,0.18)' : undefined,
+                }}
+                title="Click to view Total Sales Breakdown"
+              >
+                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'products' ? '#c9a84c' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                   TOTAL REVENUE
                 </span>
                 <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
@@ -3317,11 +3422,27 @@ export const SuperadminDashboard: React.FC = () => {
                   <span>{displaySalesProducts.kpis.revenue_pct_change >= 0 ? `+${displaySalesProducts.kpis.revenue_pct_change}%` : `${displaySalesProducts.kpis.revenue_pct_change}%`}</span>
                   <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
                 </div>
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#c9a84c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
+                  <span>View All Products →</span>
+                </div>
               </div>
 
               {/* Card 3: ONLINE REVENUE */}
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              <div
+                className="dashboard-stat-card glass-panel"
+                onClick={() => { setSalesSubTab('online'); setOnlineLedgerPage(1); }}
+                style={{
+                  padding: '20px',
+                  border: `1px solid ${salesSubTab === 'online' ? '#5dade2' : 'rgba(201, 168, 76, 0.25)'}`,
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.22s ease',
+                  background: salesSubTab === 'online' ? 'rgba(93,173,226,0.06)' : undefined,
+                  boxShadow: salesSubTab === 'online' ? '0 0 18px rgba(93,173,226,0.15)' : undefined,
+                }}
+                title="Click to view Online Sales Ledger"
+              >
+                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'online' ? '#5dade2' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                   ONLINE REVENUE
                 </span>
                 <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
@@ -3331,11 +3452,27 @@ export const SuperadminDashboard: React.FC = () => {
                   <span>{displaySalesProducts.kpis.online_pct_change >= 0 ? `+${displaySalesProducts.kpis.online_pct_change}%` : `${displaySalesProducts.kpis.online_pct_change}%`}</span>
                   <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
                 </div>
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#5dade2', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
+                  <span>View Online Ledger →</span>
+                </div>
               </div>
 
               {/* Card 4: OFFLINE REVENUE */}
-              <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              <div
+                className="dashboard-stat-card glass-panel"
+                onClick={() => { setSalesSubTab('offline'); setOfflineLedgerPage(1); }}
+                style={{
+                  padding: '20px',
+                  border: `1px solid ${salesSubTab === 'offline' ? '#e67e22' : 'rgba(201, 168, 76, 0.25)'}`,
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.22s ease',
+                  background: salesSubTab === 'offline' ? 'rgba(230,126,34,0.06)' : undefined,
+                  boxShadow: salesSubTab === 'offline' ? '0 0 18px rgba(230,126,34,0.15)' : undefined,
+                }}
+                title="Click to view Offline Boutique Sales Ledger"
+              >
+                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'offline' ? '#e67e22' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                   OFFLINE REVENUE
                 </span>
                 <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
@@ -3344,6 +3481,10 @@ export const SuperadminDashboard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.offline_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
                   <span>{displaySalesProducts.kpis.offline_pct_change >= 0 ? `+${displaySalesProducts.kpis.offline_pct_change}%` : `${displaySalesProducts.kpis.offline_pct_change}%`}</span>
                   <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#e67e22', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
+                  <span>View Offline Ledger</span>
+                  <ArrowRight size={11} />
                 </div>
               </div>
             </div>
@@ -5644,6 +5785,146 @@ export const SuperadminDashboard: React.FC = () => {
           onConfirm={confirmModal.onConfirm}
           onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
         />
+
+        {/* Payment Metric Orders Modal */}
+        <AnimatePresence>
+          {selectedPaymentMetric && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}
+              onClick={() => setSelectedPaymentMetric(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: 'linear-gradient(145deg, #1A0D00, #0A0A0A)',
+                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                  borderRadius: '16px',
+                  width: '100%',
+                  maxWidth: '900px',
+                  maxHeight: '85vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+                }}
+              >
+                {/* Header */}
+                <div style={{ padding: '24px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-display)', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <DollarSign size={24} />
+                    {selectedPaymentMetric.toUpperCase()} PAYMENT ORDERS
+                  </h3>
+                  <button
+                    onClick={() => setSelectedPaymentMetric(null)}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '4px' }}
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                {/* Body */}
+                <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                  {isPaymentMetricLoading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                      <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(201, 168, 76, 0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                    </div>
+                  ) : paymentMetricOrders.length === 0 ? (
+                    <EmptyState
+                      icon={<ShoppingBag size={32} />}
+                      title="No Orders Found"
+                      description={`There are currently no orders with ${selectedPaymentMetric} payment status.`}
+                    />
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: 'rgba(255,255,255,0.5)' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>ORDER ID</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>DATE</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>CUSTOMER</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>PRODUCT</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>QTY</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>PAYMENT</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>AMOUNT</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paymentMetricOrders.map((ord: any, i: number) => (
+                            <tr key={ord.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#f5efe6', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                              <td style={{ padding: '16px 12px' }}>
+                                <span style={{ fontWeight: 700, color: '#c9a84c' }}>{ord.order_id}</span>
+                              </td>
+                              <td style={{ padding: '16px 12px', color: 'rgba(255,255,255,0.7)' }}>{ord.created_at}</td>
+                              <td style={{ padding: '16px 12px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontWeight: 600, color: '#f5efe6' }}>{ord.customer_name}</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{ord.customer_email}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '16px 12px', maxWidth: '200px' }}>{ord.product_summary}</td>
+                              <td style={{ padding: '16px 12px', fontWeight: 600 }}>{ord.quantity}</td>
+                              <td style={{ padding: '16px 12px' }}>{ord.payment_method}</td>
+                              <td style={{ padding: '16px 12px', fontWeight: 700, color: '#c9a84c' }}>₹{ord.amount?.toLocaleString('en-IN')}</td>
+                              <td style={{ padding: '16px 12px' }}>
+                                <span style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  background: ord.order_status?.toUpperCase() === 'CANCELLED' ? 'rgba(231, 76, 60, 0.15)' :
+                                              ord.order_status?.toUpperCase() === 'DELIVERED' ? 'rgba(46, 204, 113, 0.15)' :
+                                              'rgba(243, 156, 18, 0.15)',
+                                  color: ord.order_status?.toUpperCase() === 'CANCELLED' ? '#e74c3c' :
+                                         ord.order_status?.toUpperCase() === 'DELIVERED' ? '#2ecc71' :
+                                         '#f39c12'
+                                }}>
+                                  {ord.order_status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  
+                  {/* Pagination */}
+                  {!isPaymentMetricLoading && paymentMetricTotalPages > 1 && (
+                    <div style={{ marginTop: '24px' }}>
+                      <Pagination
+                        currentPage={paymentMetricPage}
+                        totalPages={paymentMetricTotalPages}
+                        totalItems={paymentMetricTotalItems}
+                        itemsPerPage={10}
+                        onPageChange={(page) => {
+                          setPaymentMetricPage(page);
+                          fetchPaymentMetricOrders(selectedPaymentMetric!, page);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Logout Confirmation Modal */}
         <ConfirmationModal
