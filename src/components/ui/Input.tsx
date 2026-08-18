@@ -14,6 +14,7 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   id,
   type = 'text',
+  style,
   ...props
 }) => {
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
@@ -68,6 +69,7 @@ export const Input: React.FC<InputProps> = ({
             transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
             boxSizing: 'border-box',
             boxShadow: '0 0 8px rgba(201, 168, 76, 0.25)',
+            ...style,
           }}
           className={`luxury-input ${className}`}
           {...props}
@@ -128,6 +130,7 @@ export const Select: React.FC<SelectProps> = ({
   className = '',
   id,
   options,
+  style,
   ...props
 }) => {
   const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
@@ -181,6 +184,7 @@ export const Select: React.FC<SelectProps> = ({
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'right 12px center',
           backgroundSize: '16px',
+          ...style,
         }}
         className={`luxury-select ${className}`}
         {...props}

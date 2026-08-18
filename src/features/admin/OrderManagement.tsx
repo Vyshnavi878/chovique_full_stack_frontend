@@ -41,9 +41,9 @@ const PAYMENT_STATUSES = [
 
 // Valid forward-only transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  Pending: ['Confirmed', 'Processing', 'Cancelled'],
-  Confirmed: ['Processing', 'Shipped', 'Cancelled'],
-  Processing: ['Confirmed', 'Shipped', 'Cancelled'],
+  Pending: ['Confirmed', 'Cancelled'],
+  Confirmed: ['Processing', 'Cancelled'],
+  Processing: ['Shipped', 'Cancelled'],
   Shipped: ['Out for Delivery', 'Delivered', 'Cancelled'],
   'Out for Delivery': ['Delivered', 'Cancelled'],
   Out_For_Delivery: ['Delivered', 'Cancelled'],
@@ -206,24 +206,63 @@ export const OrderDetailModal: React.FC<{
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                Order Status
-              </div>
-              <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
+        {/* Order Summary Breakdown */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '14px' }}>Order Summary</div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
+              <span>Items Subtotal</span>
+              <span style={{ fontWeight: 600 }}>₹{(order.subtotal || 0).toLocaleString()}</span>
             </div>
-            <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                Payment Status
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
+              <span>Delivery Charges</span>
+              <span style={{ fontWeight: 600 }}>{order.shipping > 0 ? `₹${order.shipping.toLocaleString()}` : 'Free'}</span>
+            </div>
+
+            {(order.tax || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
+                <span>Tax (GST)</span>
+                <span style={{ fontWeight: 600 }}>₹{order.tax.toLocaleString()}</span>
               </div>
-              <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
+            )}
+
+            {(order.coupon_discount || order.discount || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
+                <span>Coupon Discount {order.coupon_code ? `(${order.coupon_code})` : ''}</span>
+                <span style={{ fontWeight: 600 }}>- ₹{(order.coupon_discount || order.discount || 0).toLocaleString()}</span>
+              </div>
+            )}
+
+            {(order.coin_discount || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
+                <span>Reward Coins Used ({order.coins_used} coins)</span>
+                <span style={{ fontWeight: 600 }}>- ₹{(order.coin_discount || 0).toLocaleString()}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '12px', marginTop: '4px' }}>
+              <span style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '0.95rem' }}>Total Amount</span>
+              <span style={{ color: 'var(--gold)', fontWeight: 800, fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}>
+                ₹{(order.total || 0).toLocaleString()}
+              </span>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Total Amount</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{order.total?.toLocaleString()}</div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+              Order Status
+            </div>
+            <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+              Payment Status
+            </div>
+            <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
           </div>
         </div>
 
@@ -304,9 +343,10 @@ export const OrderDetailModal: React.FC<{
 const QuickConfirmDialog: React.FC<{
   orderId: string;
   newStatus: string;
+  isUpdating?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}> = ({ orderId, newStatus, onConfirm, onCancel }) => (
+}> = ({ orderId, newStatus, isUpdating, onConfirm, onCancel }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
     <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', padding: '24px', borderRadius: '12px', border: '1px solid var(--gold)', background: 'rgba(18,10,5,0.96)', textAlign: 'center' }}>
       <AlertTriangle size={36} color="#e74c3c" style={{ margin: '0 auto 12px auto', display: 'block' }} />
@@ -318,16 +358,18 @@ const QuickConfirmDialog: React.FC<{
       </p>
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
         <button
+          disabled={isUpdating}
           onClick={onCancel}
-          style={{ padding: '9px 20px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--cream)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+          style={{ padding: '9px 20px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--cream)', borderRadius: '6px', cursor: isUpdating ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isUpdating ? 0.6 : 1 }}
         >
           Cancel
         </button>
         <button
+          disabled={isUpdating}
           onClick={onConfirm}
-          style={{ padding: '9px 20px', background: 'var(--gold)', border: 'none', color: '#000', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+          style={{ padding: '9px 20px', background: 'var(--gold)', border: 'none', color: '#000', borderRadius: '6px', cursor: isUpdating ? 'not-allowed' : 'pointer', fontWeight: 700, opacity: isUpdating ? 0.6 : 1 }}
         >
-          Confirm
+          {isUpdating ? 'Confirming...' : 'Confirm'}
         </button>
       </div>
     </div>
@@ -357,6 +399,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<{ order: any; newStatus: string } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const fetchDbOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -419,6 +462,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const confirmUpdate = async () => {
     if (!pendingConfirm) return;
+    setIsConfirming(true);
     const { order, newStatus } = pendingConfirm;
     try {
       if (newStatus === '_MARK_PAID') {
@@ -432,6 +476,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     } catch (err: any) {
       console.error('Failed to update order status:', err);
     } finally {
+      setIsConfirming(false);
       setPendingConfirm(null);
     }
   };
@@ -690,8 +735,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         <QuickConfirmDialog
           orderId={pendingConfirm.order.id}
           newStatus={pendingConfirm.newStatus}
+          isUpdating={isConfirming}
           onConfirm={confirmUpdate}
-          onCancel={() => setPendingConfirm(null)}
+          onCancel={() => !isConfirming && setPendingConfirm(null)}
         />
       )}
     </>

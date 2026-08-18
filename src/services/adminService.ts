@@ -753,6 +753,7 @@ export const adminService = {
     search?: string;
     status?: string;
     payment_method?: string;
+    payment_status_filter?: string;
     date_from?: string;
     date_to?: string;
     page?: number;
@@ -762,6 +763,7 @@ export const adminService = {
     if (params?.search) q.set('search', params.search);
     if (params?.status) q.set('status', params.status);
     if (params?.payment_method) q.set('payment_method', params.payment_method);
+    if (params?.payment_status_filter) q.set('payment_status_filter', params.payment_status_filter);
     if (params?.date_from) q.set('date_from', params.date_from);
     if (params?.date_to) q.set('date_to', params.date_to);
     if (params?.page) q.set('page', String(params.page));
@@ -1059,6 +1061,12 @@ export interface RecentActivityItem {
   user_name?: string | null;
 }
 
+export interface PaymentMetrics {
+  completed: number;
+  pending: number;
+  cancelled: number;
+}
+
 export interface SuperadminOverviewResponse {
   total_revenue: KPICardData;
   total_orders: KPICardData;
@@ -1066,6 +1074,7 @@ export interface SuperadminOverviewResponse {
   offline_orders?: KPICardData;
   total_customers: KPICardData;
   active_admins: KPICardData;
+  payment_metrics?: PaymentMetrics | null;
   revenue_trend: RevenueTrendPoint[];
   sales_source: SalesSourceData;
   top_selling_products: TopSellingProductOverview[];

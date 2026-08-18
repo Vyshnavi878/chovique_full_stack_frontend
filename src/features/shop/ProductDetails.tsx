@@ -18,7 +18,6 @@ export const ProductDetails: React.FC = () => {
 
   const [product, setProduct] = useState(products.find((p) => p.id === id));
   const [activeTab, setActiveTab] = useState<TabType>('description');
-  const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState('');
   const [addedToCartAlert, setAddedToCartAlert] = useState(false);
 
@@ -31,7 +30,6 @@ export const ProductDetails: React.FC = () => {
     if (prod) {
       setProduct(prod);
       setActiveImage(getImageUrl(prod.image));
-      setQuantity(1);
       setActiveTab('description');
     } else {
       navigate('/404');
@@ -45,14 +43,20 @@ export const ProductDetails: React.FC = () => {
   const cartItem = cart.find((item) => item.product.id === product.id);
   const inCart = !!cartItem;
   
-  const displayQuantity = inCart ? cartItem.quantity : quantity;
+  const displayQuantity = inCart ? cartItem.quantity : 0;
 
   // Handlers for quantity
   const handleIncrement = () => {
     if (inCart) {
       updateCartQuantity(product.id, cartItem.quantity + 1);
     } else {
-      setQuantity((q) => q + 1);
+      if (role === 'guest') {
+        navigate('/login');
+      } else {
+        addToCart(product, 1);
+        setAddedToCartAlert(true);
+        setTimeout(() => setAddedToCartAlert(false), 2500);
+      }
     }
   };
   const handleDecrement = () => {
@@ -62,8 +66,6 @@ export const ProductDetails: React.FC = () => {
       } else {
         removeFromCart(product.id);
       }
-    } else {
-      setQuantity((q) => Math.max(1, q - 1));
     }
   };
 
@@ -72,7 +74,7 @@ export const ProductDetails: React.FC = () => {
     if (role === 'guest') {
       navigate('/login');
     } else {
-      addToCart(product, quantity);
+      addToCart(product, 1);
       setAddedToCartAlert(true);
       setTimeout(() => setAddedToCartAlert(false), 2500);
     }
@@ -83,7 +85,9 @@ export const ProductDetails: React.FC = () => {
     if (role === 'guest') {
       navigate('/login');
     } else {
-      await addToCart(product, quantity);
+      if (!inCart) {
+        await addToCart(product, 1);
+      }
       navigate('/checkout');
     }
   };
@@ -424,7 +428,7 @@ export const ProductDetails: React.FC = () => {
             >
               Related Products
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '30px' }}>
               {relatedProducts.map((prod) => (
                 <Card key={prod.id} product={prod} />
               ))}

@@ -119,15 +119,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     });
   };
 
-  // Initiate Delete Customer confirmation
-  const initiateDeleteCustomer = (cust: any) => {
-    setConfirmDialog({
-      type: 'delete',
-      customer: cust,
-      title: 'Delete Customer Account',
-      message: `WARNING: Are you sure you want to permanently delete customer "${cust.name}" (${cust.email})? This action CANNOT be undone.`,
-    });
-  };
+
 
   // Execute confirmed action
   const executeConfirmAction = async () => {
@@ -408,7 +400,6 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                   <button onClick={() => initiateToggleStatus(selectedCust)} style={{ padding: '7px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', background: selectedCust.is_active !== false ? 'rgba(231,76,60,0.1)' : 'rgba(46,204,113,0.1)', border: `1px solid ${selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71'}40`, color: selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71' }}>
                     {selectedCust.is_active !== false ? 'Deactivate' : 'Activate'}
                   </button>
-                  <button onClick={() => initiateDeleteCustomer(selectedCust)} style={{ padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', background: 'rgba(231,76,60,0.15)', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c' }}><Trash2 size={14} /></button>
                 </div>
               </div>
 
