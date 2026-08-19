@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { ToastContainer, type ToastMessage } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -118,6 +119,17 @@ export const CustomerDashboard: React.FC = () => {
   const [notifReadFilter, setNotifReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [isNotifLoading, setIsNotifLoading] = useState(false);
   const [notifActionSuccess, setNotifActionSuccess] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isSubmittingSupportTicket, setIsSubmittingSupportTicket] = useState(false);
+
+  const addToast = useCallback((type: 'success' | 'error' | 'info', message: string, title?: string) => {
+    const id = Date.now().toString() + Math.random().toString();
+    setToasts((prev) => [...prev, { id, type, message, title }]);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   useEffect(() => {
     const navState = location.state as { tab?: CustomerTab } | null;
@@ -5220,14 +5232,26 @@ export const CustomerDashboard: React.FC = () => {
                       const cat = (form.elements.namedItem('category') as HTMLSelectElement).value as any;
                       const desc = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
                       const orderIdVal = (form.elements.namedItem('order_id') as HTMLSelectElement)?.value || undefined;
-                      if (!desc.trim()) return;
+                      if (!desc.trim() || isSubmittingSupportTicket) return;
+                      setIsSubmittingSupportTicket(true);
                       try {
                         await addSupportTicket(cat, desc, orderIdVal);
                         form.reset();
                         setShowSupportForm(false);
-                        alert('Support complaint raised successfully. You can view its status and related order details in your history log.');
+                        addToast(
+                          'success',
+                          'Your ticket has been created and our support team will review it within 24–48 business hours.',
+                          'Support request submitted successfully.'
+                        );
                       } catch (err: any) {
-                        alert(err?.detail || err?.message || 'Failed to submit support complaint.');
+                        console.error('Failed to submit support complaint:', err);
+                        addToast(
+                          'error',
+                          err?.detail || err?.message || 'Failed to submit support request. Please try again.',
+                          'Submission Failed'
+                        );
+                      } finally {
+                        setIsSubmittingSupportTicket(false);
                       }
                     }}>
                       <div style={{ marginBottom: '15px' }}>
@@ -5305,8 +5329,15 @@ export const CustomerDashboard: React.FC = () => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <Button variant="gold" type="submit" glow>
-                          Submit Support Ticket
+                        <Button variant="gold" type="submit" glow disabled={isSubmittingSupportTicket}>
+                          {isSubmittingSupportTicket ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                              Submitting...
+                            </span>
+                          ) : (
+                            'Submit Support Ticket'
+                          )}
                         </Button>
                         <Button
                           variant="secondary"
@@ -5385,7 +5416,12 @@ export const CustomerDashboard: React.FC = () => {
                                       setOrderSubView('details');
                                       setActiveTab('orders');
                                     } catch (err: any) {
-                                      alert(err?.detail || err?.message || 'Failed to load related order.');
+                                      console.error('Failed to load related order:', err);
+                                      addToast(
+                                        'error',
+                                        err?.detail || err?.message || 'Failed to load related order details.',
+                                        'Error'
+                                      );
                                     }
                                   }}
                                   style={{
@@ -5579,6 +5615,9 @@ export const CustomerDashboard: React.FC = () => {
             />
           </div>
         </ConfirmationModal>
+
+        {/* Toast Notification Container */}
+        <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </motion.div>
   );
 };
