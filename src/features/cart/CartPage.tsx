@@ -39,6 +39,47 @@ export const CartPage: React.FC = () => {
     }
   }, [role]);
 
+  // Read and revalidate coupon from sessionStorage whenever cart changes
+  React.useEffect(() => {
+    const stored = sessionStorage.getItem('chovique_checkout_coupon');
+    if (stored && cart.length > 0) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.code) {
+          const codeToApply = parsed.code.trim().toUpperCase();
+          setIsCouponLoading(true);
+          cartService
+            .validateCoupon(codeToApply)
+            .then((res) => {
+              if (res.valid) {
+                setCouponData(res);
+                setCouponCode(codeToApply);
+                setCouponError('');
+                sessionStorage.setItem(
+                  'chovique_checkout_coupon',
+                  JSON.stringify({
+                    code: res.code,
+                    discount_amount: res.calculated_discount,
+                  })
+                );
+              } else {
+                setCouponData(null);
+                sessionStorage.removeItem('chovique_checkout_coupon');
+                setCouponError(res.message || 'Selected coupon is no longer applicable to your cart.');
+              }
+            })
+            .catch(() => {
+              setCouponData(null);
+              sessionStorage.removeItem('chovique_checkout_coupon');
+            })
+            .finally(() => setIsCouponLoading(false));
+        }
+      } catch {
+        sessionStorage.removeItem('chovique_checkout_coupon');
+      }
+    }
+  }, [cart]);
+
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
@@ -58,11 +99,6 @@ export const CartPage: React.FC = () => {
   // Total
   const totalAmount = Math.max(0, subtotal - discountAmount + shippingAmount + taxAmount);
 
-  /**
-   * Coupon validation: sends code to backend API.
-   * All coupon logic (validity, expiry, % vs flat) lives in the backend.
-   * No hardcoded coupon codes remain in the frontend.
-   */
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponCode.trim()) return;
@@ -74,13 +110,22 @@ export const CartPage: React.FC = () => {
       const result = await cartService.validateCoupon(couponCode.trim().toUpperCase());
       if (result.valid) {
         setCouponData(result);
+        sessionStorage.setItem(
+          'chovique_checkout_coupon',
+          JSON.stringify({
+            code: result.code,
+            discount_amount: result.calculated_discount,
+          })
+        );
       } else {
         setCouponData(null);
         setCouponError(result.message || 'Invalid coupon code.');
+        sessionStorage.removeItem('chovique_checkout_coupon');
       }
     } catch {
       setCouponData(null);
       setCouponError('Could not validate coupon. Please try again.');
+      sessionStorage.removeItem('chovique_checkout_coupon');
     } finally {
       setIsCouponLoading(false);
     }
@@ -95,27 +140,39 @@ export const CartPage: React.FC = () => {
       const result = await cartService.validateCoupon(formatted);
       if (result.valid) {
         setCouponData(result);
+        sessionStorage.setItem(
+          'chovique_checkout_coupon',
+          JSON.stringify({
+            code: result.code,
+            discount_amount: result.calculated_discount,
+          })
+        );
       } else {
         setCouponData(null);
         setCouponError(result.message || 'Invalid coupon code.');
+        sessionStorage.removeItem('chovique_checkout_coupon');
       }
     } catch {
       setCouponData(null);
       setCouponError('Could not validate coupon. Please try again.');
+      sessionStorage.removeItem('chovique_checkout_coupon');
     } finally {
       setIsCouponLoading(false);
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponData(null);
+    setCouponCode('');
+    setCouponError('');
+    sessionStorage.removeItem('chovique_checkout_coupon');
   };
 
   const handleCheckout = () => {
     if (role === 'guest') {
       navigate('/login', { state: { from: '/checkout' } });
     } else {
-      // Always clear any stale Buy Now item so checkout uses the full cart
       sessionStorage.removeItem('chovique_buy_now_item');
-
-      // Pass discount data to checkout via sessionStorage
-      // so CheckoutPage can include it in the order payload
       if (couponData) {
         sessionStorage.setItem(
           'chovique_checkout_coupon',
@@ -355,12 +412,15 @@ export const CartPage: React.FC = () => {
                       const matchYMD = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
                       const matchDMY = strVal.match(/^(\d{2})-(\d{2})-(\d{4})/);
                       const matchSlashDMY = strVal.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+                      const matchSlashYMD = strVal.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
                       if (matchYMD) {
                         expText = `Expires: ${matchYMD[3]}-${matchYMD[2]}-${matchYMD[1]}`;
                       } else if (matchDMY) {
                         expText = `Expires: ${matchDMY[1]}-${matchDMY[2]}-${matchDMY[3]}`;
                       } else if (matchSlashDMY) {
                         expText = `Expires: ${matchSlashDMY[1]}-${matchSlashDMY[2]}-${matchSlashDMY[3]}`;
+                      } else if (matchSlashYMD) {
+                        expText = `Expires: ${matchSlashYMD[3]}-${matchSlashYMD[2]}-${matchSlashYMD[1]}`;
                       } else {
                         try {
                           const d = new Date(rawExp);
@@ -399,38 +459,73 @@ export const CartPage: React.FC = () => {
               </div>
             )}
 
-            {/* Coupon Promo form — validates against backend API */}
-            <form onSubmit={handleApplyCoupon} style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                <div style={{ flexGrow: 1 }}>
-                  <Input
-                    placeholder="Promo Code"
-                    value={couponCode}
-                    onChange={(e) => {
-                      setCouponCode(e.target.value);
-                      if (couponError) setCouponError('');
-                      if (couponData) setCouponData(null);
-                    }}
-                    error={couponError}
-                    fullWidth
-                    disabled={isCouponLoading}
-                  />
+            {/* Coupon Promo Section */}
+            {couponData ? (
+              <div
+                style={{
+                  padding: '16px',
+                  background: 'rgba(46, 204, 113, 0.1)',
+                  border: '1px solid #2ecc71',
+                  borderRadius: '10px',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2ecc71', fontWeight: 700, fontSize: '0.95rem' }}>
+                    <Tag size={16} />
+                    <span>Coupon Applied: {couponData.code}</span>
+                  </div>
+                  <div style={{ color: 'var(--cream)', fontSize: '0.85rem', marginTop: '4px', fontWeight: 600 }}>
+                    Discount: -₹{discountAmount.toFixed(2)} {couponData.discount_percent ? `(${couponData.discount_percent}% OFF)` : ''}
+                  </div>
                 </div>
-                <Button
-                  type="submit"
-                  variant="glass"
-                  style={{ height: '48px', marginBottom: '15px', minWidth: '72px' }}
-                  disabled={isCouponLoading || !couponCode.trim()}
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(231, 76, 60, 0.6)',
+                    color: '#e74c3c',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
                 >
-                  {isCouponLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Apply'}
-                </Button>
+                  Remove Coupon
+                </button>
               </div>
-              {couponData && (
-                <span style={{ fontSize: '0.8rem', color: '#2ecc71', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <Tag size={12} /> {couponData.message || 'Discount code applied successfully!'}
-                </span>
-              )}
-            </form>
+            ) : (
+              <form onSubmit={handleApplyCoupon} style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                  <div style={{ flexGrow: 1 }}>
+                    <Input
+                      placeholder="Promo Code"
+                      value={couponCode}
+                      onChange={(e) => {
+                        setCouponCode(e.target.value);
+                        if (couponError) setCouponError('');
+                      }}
+                      error={couponError}
+                      fullWidth
+                      disabled={isCouponLoading}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    variant="glass"
+                    style={{ height: '48px', marginBottom: '15px', minWidth: '72px' }}
+                    disabled={isCouponLoading || !couponCode.trim()}
+                  >
+                    {isCouponLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Apply'}
+                  </Button>
+                </div>
+              </form>
+            )}
 
             {/* Checkout proceed */}
             <Button variant="gold" fullWidth size="lg" glow onClick={handleCheckout}>

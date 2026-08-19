@@ -208,7 +208,7 @@ export interface SupportTicket {
     | 'Refund amount are not debited in mentioned days'
     | 'Other';
   description: string;
-  status: 'Pending' | 'Resolved';
+  status: 'Pending' | 'Under Review' | 'In Progress' | 'Awaiting Customer Response' | 'Investigating' | 'Resolved' | 'Closed' | string;
   orderId?: string;
   order_id?: string;
   adminNotes?: string;

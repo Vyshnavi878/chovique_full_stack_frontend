@@ -48,7 +48,6 @@ export const CheckoutPage: React.FC = () => {
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   // Coins redemption state
-  const [useCoins, setUseCoins] = useState(false);
   const [coinsToUse, setCoinsToUse] = useState(0);
   const [coinPreview, setCoinPreview] = useState<{
     allowed_coins: number;
@@ -150,31 +149,63 @@ export const CheckoutPage: React.FC = () => {
   const subtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const discountAmount = appliedCoupon?.discount_amount ?? 0;
 
-  // Calculate coin redemption when useCoins is toggled or subtotal/coupon changes
+  // Re-validate applied coupon against backend whenever items or subtotal changes
   useEffect(() => {
-    if (wallet && wallet.coin_balance > 0 && useCoins) {
-      const requested = wallet.coin_balance;
+    if (appliedCoupon && appliedCoupon.code && checkoutItems.length > 0) {
+      cartService
+        .validateCoupon(appliedCoupon.code)
+        .then((res) => {
+          if (res.valid) {
+            const discountVal = res.calculated_discount ?? (
+              res.discount_percent
+                ? Math.round(subtotal * (res.discount_percent / 100) * 100) / 100
+                : (res.discount_amount ?? 0)
+            );
+            const updatedPayload: CheckoutCouponData = {
+              code: res.code || appliedCoupon.code,
+              discount_percent: res.discount_percent || 0,
+              discount_amount: discountVal,
+            };
+            setAppliedCoupon(updatedPayload);
+            sessionStorage.setItem('chovique_checkout_coupon', JSON.stringify(updatedPayload));
+            setCouponError('');
+          } else {
+            setAppliedCoupon(null);
+            sessionStorage.removeItem('chovique_checkout_coupon');
+            setCouponError(res.message || 'Selected coupon is no longer applicable to your cart.');
+          }
+        })
+        .catch(() => {});
+    }
+  }, [checkoutItems, subtotal]);
+
+  // Calculate coin redemption when coinsToUse, wallet, subtotal, or coupon changes
+  useEffect(() => {
+    if (wallet && wallet.coin_balance > 0 && coinsToUse > 0) {
       walletService
         .calculateRedemption({
           subtotal,
           coupon_discount: discountAmount,
-          coins_to_use: requested,
+          coins_to_use: coinsToUse,
         })
         .then((res) => {
           setCoinPreview(res);
-          setCoinsToUse(res.allowed_coins > 0 ? res.allowed_coins : 0);
         })
         .catch(() => {
           setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: 'Available reward coins are insufficient for redemption on this order.' });
-          setCoinsToUse(0);
         });
     } else {
       setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
-      setCoinsToUse(0);
     }
-  }, [wallet, useCoins, subtotal, discountAmount]);
+  }, [wallet, coinsToUse, subtotal, discountAmount]);
 
-  const coinDiscountAmount = useCoins && coinPreview.allowed_coins > 0 ? coinPreview.coin_discount : 0;
+  const coinsPerRupee = wallet?.settings?.coins_per_rupee || 10;
+  const coinDiscountAmount =
+    coinsToUse > 0
+      ? (coinPreview.coin_discount > 0
+          ? coinPreview.coin_discount
+          : Math.round((coinsToUse / coinsPerRupee) * 100) / 100)
+      : 0;
   
   // Shipping
   const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
@@ -374,7 +405,7 @@ export const CheckoutPage: React.FC = () => {
         delivery_option: deliveryOption,
         payment_method: paymentMethod,
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
-        coins_to_use: useCoins && coinPreview.allowed_coins > 0 ? (coinsToUse > 0 && coinsToUse <= coinPreview.allowed_coins ? coinsToUse : coinPreview.allowed_coins) : 0,
+        coins_to_use: coinsToUse > 0 ? coinsToUse : 0,
       };
 
       try {
@@ -618,85 +649,186 @@ export const CheckoutPage: React.FC = () => {
                 </div>
 
                 {/* Rewards Panel */}
-                {wallet && wallet.coin_balance > 0 ? (
-                  <div
-                    style={{
-                      padding: '16px 20px',
-                      background: 'rgba(212, 175, 55, 0.08)',
-                      border: '1px solid var(--gold)',
-                      borderRadius: '6px',
-                      marginBottom: '25px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <Coins size={24} style={{ color: 'var(--gold)' }} />
-                        <div>
-                          <h4 style={{ color: 'var(--cream)', margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
-                            Chovique Reward Coins
-                          </h4>
-                          <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: 0 }}>
-                            Available: <strong>{wallet.coin_balance} coins</strong> (₹{(wallet.coin_balance / (wallet.settings?.coins_per_rupee || 10)).toFixed(0)} discount value)
-                          </p>
+                {wallet && wallet.coin_balance > 0 ? (() => {
+                  const coinsPerRupeeVal = wallet.settings?.coins_per_rupee || 10;
+                  const maxRedemptionPct = wallet.settings?.max_redemption_percentage || 20;
+                  const eligibleSubtotal = Math.max(0, subtotal - discountAmount);
+                  const maxDiscountAllowed = eligibleSubtotal * (maxRedemptionPct / 100);
+                  const maxUsableForOrder = Math.min(wallet.coin_balance, Math.floor(maxDiscountAllowed * coinsPerRupeeVal));
+                  const availableRupeeVal = (wallet.coin_balance / coinsPerRupeeVal).toFixed(2);
+                  const currentCoinDiscount = coinsToUse > 0 ? (coinsToUse / coinsPerRupeeVal) : 0;
+
+                  return (
+                    <div
+                      style={{
+                        padding: '18px 20px',
+                        background: 'rgba(212, 175, 55, 0.08)',
+                        border: '1px solid var(--gold)',
+                        borderRadius: '6px',
+                        marginBottom: '25px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '15px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Coins size={24} style={{ color: 'var(--gold)' }} />
+                          <div>
+                            <h4 style={{ color: 'var(--cream)', margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+                              Chovique Reward Coins
+                            </h4>
+                            <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: '2px 0 0 0' }}>
+                              Available: <strong style={{ color: 'var(--gold)' }}>{wallet.coin_balance} Coins</strong> (₹{availableRupeeVal} discount value)
+                            </p>
+                          </div>
                         </div>
                       </div>
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--gold)', fontWeight: 600, fontSize: '0.9rem' }}>
-                        <input
-                          type="checkbox"
-                          checked={useCoins}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setUseCoins(isChecked);
-                            if (isChecked) {
-                              setCoinsToUse(wallet.coin_balance);
-                            } else {
-                              setCoinsToUse(0);
-                              setCoinPreview({ allowed_coins: 0, coin_discount: 0, max_usable_coins: 0, message: '' });
-                            }
-                          }}
-                          style={{ width: '18px', height: '18px', accentColor: 'var(--gold)', cursor: 'pointer' }}
-                        />
-                        <span>Use Available Coins</span>
-                      </label>
+                      <div style={{ paddingTop: '12px', borderTop: '1px dashed rgba(212, 175, 55, 0.3)' }}>
+                        <label style={{ display: 'block', color: 'var(--cream)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>
+                          Redeem Coins
+                        </label>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', overflow: 'hidden' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = Math.max(0, coinsToUse - 1);
+                                setCoinsToUse(nextVal);
+                              }}
+                              disabled={coinsToUse <= 0}
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                background: 'transparent',
+                                border: 'none',
+                                color: coinsToUse <= 0 ? 'rgba(255,255,255,0.2)' : 'var(--gold)',
+                                fontSize: '1.2rem',
+                                fontWeight: 700,
+                                cursor: coinsToUse <= 0 ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              title="Decrease coins"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              max={maxUsableForOrder}
+                              value={coinsToUse === 0 ? '0' : coinsToUse}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === '') {
+                                  setCoinsToUse(0);
+                                  return;
+                                }
+                                const parsed = parseInt(raw, 10);
+                                if (isNaN(parsed) || parsed < 0) {
+                                  setCoinsToUse(0);
+                                } else if (parsed > maxUsableForOrder) {
+                                  setCoinsToUse(maxUsableForOrder);
+                                } else {
+                                  setCoinsToUse(parsed);
+                                }
+                              }}
+                              style={{
+                                width: '60px',
+                                height: '36px',
+                                background: 'transparent',
+                                border: 'none',
+                                textAlign: 'center',
+                                color: 'var(--cream)',
+                                fontSize: '0.95rem',
+                                fontWeight: 700,
+                                outline: 'none',
+                                MozAppearance: 'textfield',
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = Math.min(maxUsableForOrder, coinsToUse + 1);
+                                setCoinsToUse(nextVal);
+                              }}
+                              disabled={coinsToUse >= maxUsableForOrder}
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                background: 'transparent',
+                                border: 'none',
+                                color: coinsToUse >= maxUsableForOrder ? 'rgba(255,255,255,0.2)' : 'var(--gold)',
+                                fontSize: '1.2rem',
+                                fontWeight: 700,
+                                cursor: coinsToUse >= maxUsableForOrder ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              title="Increase coins"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setCoinsToUse(maxUsableForOrder)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '0.78rem',
+                              background: 'rgba(201, 168, 76, 0.15)',
+                              border: '1px solid rgba(201, 168, 76, 0.35)',
+                              color: 'var(--gold)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Use Max ({maxUsableForOrder})
+                          </button>
+
+                          {coinsToUse > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setCoinsToUse(0)}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.78rem',
+                                background: 'transparent',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                color: 'var(--beige)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem' }}>
+                          <div style={{ color: 'var(--beige)' }}>
+                            Maximum usable: <strong style={{ color: 'var(--cream)' }}>{maxUsableForOrder} Coins</strong>
+                          </div>
+
+                          {coinsToUse > 0 && (
+                            <div style={{ color: '#2ecc71', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                              <span>Discount from coins: ₹{currentCoinDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {coinPreview.message && coinPreview.message !== 'Reward coins cannot be applied to this order.' && (
+                            <div style={{ color: coinPreview.allowed_coins > 0 ? 'var(--gold)' : '#e74c3c', fontSize: '0.8rem', marginTop: '2px' }}>
+                              {coinPreview.message}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-
-                    {useCoins && coinPreview.allowed_coins > 0 && (
-                      <div
-                        style={{
-                          marginTop: '12px',
-                          paddingTop: '10px',
-                          borderTop: '1px dashed rgba(212, 175, 55, 0.3)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          fontSize: '0.85rem',
-                          color: '#2ecc71',
-                        }}
-                      >
-                        <span>✓ Redeeming {coinPreview.allowed_coins} coins</span>
-                        <span style={{ fontWeight: 700 }}>-₹{coinPreview.coin_discount.toLocaleString()} Off</span>
-                      </div>
-                    )}
-
-                    {useCoins && coinPreview.allowed_coins <= 0 && (
-                      <div
-                        style={{
-                          marginTop: '12px',
-                          paddingTop: '10px',
-                          borderTop: '1px dashed rgba(231, 76, 60, 0.3)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '0.85rem',
-                          color: '#e74c3c',
-                        }}
-                      >
-                        <span>{coinPreview.message || 'Available reward coins are insufficient for redemption on this order.'}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
+                  );
+                })() : (
                   <div
                     style={{
                       padding: '12px 16px',
@@ -730,10 +862,10 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
 
-                  {useCoins && coinDiscountAmount > 0 && (
+                  {coinsToUse > 0 && coinDiscountAmount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span>Coins Discount ({coinPreview.allowed_coins} coins):</span>
-                      <span>-₹{coinDiscountAmount.toLocaleString()}</span>
+                      <span>Coins Discount ({coinsToUse} coins):</span>
+                      <span>-₹{coinDiscountAmount.toFixed(2)}</span>
                     </div>
                   )}
 
@@ -1006,10 +1138,10 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
 
-                  {useCoins && coinDiscountAmount > 0 && (
+                  {coinsToUse > 0 && coinDiscountAmount > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71', fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span>Coins Discount ({coinPreview.allowed_coins} coins):</span>
-                      <span>-₹{coinDiscountAmount.toLocaleString()}</span>
+                      <span>Coins Discount ({coinsToUse} coins):</span>
+                      <span>-₹{coinDiscountAmount.toFixed(2)}</span>
                     </div>
                   )}
 

@@ -286,7 +286,7 @@ export const ShopPage: React.FC = () => {
                 outline: 'none',
               }}
             >
-              <option value="featured">Featured / Recommended</option>
+              <option value="featured">Default</option>
               <option value="popularity">Popularity</option>
               <option value="price_asc">Price: Low to High</option>
               <option value="price_desc">Price: High to Low</option>
@@ -558,7 +558,7 @@ export const ShopPage: React.FC = () => {
                       cursor: 'pointer',
                     }}
                   >
-                    <option value="featured" style={{ background: '#0f0c0a' }}>Featured / Recommended</option>
+                    <option value="featured" style={{ background: '#0f0c0a' }}>Default</option>
                     <option value="popularity" style={{ background: '#0f0c0a' }}>Popularity</option>
                     <option value="price_asc" style={{ background: '#0f0c0a' }}>Price: Low to High</option>
                     <option value="price_desc" style={{ background: '#0f0c0a' }}>Price: High to Low</option>

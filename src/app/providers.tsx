@@ -31,6 +31,7 @@ import { ApiError } from '../lib/api';
 interface AppContextType {
   // Auth
   user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   role: UserRole;
   isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
@@ -972,18 +973,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         gender: updatedProfile.gender,
         preferences: updatedProfile.preferences,
       });
-      setUser(freshUser);
-    } catch (err) {
-      console.error('Failed to update profile on server:', err);
-      // Local fallback
       setUser((prev) => {
-        if (!prev) return null;
+        if (!prev) return freshUser;
+        const newName = freshUser.name || freshUser.profile?.name || prev.name;
         return {
-          ...prev,
-          name: updatedProfile.name !== undefined ? updatedProfile.name : prev.name,
-          profile: { ...prev.profile, ...updatedProfile },
+          ...freshUser,
+          name: newName,
+          profile: {
+            ...freshUser.profile,
+            name: newName,
+            avatarUrl: freshUser.profile?.avatarUrl || prev.profile?.avatarUrl,
+            address: (freshUser.profile?.address && freshUser.profile.address.street) ? freshUser.profile.address : prev.profile?.address,
+          },
         };
       });
+    } catch (err) {
+      console.error('Failed to update profile on server:', err);
       throw err;
     }
   };
@@ -1108,6 +1113,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         // Auth
         user,
+        setUser,
         role,
         isAuthLoading,
         login,

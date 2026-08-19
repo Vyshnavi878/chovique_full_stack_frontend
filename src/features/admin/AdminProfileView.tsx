@@ -18,7 +18,7 @@ import { adminService, AdminProfile } from '../../services/adminService';
 import { useApp } from '../../app/providers';
 
 export const AdminProfileView: React.FC = () => {
-  const { user, updateUserProfilePicture } = useApp();
+  const { user, setUser, updateUserProfilePicture } = useApp();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -191,6 +191,26 @@ export const AdminProfileView: React.FC = () => {
       setEmail(updated.email || '');
       setPhone(updated.phone || '');
       setAddress(updated.address || '');
+
+      if (setUser) {
+        setUser((prev) => {
+          if (!prev) return null;
+          const newName = updated.full_name || prev.name;
+          return {
+            ...prev,
+            name: newName,
+            email: updated.email || prev.email,
+            profile: {
+              ...prev.profile,
+              name: newName,
+              email: updated.email || prev.profile?.email || prev.email,
+              phone: updated.phone !== undefined ? updated.phone : prev.profile?.phone,
+              avatarUrl: updated.avatar_url || prev.profile?.avatarUrl,
+            },
+          };
+        });
+      }
+
       setSuccessMsg('Profile updated successfully!');
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {

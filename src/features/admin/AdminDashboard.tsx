@@ -142,6 +142,7 @@ export const AdminDashboard: React.FC = () => {
   const [showDateDropdown, setShowDateDropdown] = useState(false);
 
   // --- Dashboard Data & Loading States ---
+  const [ticketStatusMap, setTicketStatusMap] = useState<Record<string, string>>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -2881,7 +2882,7 @@ export const AdminDashboard: React.FC = () => {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobileGrid ? '1fr' : '1.5fr 1fr',
+                  gridTemplateColumns: isMobileGrid ? '1fr' : (pendingBatchProducts.length > 0 ? '1.5fr 1fr' : '1fr'),
                   gap: '30px',
                   alignItems: 'flex-start',
                 }}
@@ -3231,10 +3232,9 @@ export const AdminDashboard: React.FC = () => {
                   </form>
                 </div>
 
-                {/* Right Sidebar Guide Card & Batch Queue Card */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {/* Pending Batch Queue Card */}
-                  {pendingBatchProducts.length > 0 && (
+                {/* Right Sidebar Batch Queue Card (if pending items exist) */}
+                {pendingBatchProducts.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div
                       className="glass-panel"
                       style={{
@@ -3306,60 +3306,8 @@ export const AdminDashboard: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                  )}
-
-                  {/* Sidebar Guide Card */}
-                  <div
-                    className="glass-panel"
-                    style={{
-                      padding: '24px',
-                      border: '1px solid var(--glass-border)',
-                      background: 'rgba(15, 10, 5, 0.4)',
-                      borderRadius: '12px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', color: 'var(--gold)' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,215,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        ⓘ
-                      </div>
-                      <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--gold)', margin: 0, fontWeight: 600 }}>
-                        About This Form
-                      </h4>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.85rem', color: 'var(--beige)' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>ⓘ</span>
-                        <span>All fields marked with <strong style={{ color: 'var(--rose-gold)' }}>*</strong> are mandatory.</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>🖼</span>
-                        <span>Upload high-quality images that showcase your chocolate best.</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>⚖</span>
-                        <span>Weight should include the unit (e.g. 100g, 250g, 500g).</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📦</span>
-                        <span>Initial stock will be used for inventory and order management.</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>📋</span>
-                        <span>Ingredients will be visible to customers on the product page.</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <span style={{ color: 'var(--gold)', fontSize: '1rem', lineHeight: 1 }}>✏</span>
-                        <span>You can add multiple products to a batch before saving.</span>
-                      </div>
-                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -4816,7 +4764,8 @@ export const AdminDashboard: React.FC = () => {
                   </p>
                 ) : (
                   tickets.map((t) => {
-                    const isPending = t.status === 'Pending';
+                    const isClosedOrResolved = t.status === 'Resolved' || t.status === 'Closed';
+                    const currentSelectedStatus = ticketStatusMap[t.id] ?? t.status;
                     return (
                       <div
                         key={t.id}
@@ -4824,7 +4773,7 @@ export const AdminDashboard: React.FC = () => {
                           padding: '20px',
                           background: 'rgba(0,0,0,0.15)',
                           borderRadius: '8px',
-                          borderLeft: isPending ? '4px solid var(--gold)' : '4px solid #2ecc71',
+                          borderLeft: isClosedOrResolved ? '4px solid #2ecc71' : '4px solid var(--gold)',
                           borderTop: '1px solid var(--glass-border)',
                           borderRight: '1px solid var(--glass-border)',
                           borderBottom: '1px solid var(--glass-border)',
@@ -4845,8 +4794,8 @@ export const AdminDashboard: React.FC = () => {
                               padding: '4px 10px',
                               borderRadius: '4px',
                               fontWeight: 600,
-                              background: isPending ? 'rgba(201, 168, 76, 0.15)' : 'rgba(46, 204, 113, 0.15)',
-                              color: isPending ? 'var(--gold)' : '#2ecc71',
+                              background: isClosedOrResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
+                              color: isClosedOrResolved ? '#2ecc71' : 'var(--gold)',
                             }}
                           >
                             {t.status}
@@ -4899,7 +4848,7 @@ export const AdminDashboard: React.FC = () => {
                           {t.description}
                         </p>
 
-                        {!isPending && t.adminNotes && (
+                        {t.adminNotes && (
                           <div
                             style={{
                               padding: '12px',
@@ -4918,14 +4867,14 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         )}
 
-                        {!isPending && t.customerResolutionFeedback && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '8px' }}>
+                        {t.customerResolutionFeedback && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '8px', marginBottom: '10px' }}>
                             <span style={{ fontWeight: 600 }}>Customer Feedback:</span>
                             <span>{t.customerResolutionFeedback === 'Resolved' ? 'Confirmed Resolved ✓' : 'Reported Unresolved ✗'}</span>
                           </div>
                         )}
 
-                        {isPending && (
+                        {!isClosedOrResolved && (
                           <form
                             onSubmit={async (e) => {
                               e.preventDefault();
@@ -4934,19 +4883,20 @@ export const AdminDashboard: React.FC = () => {
                               const action = (e.nativeEvent as any).submitter.name;
                               
                               if (action === 'update_status') {
-                                const status = (form.elements.namedItem('status') as HTMLSelectElement).value;
+                                const status = currentSelectedStatus;
                                 try {
                                   await updateSupportTicketStatus(t.id, status, notes);
-                                  alert(`Ticket ${t.id} status updated to ${status}. Customer notified.`);
+                                  addToast('success', `Ticket ${t.id} status updated to ${status}. Customer notified.`, 'Status Updated');
                                 } catch (err: any) {
-                                  alert(err?.detail || err?.message || 'Failed to update ticket status.');
+                                  addToast('error', err?.detail || err?.message || 'Failed to update ticket status.', 'Update Error');
+                                  setTicketStatusMap((prev) => ({ ...prev, [t.id]: t.status }));
                                 }
                               } else if (action === 'resolve') {
                                 try {
                                   await resolveSupportTicket(t.id, notes);
-                                  alert(`Ticket ${t.id} resolved and customer notified.`);
+                                  addToast('success', `Ticket ${t.id} resolved and customer notified.`, 'Ticket Resolved');
                                 } catch (err: any) {
-                                  alert(err?.detail || err?.message || 'Failed to resolve ticket. Ensure you have updated the status at least twice.');
+                                  addToast('error', err?.detail || err?.message || 'Failed to resolve ticket. Ensure you have updated the status at least twice.', 'Resolve Error');
                                 }
                               }
                             }}
@@ -4959,7 +4909,8 @@ export const AdminDashboard: React.FC = () => {
                                 </label>
                                 <select
                                   name="status"
-                                  defaultValue={t.status}
+                                  value={currentSelectedStatus}
+                                  onChange={(e) => setTicketStatusMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
                                   style={{
                                     width: '100%',
                                     padding: '8px 12px',
@@ -4972,9 +4923,12 @@ export const AdminDashboard: React.FC = () => {
                                   }}
                                 >
                                   <option value="Pending">Pending</option>
+                                  <option value="Under Review">Under Review</option>
                                   <option value="In Progress">In Progress</option>
                                   <option value="Awaiting Customer Response">Awaiting Customer Response</option>
                                   <option value="Investigating">Investigating</option>
+                                  <option value="Resolved">Resolved</option>
+                                  <option value="Closed">Closed</option>
                                 </select>
                               </div>
                             </div>
@@ -4983,6 +4937,7 @@ export const AdminDashboard: React.FC = () => {
                                 Admin Notes (Optional)
                               </label>
                               <textarea
+                                key={t.adminNotes || 'notes'}
                                 name="notes"
                                 defaultValue={t.adminNotes || ''}
                                 placeholder="Enter details of how the issue is being handled..."

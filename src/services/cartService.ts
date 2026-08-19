@@ -89,4 +89,7 @@ export const cartService = {
 
   getAvailableCoupons: (): Promise<any[]> =>
     apiGet<any[]>('/coupons/available'),
+
+  getUsedCoupons: (): Promise<any[]> =>
+    apiGet<any[]>('/coupons/used'),
 };

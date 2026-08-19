@@ -58,5 +58,11 @@ export const userService = {
    * Fetch coupons/promo codes available to the authenticated user.
    */
   getCoupons: (): Promise<UserCoupon[]> =>
-    apiGet<UserCoupon[]>('/users/me/coupons'),
+    apiGet<UserCoupon[]>('/coupons/available'),
+
+  /**
+   * Fetch coupons used by the authenticated user.
+   */
+  getUsedCoupons: (): Promise<any[]> =>
+    apiGet<any[]>('/coupons/used'),
 };

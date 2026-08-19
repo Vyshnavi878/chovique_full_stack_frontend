@@ -428,6 +428,7 @@ export const CustomerDashboard: React.FC = () => {
 
   // --- Coupons: fetched from backend, not hardcoded ---
   const [coupons, setCoupons] = useState<UserCoupon[]>([]);
+  const [usedCoupons, setUsedCoupons] = useState<any[]>([]);
   const [isCouponsLoading, setIsCouponsLoading] = useState(false);
   const [couponsError, setCouponsError] = useState('');
 
@@ -436,10 +437,15 @@ export const CustomerDashboard: React.FC = () => {
     let cancelled = false;
     setIsCouponsLoading(true);
     setCouponsError('');
-    userService
-      .getCoupons()
-      .then((data) => {
-        if (!cancelled) setCoupons(data);
+    Promise.all([
+      userService.getCoupons(),
+      userService.getUsedCoupons(),
+    ])
+      .then(([availData, usedData]) => {
+        if (!cancelled) {
+          setCoupons(availData || []);
+          setUsedCoupons(usedData || []);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -4034,310 +4040,225 @@ export const CustomerDashboard: React.FC = () => {
             {/* COUPONS PANEL */}
             {activeTab === 'coupons' && (
               <div>
-                <div style={{ marginBottom: '28px' }}>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
-                    My Available Coupons
-                  </h2>
-                  <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
-                    Exclusive promotional discounts and rewards for your orders.
-                  </p>
-                </div>
-
-                {isCouponsLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'rgba(255, 255, 255, 0.7)', padding: '48px 0', justifyContent: 'center' }}>
-                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#c9a84c' }} />
-                    <span style={{ fontSize: '0.95rem' }}>Loading your coupons...</span>
+                {/* SECTION 1: AVAILABLE COUPONS */}
+                <div style={{ marginBottom: '32px' }}>
+                  <div style={{ marginBottom: '20px' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                      My Available Coupons
+                    </h2>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem', margin: 0 }}>
+                      Exclusive promotional discounts and rewards available for your next order.
+                    </p>
                   </div>
-                ) : couponsError ? (
-                  <div
-                    style={{
-                      padding: '16px 20px',
-                      background: 'rgba(231, 76, 60, 0.12)',
-                      border: '1px solid #e74c3c',
-                      color: '#e74c3c',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      fontWeight: 600,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {couponsError}
-                  </div>
-                ) : (() => {
-                    // Deduplicate coupons by unique uppercase code
-                    const seenCodes = new Set<string>();
-                    const uniqueCoupons = coupons.filter((c) => {
-                      const key = (c.code || '').trim().toUpperCase();
-                      if (!key || seenCodes.has(key)) return false;
-                      seenCodes.add(key);
-                      return true;
-                    });
 
-                    if (uniqueCoupons.length === 0) {
-                      return (
-                        <div
-                          style={{
-                            padding: '56px 24px',
-                            background: 'rgba(18, 14, 11, 0.95)',
-                            border: '1px dashed rgba(201, 168, 76, 0.3)',
-                            borderRadius: '14px',
-                            textAlign: 'center',
-                            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: '72px',
-                              height: '72px',
-                              borderRadius: '50%',
-                              background: 'rgba(201, 168, 76, 0.1)',
-                              border: '1px solid rgba(201, 168, 76, 0.3)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginBottom: '20px',
-                            }}
-                          >
-                            <Tag size={36} style={{ color: '#c9a84c' }} />
+                  {isCouponsLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'rgba(255, 255, 255, 0.7)', padding: '36px 0', justifyContent: 'center' }}>
+                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#c9a84c' }} />
+                      <span style={{ fontSize: '0.95rem' }}>Loading your coupons...</span>
+                    </div>
+                  ) : couponsError ? (
+                    <div style={{ padding: '16px 20px', background: 'rgba(231, 76, 60, 0.12)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', fontSize: '0.9rem', textAlign: 'center' }}>
+                      {couponsError}
+                    </div>
+                  ) : (() => {
+                      const seenCodes = new Set<string>();
+                      const uniqueCoupons = coupons.filter((c) => {
+                        const key = (c.code || '').trim().toUpperCase();
+                        if (!key || seenCodes.has(key)) return false;
+                        seenCodes.add(key);
+                        return true;
+                      });
+
+                      if (uniqueCoupons.length === 0) {
+                        return (
+                          <div style={{ padding: '36px 24px', background: 'rgba(18, 14, 11, 0.6)', border: '1px dashed rgba(201, 168, 76, 0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <Tag size={32} style={{ color: '#c9a84c', marginBottom: '10px' }} />
+                            <h3 style={{ color: '#f5efe6', margin: '0 0 6px 0', fontSize: '1.2rem', fontWeight: 700 }}>
+                              No Available Coupons
+                            </h3>
+                            <p style={{ color: 'rgba(255, 255, 255, 0.6)', margin: 0, fontSize: '0.88rem' }}>
+                              Check back later for exclusive Chovique offers.
+                            </p>
                           </div>
-                          <h3 style={{ color: '#f5efe6', margin: '0 0 8px 0', fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-                            No Coupons Available
-                          </h3>
-                          <p style={{ color: 'rgba(255, 255, 255, 0.65)', margin: '0 0 28px 0', fontSize: '0.92rem' }}>
-                            Check back later for exclusive Chovique offers.
-                          </p>
-                          <Button variant="gold" size="md" glow onClick={() => navigate('/shop')}>
-                            SHOP NOW
-                          </Button>
-                        </div>
-                      );
-                    }
+                        );
+                      }
 
-                    return (
-                      <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '24px' }}>
-                        {uniqueCoupons.map((c) => {
-                          const couponItem = c as any;
-                          const discountStr =
-                            c.discount_type === 'PERCENTAGE' || (c.discount_percent && c.discount_percent > 0)
-                              ? `${c.discount_percent || couponItem.discountPercent}% OFF`
-                              : c.discount_type === 'FIXED_AMOUNT' || (c.discount_amount && c.discount_amount > 0)
-                              ? `₹${c.discount_amount} OFF`
-                              : c.discount_type === 'FREE_SHIPPING'
-                              ? 'FREE SHIPPING'
-                              : 'SPECIAL OFFER';
+                      return (
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '24px' }}>
+                          {uniqueCoupons.map((c) => {
+                            const couponItem = c as any;
+                            const discountStr =
+                              c.discount_type === 'PERCENTAGE' || (c.discount_percent && c.discount_percent > 0)
+                                ? `${c.discount_percent || couponItem.discountPercent}% OFF`
+                                : c.discount_type === 'FIXED_AMOUNT' || (c.discount_amount && c.discount_amount > 0)
+                                ? `₹${c.discount_amount} OFF`
+                                : c.discount_type === 'FREE_SHIPPING'
+                                ? 'FREE SHIPPING'
+                                : 'SPECIAL OFFER';
 
-                          const rawExpiry = c.expires_at || c.expiryDate || c.expiry_date || c.expiresAt || c.end_date || c.endDate || c.exp || (c as any).expiry || (c as any).valid_until || (c as any).validUntil;
-                          const rawStart = c.start_at || c.startDate || c.start_date || c.startsAt || c.begin_date || c.beginDate || (c as any).valid_from || (c as any).validFrom;
+                            const rawExpiry = c.expires_at || c.expiryDate || c.expiry_date || c.expiresAt || c.end_date || c.endDate;
+                            const expiryStr = formatCouponExpiry(rawExpiry) || 'No Expiry';
+                            const titleText = (c.name || couponItem.title || c.code || 'SPECIAL DISCOUNT').toUpperCase();
+                            const minOrderStr = c.minimum_order_amount && c.minimum_order_amount > 0
+                              ? `₹${c.minimum_order_amount.toLocaleString('en-IN')}`
+                              : 'None';
+                            const descText = c.description || couponItem.desc || `Get ${discountStr.toLowerCase()} on your chocolate order.`;
+                            const isCopied = copiedCode === c.code;
 
-                          const expiryDateObj = parseCouponDate(rawExpiry);
-                          const startDateObj = parseCouponDate(rawStart);
-
-                          const nowMs = Date.now();
-                          const isExpired = expiryDateObj ? expiryDateObj.getTime() < nowMs : false;
-                          const isNotStarted = startDateObj ? startDateObj.getTime() > nowMs : false;
-                          const isUsed = couponItem.status === 'USED' || couponItem.status === 'Used';
-
-                          let statusLabel = 'Available';
-                          let isActive = true;
-
-                          if (isUsed) {
-                            statusLabel = 'Used';
-                            isActive = false;
-                          } else if (isExpired || c.status === 'Expired' || c.status === 'EXPIRED') {
-                            statusLabel = 'Expired';
-                            isActive = false;
-                          } else if (isNotStarted || c.status === 'Not Available') {
-                            statusLabel = 'Not Available';
-                            isActive = false;
-                          } else if (c.is_active === false || c.status === 'INACTIVE' || c.status === 'Inactive') {
-                            statusLabel = 'Expired';
-                            isActive = false;
-                          } else {
-                            statusLabel = 'Available';
-                            isActive = true;
-                          }
-
-                          const expiryStr = formatCouponExpiry(rawExpiry);
-
-                          const titleText = (c.name || couponItem.title || c.code || 'CHOCOLATE DELIGHT').toUpperCase();
-                          const minOrderStr = c.minimum_order_amount && c.minimum_order_amount > 0
-                            ? `₹${c.minimum_order_amount.toLocaleString('en-IN')}`
-                            : 'None';
-                          const maxDiscountStr = c.maximum_discount_amount && c.maximum_discount_amount > 0
-                            ? `₹${c.maximum_discount_amount.toLocaleString('en-IN')}`
-                            : null;
-                          const descText = c.description || couponItem.desc || `Get ${discountStr.toLowerCase()} on your chocolate order.`;
-
-                          const isCopied = copiedCode === c.code;
-
-                          return (
-                            <div
-                              key={c.code}
-                              style={{
-                                background: 'rgba(18, 14, 11, 0.96)',
-                                border: isActive ? '1px solid rgba(201, 168, 76, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
-                                borderRadius: '14px',
-                                padding: '24px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                                opacity: isActive ? 1 : 0.65,
-                                transition: 'all 0.25s ease',
-                              }}
-                            >
-                              {/* Top Header Row */}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                                <h3
-                                  style={{
-                                    fontFamily: 'var(--font-display)',
-                                    fontSize: '1.05rem',
-                                    fontWeight: 700,
-                                    color: '#f5efe6',
-                                    margin: 0,
-                                    letterSpacing: '0.5px',
-                                  }}
-                                >
-                                  {titleText}
-                                </h3>
-
-                                <span
-                                  style={{
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.5px',
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    textTransform: 'uppercase',
-                                    background: isActive
-                                      ? 'rgba(46, 204, 113, 0.15)'
-                                      : isUsed
-                                      ? 'rgba(255, 255, 255, 0.1)'
-                                      : statusLabel === 'Not Available'
-                                      ? 'rgba(241, 196, 15, 0.15)'
-                                      : 'rgba(231, 76, 60, 0.15)',
-                                    color: isActive
-                                      ? '#2ecc71'
-                                      : isUsed
-                                      ? 'rgba(255, 255, 255, 0.6)'
-                                      : statusLabel === 'Not Available'
-                                      ? '#f1c40f'
-                                      : '#e74c3c',
-                                    border: isActive
-                                      ? '1px solid #2ecc71'
-                                      : isUsed
-                                      ? '1px solid rgba(255, 255, 255, 0.2)'
-                                      : statusLabel === 'Not Available'
-                                      ? '1px solid #f1c40f'
-                                      : '1px solid #e74c3c',
-                                  }}
-                                >
-                                  ● {statusLabel}
-                                </span>
-                              </div>
-
-                              {/* Discount Value Headline */}
+                            return (
                               <div
+                                key={c.code}
                                 style={{
-                                  fontSize: '1.6rem',
-                                  fontWeight: 800,
-                                  color: '#c9a84c',
-                                  margin: '4px 0 14px 0',
-                                  fontFamily: 'var(--font-display)',
-                                  letterSpacing: '0.5px',
-                                }}
-                              >
-                                {discountStr}
-                              </div>
-
-                              {/* Code & Copy Row */}
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  background: 'rgba(0, 0, 0, 0.4)',
-                                  border: '1px dashed rgba(201, 168, 76, 0.35)',
-                                  borderRadius: '8px',
-                                  padding: '10px 14px',
-                                  marginBottom: '14px',
-                                }}
-                              >
-                                <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f5efe6', letterSpacing: '0.5px' }}>
-                                  Code: <span style={{ color: '#c9a84c' }}>{c.code}</span>
-                                </span>
-
-                                <button
-                                  type="button"
-                                  disabled={!isActive}
-                                  onClick={() => isActive && handleCopyCouponCode(c.code)}
-                                  style={{
-                                    padding: '6px 14px',
-                                    borderRadius: '6px',
-                                    background: isCopied
-                                      ? 'rgba(46, 204, 113, 0.25)'
-                                      : isActive
-                                      ? 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)'
-                                      : 'rgba(255, 255, 255, 0.1)',
-                                    color: isCopied ? '#2ecc71' : isActive ? '#0f0c0a' : 'rgba(255, 255, 255, 0.4)',
-                                    border: isCopied ? '1px solid #2ecc71' : 'none',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.5px',
-                                    cursor: isActive ? 'pointer' : 'not-allowed',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: isActive && !isCopied ? '0 2px 10px rgba(201, 168, 76, 0.3)' : 'none',
-                                  }}
-                                >
-                                  {isCopied ? '✓ COPIED' : 'COPY CODE'}
-                                </button>
-                              </div>
-
-                              {/* Description */}
-                              <p
-                                style={{
-                                  color: 'rgba(255, 255, 255, 0.7)',
-                                  fontSize: '0.86rem',
-                                  margin: '0 0 16px 0',
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                {descText}
-                              </p>
-
-                              {/* Footer Meta */}
-                              <div
-                                style={{
-                                  borderTop: '1px solid rgba(201, 168, 76, 0.15)',
-                                  paddingTop: '12px',
+                                  background: 'rgba(18, 14, 11, 0.96)',
+                                  border: '1px solid rgba(201, 168, 76, 0.4)',
+                                  borderRadius: '14px',
+                                  padding: '24px',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '6px',
-                                  fontSize: '0.8rem',
-                                  color: 'rgba(255, 255, 255, 0.55)',
+                                  justifyContent: 'space-between',
+                                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                                 }}
                               >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: '#f5efe6', margin: 0 }}>
+                                    {titleText}
+                                  </h3>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', textTransform: 'uppercase', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', border: '1px solid #2ecc71' }}>
+                                    ● Available
+                                  </span>
+                                </div>
+
+                                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#c9a84c', margin: '4px 0 14px 0', fontFamily: 'var(--font-display)' }}>
+                                  {discountStr}
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 0, 0, 0.4)', border: '1px dashed rgba(201, 168, 76, 0.35)', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f5efe6' }}>
+                                    Code: <span style={{ color: '#c9a84c' }}>{c.code}</span>
+                                  </span>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyCouponCode(c.code)}
+                                      style={{
+                                        padding: '6px 10px',
+                                        borderRadius: '6px',
+                                        background: isCopied ? 'rgba(46, 204, 113, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+                                        color: isCopied ? '#2ecc71' : '#f5efe6',
+                                        border: isCopied ? '1px solid #2ecc71' : '1px solid rgba(255, 255, 255, 0.2)',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {isCopied ? '✓ COPIED' : 'COPY'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const formatted = c.code.trim().toUpperCase();
+                                        sessionStorage.setItem(
+                                          'chovique_checkout_coupon',
+                                          JSON.stringify({
+                                            code: formatted,
+                                            discount_amount: 0,
+                                            auto_apply: true,
+                                          })
+                                        );
+                                        navigate('/cart');
+                                      }}
+                                      style={{
+                                        padding: '6px 14px',
+                                        borderRadius: '6px',
+                                        background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                                        color: '#0f0c0a',
+                                        border: 'none',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 10px rgba(201, 168, 76, 0.3)',
+                                      }}
+                                    >
+                                      USE COUPON
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <p style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.86rem', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                                  {descText}
+                                </p>
+
+                                <div style={{ borderTop: '1px solid rgba(201, 168, 76, 0.15)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.55)' }}>
                                   <span>Minimum order: <strong style={{ color: '#f5efe6' }}>{minOrderStr}</strong></span>
                                   <span>Expires: <strong style={{ color: '#f5efe6' }}>{expiryStr}</strong></span>
                                 </div>
-                                {maxDiscountStr ? (
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>Maximum discount: <strong style={{ color: '#f5efe6' }}>{maxDiscountStr}</strong></span>
-                                    <span>Status: <strong style={{ color: isActive ? '#2ecc71' : isUsed ? 'rgba(255, 255, 255, 0.6)' : statusLabel === 'Not Available' ? '#f1c40f' : '#e74c3c' }}>{statusLabel}</strong></span>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                    <span>Status: <strong style={{ color: isActive ? '#2ecc71' : isUsed ? 'rgba(255, 255, 255, 0.6)' : statusLabel === 'Not Available' ? '#f1c40f' : '#e74c3c' }}>{statusLabel}</strong></span>
-                                  </div>
-                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                  })()}
+                </div>
+
+                {/* SECTION 2: USED COUPONS HISTORY */}
+                <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                  <div style={{ marginBottom: '20px' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                      Used Coupons
+                    </h2>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.88rem', margin: 0 }}>
+                      History of redeemed coupons and savings on your past orders.
+                    </p>
+                  </div>
+
+                  {usedCoupons.length === 0 ? (
+                    <div style={{ padding: '30px 20px', background: 'rgba(18, 14, 11, 0.4)', border: '1px dashed rgba(255, 255, 255, 0.15)', borderRadius: '10px', color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.88rem' }}>
+                      No coupon history recorded yet. Apply an available coupon on your next order to receive instant savings!
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {usedCoupons.map((uc: any) => (
+                        <div
+                          key={uc.id || uc.code + uc.order_id}
+                          style={{
+                            background: 'rgba(18, 14, 11, 0.85)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '10px',
+                            padding: '16px 20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(201, 168, 76, 0.12)', border: '1px solid rgba(201, 168, 76, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Tag size={20} style={{ color: '#c9a84c' }} />
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#c9a84c', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.5px' }}>
+                                  {uc.code}
+                                </span>
+                                <span style={{ color: '#2ecc71', fontWeight: 700, fontSize: '0.88rem' }}>
+                                  — {uc.discount_str || `₹${uc.discount_received} OFF`}
+                                </span>
+                              </div>
+                              <div style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: '0.84rem', marginTop: '3px' }}>
+                                Used on Order <strong style={{ color: '#f5efe6' }}>#{uc.order_id}</strong> • Date: <strong style={{ color: '#f5efe6' }}>{uc.used_at}</strong>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                          </div>
+
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.7)', border: '1px solid rgba(255, 255, 255, 0.2)', textTransform: 'uppercase' }}>
+                            ● Used
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
