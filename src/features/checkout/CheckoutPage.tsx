@@ -38,6 +38,20 @@ interface CheckoutCouponData {
   discount_amount: number;
 }
 
+const loadRazorpayScript = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export const CheckoutPage: React.FC = () => {
   const { cart, user, wallet, refreshWallet, placeOrderLocal, storeConfig } = useApp();
   const navigate = useNavigate();
@@ -382,12 +396,8 @@ export const CheckoutPage: React.FC = () => {
     }
 
     if (activeStep === 4) {
-      // ================================================================
-      // DIRECT ORDER PLACEMENT FLOW (bypasses Razorpay authentication errors)
-      // ================================================================
       setIsPlacingOrder(true);
       setOrderError('');
-      setActiveStep(5); // Show processing screen immediately
 
       const orderPayload = {
         items: checkoutItems.map((item) => ({
@@ -408,23 +418,101 @@ export const CheckoutPage: React.FC = () => {
         coins_to_use: coinsToUse > 0 ? coinsToUse : 0,
       };
 
-      try {
-        const order = await orderService.placeOrder(orderPayload);
-        if (!order || !order.id) {
-          throw new Error('Order creation failed. No confirmation received.');
+      const isCod = ['Cash on Delivery', 'COD', 'Cash On Delivery'].includes(paymentMethod);
+
+      if (isCod) {
+        setActiveStep(5); // Processing screen
+        try {
+          const order = await orderService.placeOrder(orderPayload);
+          if (!order || !order.id) {
+            throw new Error('Order creation failed. No confirmation received.');
+          }
+          placeOrderLocal(order);
+          setCreatedOrder(order);
+          refreshWallet();
+          sessionStorage.removeItem('chovique_checkout_coupon');
+          sessionStorage.removeItem('chovique_buy_now_item');
+          setActiveStep(6);
+        } catch (err: unknown) {
+          const message =
+            err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+          setOrderError(message);
+          setActiveStep(4);
+        } finally {
+          setIsPlacingOrder(false);
         }
-        placeOrderLocal(order);
-        setCreatedOrder(order);
-        refreshWallet();
-        sessionStorage.removeItem('chovique_checkout_coupon');
-        sessionStorage.removeItem('chovique_buy_now_item');
-        setActiveStep(6);
+        return;
+      }
+
+      // Online Payment Flow (Razorpay / Card / UPI / NetBanking)
+      try {
+        const initData = await orderService.initiateCheckout(orderPayload);
+        if (!initData || !initData.razorpay_order_id) {
+          throw new Error('Failed to initiate online payment session.');
+        }
+
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded || !window.Razorpay) {
+          throw new Error('Razorpay SDK failed to load. Please check your network connection.');
+        }
+
+        const options = {
+          key: initData.key_id,
+          amount: initData.amount,
+          currency: initData.currency || 'INR',
+          name: 'CHOVIQUE',
+          description: `Order #${initData.order_id}`,
+          order_id: initData.razorpay_order_id,
+          prefill: {
+            name: shippingForm.name,
+            contact: shippingForm.phone,
+          },
+          theme: {
+            color: '#1a100c',
+          },
+          handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+            setActiveStep(5); // Show processing screen during verification
+            try {
+              const verifyRes = await orderService.verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                order_id: initData.order_id,
+              });
+
+              if (!verifyRes.success) {
+                throw new Error(verifyRes.message || 'Payment verification failed.');
+              }
+
+              const confirmedOrder = await orderService.getOrder(initData.order_id);
+              placeOrderLocal(confirmedOrder);
+              setCreatedOrder(confirmedOrder);
+              refreshWallet();
+              sessionStorage.removeItem('chovique_checkout_coupon');
+              sessionStorage.removeItem('chovique_buy_now_item');
+              setActiveStep(6);
+            } catch (vErr: unknown) {
+              const msg = vErr instanceof Error ? vErr.message : 'Payment verification failed.';
+              setOrderError(msg);
+              setActiveStep(4);
+            } finally {
+              setIsPlacingOrder(false);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setIsPlacingOrder(false);
+              setOrderError('Payment session was cancelled. You can try again.');
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+          err instanceof Error ? err.message : 'Failed to initiate payment. Please try again.';
         setOrderError(message);
-        setActiveStep(4);
-      } finally {
         setIsPlacingOrder(false);
       }
       return;

@@ -9,7 +9,7 @@
  */
 
 import { apiGet, apiPost, apiGetHtml, apiGetBlob } from '../lib/api';
-import type { Order, OrderPayload } from '../types';
+import type { Order, OrderPayload, CheckoutInitiateResponse, VerifyPaymentPayload } from '../types';
 
 export const orderService = {
   /**
@@ -46,6 +46,18 @@ export const orderService = {
   },
 
   /** Cancel an order */
-  cancelOrder: (id: string): Promise<Order> =>
-    apiPost<Order>(`/orders/${id}/cancel`),
+  cancelOrder: (id: string, reason?: string): Promise<Order> =>
+    apiPost<Order>(`/orders/${id}/cancel`, { reason }),
+
+  /** Request order return (within 4 days of delivery) */
+  returnOrder: (id: string, reason?: string): Promise<Order> =>
+    apiPost<Order>(`/orders/${id}/return`, { reason }),
+
+  /** Initiate Razorpay Checkout */
+  initiateCheckout: (payload: OrderPayload): Promise<CheckoutInitiateResponse> =>
+    apiPost<CheckoutInitiateResponse>('/checkout/initiate', payload),
+
+  /** Verify Razorpay Payment */
+  verifyPayment: (payload: VerifyPaymentPayload): Promise<{ success: boolean; message: string; order_id: string }> =>
+    apiPost<{ success: boolean; message: string; order_id: string }>('/payments/verify', payload),
 };

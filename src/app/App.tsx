@@ -101,7 +101,9 @@ const AppContent: React.FC = () => {
             path="/dashboard"
             element={
               <ProtectedRoute allowedRoles={['customer', 'admin', 'superadmin']}>
-                <CustomerDashboard />
+                <ErrorBoundary>
+                  <CustomerDashboard />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           />

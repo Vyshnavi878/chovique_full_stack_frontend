@@ -142,6 +142,9 @@ export interface Order {
   customerName?: string;
   customerEmail?: string;
   invoice_url?: string;
+  is_cancellable?: boolean;
+  is_returnable?: boolean;
+  delivered_at?: string;
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
 }

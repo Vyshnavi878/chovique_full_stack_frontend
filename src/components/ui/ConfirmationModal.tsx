@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   variant?: 'danger' | 'warning' | 'gold';
+  children?: React.ReactNode;
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -24,6 +25,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onConfirm,
   onCancel,
   variant = 'danger',
+  children,
 }) => {
   if (!isOpen) return null;
 
@@ -96,6 +98,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         <p style={{ color: 'var(--beige)', fontSize: '0.92rem', lineHeight: 1.5, margin: 0 }}>
           {message}
         </p>
+
+        {children}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
           <Button

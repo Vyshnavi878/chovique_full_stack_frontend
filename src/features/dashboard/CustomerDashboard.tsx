@@ -64,6 +64,21 @@ type CustomerTab =
   | 'settings'
   | 'help';
 
+export const getAvailableCouponsList = (availData: UserCoupon[] = [], usedData: any[] = []): UserCoupon[] => {
+  const usedCodesSet = new Set<string>(
+    (usedData || []).map((uc: any) => (uc.code || '').trim().toUpperCase()).filter(Boolean)
+  );
+  const seenCodes = new Set<string>();
+  return (availData || []).filter((c) => {
+    const key = (c.code || '').trim().toUpperCase();
+    if (!key || seenCodes.has(key) || usedCodesSet.has(key)) return false;
+    const isAvailable = (c.status === 'Available' || c.status === 'ACTIVE' || c.status === 'Active') && c.is_active !== false;
+    if (!isAvailable) return false;
+    seenCodes.add(key);
+    return true;
+  });
+};
+
 export const CustomerDashboard: React.FC = () => {
   const {
     user,
@@ -93,6 +108,17 @@ export const CustomerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [activeTab, setActiveTab] = useState<CustomerTab>('overview');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [notifCategory, setNotifCategory] = useState<'all' | 'orders' | 'coupons' | 'rewards' | 'support' | 'system'>('all');
+  const [notifReadFilter, setNotifReadFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [isNotifLoading, setIsNotifLoading] = useState(false);
+  const [notifActionSuccess, setNotifActionSuccess] = useState<string | null>(null);
+
   useEffect(() => {
     const navState = location.state as { tab?: CustomerTab } | null;
     if (navState?.tab) {
@@ -107,17 +133,6 @@ export const CustomerDashboard: React.FC = () => {
       navigate('/login');
     }
   }, [role, navigate]);
-
-  const [activeTab, setActiveTab] = useState<CustomerTab>('overview');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [notifCategory, setNotifCategory] = useState<'all' | 'orders' | 'coupons' | 'rewards' | 'support' | 'system'>('all');
-  const [notifReadFilter, setNotifReadFilter] = useState<'all' | 'unread' | 'read'>('all');
-  const [isNotifLoading, setIsNotifLoading] = useState(false);
-  const [notifActionSuccess, setNotifActionSuccess] = useState<string | null>(null);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -195,9 +210,9 @@ export const CustomerDashboard: React.FC = () => {
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: user?.profile.phone || '',
-    dob: user?.profile.dob || '',
-    gender: user?.profile.gender || '',
+    phone: user?.profile?.phone || '',
+    dob: user?.profile?.dob || '',
+    gender: user?.profile?.gender || '',
   });
   const [profileSaved, setProfileSaved] = useState(false);
   const [showAddAddressForm, setShowAddAddressForm] = useState(false);
@@ -210,9 +225,18 @@ export const CustomerDashboard: React.FC = () => {
   const [orderSortOrder, setOrderSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [isPdfDownloading, setIsPdfDownloading] = useState<boolean>(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [cancelModalOrderId, setCancelModalOrderId] = useState<string | null>(null);
+  const [returningOrderId, setReturningOrderId] = useState<string | null>(null);
+  const [returnModalOrderId, setReturnModalOrderId] = useState<string | null>(null);
+  const [returnReason, setReturnReason] = useState<string>('');
 
-  const handleCancelOrder = async (orderId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+  const handleCancelOrder = (orderId: string) => {
+    setCancelModalOrderId(orderId);
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelModalOrderId) return;
+    const orderId = cancelModalOrderId;
     setCancellingOrderId(orderId);
     try {
       const updatedOrder = await orderService.cancelOrder(orderId);
@@ -220,12 +244,68 @@ export const CustomerDashboard: React.FC = () => {
       if (selectedOrder?.id === orderId) {
         setSelectedOrder(updatedOrder);
       }
-    } catch (error) {
+      setCancelModalOrderId(null);
+    } catch (error: any) {
       console.error('Failed to cancel order:', error);
-      alert('Failed to cancel order. Please try again.');
+      alert(error?.response?.data?.detail || error?.message || 'Failed to cancel order. Please try again.');
     } finally {
       setCancellingOrderId(null);
     }
+  };
+
+  const handleReturnOrder = (orderId: string) => {
+    setReturnModalOrderId(orderId);
+    setReturnReason('');
+  };
+
+  const confirmReturnOrder = async () => {
+    if (!returnModalOrderId) return;
+    const orderId = returnModalOrderId;
+    setReturningOrderId(orderId);
+    try {
+      const updatedOrder = await orderService.returnOrder(orderId, returnReason || undefined);
+      setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(updatedOrder);
+      }
+      setReturnModalOrderId(null);
+      setReturnReason('');
+      alert('Return request submitted successfully.');
+    } catch (error: any) {
+      console.error('Failed to request return:', error);
+      alert(error?.response?.data?.detail || error?.message || 'Failed to request order return. Please try again.');
+    } finally {
+      setReturningOrderId(null);
+    }
+  };
+
+  const isOrderCancellable = (ord: any): boolean => {
+    if (!ord) return false;
+    if (ord.is_cancellable !== undefined) return Boolean(ord.is_cancellable);
+    if (['Shipped', 'Out for Delivery', 'Out_For_Delivery', 'Delivered', 'Cancelled', 'Returned', 'Refunded'].includes(ord.status)) {
+      return false;
+    }
+    if (!['Pending', 'Confirmed', 'Processing'].includes(ord.status)) {
+      return false;
+    }
+    if (ord.created_at) {
+      const created = new Date(ord.created_at).getTime();
+      if (!isNaN(created)) {
+        return (new Date().getTime() - created) < 86400000;
+      }
+    }
+    return true;
+  };
+
+  const isOrderReturnable = (ord: any): boolean => {
+    if (!ord) return false;
+    if (ord.is_returnable !== undefined) return Boolean(ord.is_returnable);
+    if (ord.status !== 'Delivered') return false;
+    const deliveryDate = ord.delivered_at;
+    if (!deliveryDate) return false;
+    const delivered = new Date(deliveryDate).getTime();
+    if (isNaN(delivered)) return false;
+    return (new Date().getTime() - delivered) < 345600000;
   };
 
   const handleDownloadInvoice = async (orderId: string, e?: React.MouseEvent) => {
@@ -259,9 +339,9 @@ export const CustomerDashboard: React.FC = () => {
       setProfileForm({
         name: user.name || '',
         email: user.email || '',
-        phone: user.profile.phone || '',
-        dob: user.profile.dob || '',
-        gender: user.profile.gender || '',
+        phone: user?.profile?.phone || '',
+        dob: user?.profile?.dob || '',
+        gender: user?.profile?.gender || '',
       });
     }
   }, [user]);
@@ -285,9 +365,9 @@ export const CustomerDashboard: React.FC = () => {
     activeTab === 'profile' && (
       pendingAvatarFile !== null ||
       profileForm.name !== (user?.name || '') ||
-      profileForm.phone !== (user?.profile.phone || '') ||
-      profileForm.dob !== (user?.profile.dob || '') ||
-      profileForm.gender !== (user?.profile.gender || '')
+      profileForm.phone !== (user?.profile?.phone || '') ||
+      profileForm.dob !== (user?.profile?.dob || '') ||
+      profileForm.gender !== (user?.profile?.gender || '')
     );
 
   // Fallback interceptor for React Router links since BrowserRouter doesn't support useBlocker
@@ -334,9 +414,9 @@ export const CustomerDashboard: React.FC = () => {
       setProfileForm({
         name: user.name || '',
         email: user.email || '',
-        phone: user.profile.phone || '',
-        dob: user.profile.dob || '',
-        gender: user.profile.gender || '',
+        phone: user?.profile?.phone || '',
+        dob: user?.profile?.dob || '',
+        gender: user?.profile?.gender || '',
       });
       setPendingAvatarFile(null);
       setAvatarPreviewUrl(null);
@@ -391,8 +471,8 @@ export const CustomerDashboard: React.FC = () => {
   useEffect(() => {
     if (user) {
       setSettingsForm({
-        dob: user.profile.dob || '',
-        gender: user.profile.gender || '',
+        dob: user?.profile?.dob || '',
+        gender: user?.profile?.gender || '',
       });
     }
   }, [user]);
@@ -472,10 +552,14 @@ export const CustomerDashboard: React.FC = () => {
     let cancelled = false;
     setIsOverviewCouponsLoading(true);
     setOverviewCouponsError('');
-    userService
-      .getCoupons()
-      .then((data) => {
-        if (!cancelled) setOverviewCoupons(data);
+    Promise.all([
+      userService.getCoupons(),
+      userService.getUsedCoupons(),
+    ])
+      .then(([availData, usedData]) => {
+        if (!cancelled) {
+          setOverviewCoupons(getAvailableCouponsList(availData || [], usedData || []));
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -1465,7 +1549,7 @@ export const CustomerDashboard: React.FC = () => {
                     </span>
 
                     {(() => {
-                      const profileAvatarRaw = avatarPreviewUrl || user.profile.avatarUrl || (user.profile as any)?.avatar_url;
+                      const profileAvatarRaw = avatarPreviewUrl || user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
                       const formattedAvatarUrl = profileAvatarRaw && !profileAvatarRaw.startsWith('http') && !profileAvatarRaw.startsWith('data:') && !profileAvatarRaw.startsWith('blob:')
                         ? profileAvatarRaw.startsWith('/') ? `${BASE_URL}${profileAvatarRaw}` : `${BASE_URL}/${profileAvatarRaw}`
                         : profileAvatarRaw;
@@ -2250,7 +2334,7 @@ export const CustomerDashboard: React.FC = () => {
 
                     {/* Bottom Action Row */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', flexWrap: 'wrap' }}>
-                      {selectedOrder.status === 'Processing' && (
+                      {isOrderCancellable(selectedOrder) && (
                         <button
                           type="button"
                           disabled={cancellingOrderId === selectedOrder.id}
@@ -2270,6 +2354,28 @@ export const CustomerDashboard: React.FC = () => {
                           }}
                         >
                           <X size={16} /> {cancellingOrderId === selectedOrder.id ? 'Cancelling...' : 'Cancel Order'}
+                        </button>
+                      )}
+                      {isOrderReturnable(selectedOrder) && (
+                        <button
+                          type="button"
+                          disabled={returningOrderId === selectedOrder.id}
+                          onClick={() => handleReturnOrder(selectedOrder.id)}
+                          style={{
+                            padding: '11px 22px',
+                            borderRadius: '8px',
+                            background: 'rgba(155, 89, 182, 0.1)',
+                            border: '1px solid rgba(155, 89, 182, 0.5)',
+                            color: '#9b59b6',
+                            fontSize: '0.9rem',
+                            fontWeight: 700,
+                            cursor: returningOrderId === selectedOrder.id ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <RefreshCw size={16} /> {returningOrderId === selectedOrder.id ? 'Submitting...' : 'Return Order'}
                         </button>
                       )}
                       <button
@@ -2561,7 +2667,7 @@ export const CustomerDashboard: React.FC = () => {
                             <Printer size={16} /> Print Invoice
                           </button>
 
-                          {selectedOrder.status === 'Processing' && (
+                          {isOrderCancellable(selectedOrder) && (
                             <button
                               type="button"
                               disabled={cancellingOrderId === selectedOrder.id}
@@ -2925,7 +3031,7 @@ export const CustomerDashboard: React.FC = () => {
                                     </div>
 
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: isMobileGrid ? 'flex-start' : 'flex-end', marginTop: '4px' }}>
-                                      {(ord.status === 'Pending' || ord.status === 'Confirmed' || ord.status === 'Processing') && (
+                                      {isOrderCancellable(ord) && (
                                         <button
                                           type="button"
                                           disabled={cancellingOrderId === ord.id}
@@ -2946,6 +3052,29 @@ export const CustomerDashboard: React.FC = () => {
                                           }}
                                         >
                                           {cancellingOrderId === ord.id ? 'Cancelling...' : 'Cancel Order'}
+                                        </button>
+                                      )}
+                                      {isOrderReturnable(ord) && (
+                                        <button
+                                          type="button"
+                                          disabled={returningOrderId === ord.id}
+                                          onClick={() => handleReturnOrder(ord.id)}
+                                          style={{
+                                            padding: '8px 16px',
+                                            borderRadius: '6px',
+                                            background: 'rgba(155, 89, 182, 0.1)',
+                                            border: '1px solid rgba(155, 89, 182, 0.5)',
+                                            color: '#9b59b6',
+                                            fontSize: '0.82rem',
+                                            fontWeight: 700,
+                                            cursor: returningOrderId === ord.id ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                          }}
+                                        >
+                                          {returningOrderId === ord.id ? 'Submitting...' : 'Return Order'}
                                         </button>
                                       )}
                                       <button
@@ -4061,13 +4190,7 @@ export const CustomerDashboard: React.FC = () => {
                       {couponsError}
                     </div>
                   ) : (() => {
-                      const seenCodes = new Set<string>();
-                      const uniqueCoupons = coupons.filter((c) => {
-                        const key = (c.code || '').trim().toUpperCase();
-                        if (!key || seenCodes.has(key)) return false;
-                        seenCodes.add(key);
-                        return true;
-                      });
+                      const uniqueCoupons = getAvailableCouponsList(coupons, usedCoupons);
 
                       if (uniqueCoupons.length === 0) {
                         return (
@@ -5396,6 +5519,66 @@ export const CustomerDashboard: React.FC = () => {
           onConfirm={handleConfirmLogout}
           onCancel={() => setShowLogoutModal(false)}
         />
+
+        {/* Cancel Order Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={cancelModalOrderId !== null}
+          title="Cancel Order?"
+          message="Are you sure you want to cancel this order? This action cannot be undone."
+          confirmText={cancellingOrderId ? 'Cancelling...' : 'Confirm Cancellation'}
+          cancelText="Keep Order"
+          isConfirming={cancellingOrderId !== null}
+          variant="danger"
+          onConfirm={confirmCancelOrder}
+          onCancel={() => {
+            if (!cancellingOrderId) {
+              setCancelModalOrderId(null);
+            }
+          }}
+        />
+
+        {/* Return Order Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={returnModalOrderId !== null}
+          title="Return Order?"
+          message="Are you sure you want to request a return for this order?"
+          confirmText={returningOrderId ? 'Submitting...' : 'Confirm Return'}
+          cancelText="Keep Order"
+          isConfirming={returningOrderId !== null}
+          variant="warning"
+          onConfirm={confirmReturnOrder}
+          onCancel={() => {
+            if (!returningOrderId) {
+              setReturnModalOrderId(null);
+              setReturnReason('');
+            }
+          }}
+        >
+          <div style={{ marginTop: '10px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--beige)', marginBottom: '6px' }}>
+              Reason for Return (optional):
+            </label>
+            <textarea
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              placeholder="Enter a reason for your return request..."
+              rows={3}
+              disabled={returningOrderId !== null}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: 'rgba(0, 0, 0, 0.4)',
+                border: '1px solid var(--glass-border)',
+                color: 'var(--cream)',
+                fontSize: '0.9rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+              }}
+            />
+          </div>
+        </ConfirmationModal>
     </motion.div>
   );
 };

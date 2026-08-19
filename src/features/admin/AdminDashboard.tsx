@@ -4336,7 +4336,7 @@ export const AdminDashboard: React.FC = () => {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                       {couponsList.map((c: any) => {
-                        const isExpired = c.status === 'EXPIRED' || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
+                        const isExpired = c.status === 'EXPIRED' || c.status === 'Expired' || (c.usage_limit > 0 && (c.usage_count || 0) >= c.usage_limit) || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
                         const isInactive = !c.is_active || c.status === 'INACTIVE';
                         const cType = c.coupon_type || 'CUSTOMER';
 
