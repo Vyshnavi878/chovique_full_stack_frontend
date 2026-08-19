@@ -13,9 +13,6 @@ import {
   Heart,
   Loader2,
   X,
-  Sparkles,
-  Gift,
-  ShieldCheck,
   ChevronDown,
   Info,
   Plus,
@@ -850,65 +847,6 @@ export const ShopPage: React.FC = () => {
               </div>
             )}
           </main>
-        </div>
-
-        {/* BOTTOM FEATURE BADGES BAR */}
-        <div className="shop-features-bar">
-          <div className="feature-badge-item">
-            <div className="feature-badge-icon">
-              <Sparkles size={20} />
-            </div>
-            <div>
-              <h5 style={{ color: '#f5efe6', fontWeight: 700, margin: '0 0 2px 0', fontSize: '0.9rem' }}>
-                Premium Ingredients
-              </h5>
-              <p style={{ color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: '0.78rem' }}>
-                Finest cocoa &amp; nuts
-              </p>
-            </div>
-          </div>
-
-          <div className="feature-badge-item">
-            <div className="feature-badge-icon">
-              <Heart size={20} />
-            </div>
-            <div>
-              <h5 style={{ color: '#f5efe6', fontWeight: 700, margin: '0 0 2px 0', fontSize: '0.9rem' }}>
-                Made with Love
-              </h5>
-              <p style={{ color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: '0.78rem' }}>
-                Crafted in small batches
-              </p>
-            </div>
-          </div>
-
-          <div className="feature-badge-item">
-            <div className="feature-badge-icon">
-              <Gift size={20} />
-            </div>
-            <div>
-              <h5 style={{ color: '#f5efe6', fontWeight: 700, margin: '0 0 2px 0', fontSize: '0.9rem' }}>
-                Elegant Gifting
-              </h5>
-              <p style={{ color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: '0.78rem' }}>
-                Perfect for every occasion
-              </p>
-            </div>
-          </div>
-
-          <div className="feature-badge-item">
-            <div className="feature-badge-icon">
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <h5 style={{ color: '#f5efe6', fontWeight: 700, margin: '0 0 2px 0', fontSize: '0.9rem' }}>
-                Secure Checkout
-              </h5>
-              <p style={{ color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: '0.78rem' }}>
-                100% safe &amp; secure
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* MOBILE FILTER BOTTOM SHEET DRAWER */}

@@ -1,17 +1,20 @@
 import React from 'react';
 import '../styles/footer.css';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import {
+  ChevronRight,
+  Headphones,
+  Heart,
+  Sparkles,
+  Gift,
+  ShieldCheck,
+  ArrowRight,
+} from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  /**
-   * Reusable smooth scroll navigation handler for footer section links.
-   * - If user is on home page ('/'): scrolls directly to target section element with smooth animation.
-   * - If user is on another page: navigates to '/' with location state containing target scrollTo element ID.
-   */
   const handleSectionNav = (sectionId: string, e: React.MouseEvent) => {
     e.preventDefault();
     if (location.pathname === '/') {
@@ -27,22 +30,55 @@ export const Footer: React.FC = () => {
   return (
     <footer className="chovique-footer">
       <div className="chovique-footer-container">
-
-        {/* ─── TOP SECTION: BRAND + LINKS + RIGHT IMAGE CARD ─── */}
-        <div className="footer-top-grid">
-
+        {/* ─── MAIN FOOTER GRID ─── */}
+        <div className="footer-main-grid">
           {/* BRAND COLUMN */}
           <div className="footer-brand-col">
             <Link to="/" className="footer-brand-header">
               <div className="footer-logo-wrapper">
-                <img
-                  src="/assets/logo.png"
-                  alt="Chovique Lion Logo"
-                  className="footer-logo-img"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/assets/popular-bg.jpg';
-                  }}
-                />
+                <svg
+                  width="54"
+                  height="54"
+                  viewBox="0 0 100 100"
+                  fill="none"
+                  stroke="#d4af37"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {/* Concentric gold rings */}
+                  <circle cx="50" cy="50" r="47" stroke="#d4af37" strokeWidth="1.2" opacity="0.6" />
+                  <circle cx="50" cy="50" r="44" stroke="#e5c875" strokeWidth="1.8" />
+                  <circle cx="50" cy="50" r="41" stroke="#d4af37" strokeWidth="1" opacity="0.4" />
+
+                  {/* Outer Head Contour */}
+                  <path d="M50 14 L68 28 L80 18 L73 42 L85 55 L65 62 L50 84 L35 62 L15 55 L27 42 L20 18 L32 28 Z" />
+
+                  {/* Inner Ears Detail */}
+                  <path d="M32 28 L40 18 L46 29" />
+                  <path d="M68 28 L60 18 L54 29" />
+
+                  {/* Forehead Star/Cross Mark */}
+                  <path d="M50 20 L50 26 M47 23 L53 23" strokeWidth="1.5" />
+
+                  {/* Eye Contours & Muzzle Lines */}
+                  <path d="M32 42 L43 42 L50 48 L57 42 L68 42" />
+                  <polygon points="36,41 42,39 42,43" fill="#d4af37" stroke="none" />
+                  <polygon points="64,41 58,39 58,43" fill="#d4af37" stroke="none" />
+
+                  {/* Nose & Snout */}
+                  <path d="M44 48 L56 48 L50 56 Z" fill="#d4af37" stroke="#d4af37" strokeWidth="1" />
+                  <path d="M50 56 L50 63" />
+                  <path d="M43 60 L50 63 L57 60" />
+
+                  {/* Cheek Facets */}
+                  <path d="M27 42 L43 42 M73 42 L57 42" />
+                  <path d="M15 55 L35 62 M85 55 L65 62" />
+
+                  {/* Chest Chevrons */}
+                  <path d="M40 68 L50 76 L60 68" strokeWidth="1.8" />
+                  <path d="M43 74 L50 80 L57 74" strokeWidth="1.8" />
+                </svg>
               </div>
               <div className="footer-brand-titles">
                 <h2 className="footer-brand-title">CHOVIQUE</h2>
@@ -51,253 +87,270 @@ export const Footer: React.FC = () => {
             </Link>
 
             <p className="footer-brand-description">
-              Luxury handmade chocolates made from ethically sourced cocoa, crafted in India for every celebration.
+              Luxury handmade chocolates crafted with the finest cocoa and pure ingredients.
             </p>
 
-            <div className="footer-social-section">
-              <span className="footer-social-label">FOLLOW US</span>
-              <div className="footer-social-row">
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Instagram"
-                  className="footer-social-btn"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                  </svg>
-                </a>
-                <a
-                  href="https://facebook.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Facebook"
-                  className="footer-social-btn"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-                  </svg>
-                </a>
-                <a
-                  href="https://youtube.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="YouTube"
-                  className="footer-social-btn"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" />
-                    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
-                  </svg>
-                </a>
-                <a
-                  href="https://pinterest.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Pinterest"
-                  className="footer-social-btn"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z" />
-                  </svg>
-                </a>
-              </div>
+            <div className="footer-social-row">
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Instagram"
+                className="footer-social-btn"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                </svg>
+              </a>
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Facebook"
+                className="footer-social-btn"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                </svg>
+              </a>
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="YouTube"
+                className="footer-social-btn"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" />
+                  <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
+                </svg>
+              </a>
+              <a
+                href="https://pinterest.com"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Pinterest"
+                className="footer-social-btn"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z" />
+                </svg>
+              </a>
             </div>
           </div>
 
-          {/* SHOP COLUMN */}
+          <div className="footer-col-divider" />
+
+          {/* MIDDLE COLUMN 1 — SHOP */}
           <div className="footer-nav-col">
             <h3 className="footer-col-title">SHOP</h3>
             <ul className="footer-nav-links">
               <li>
-                <Link to="/shop">Shop All <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/shop">
+                  Shop All <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
               <li>
-                <a
-                  href="/#best-sellers"
-                  onClick={(e) => handleSectionNav('best-sellers', e)}
-                >
+                <a href="/#best-sellers" onClick={(e) => handleSectionNav('best-sellers', e)}>
                   Best Sellers <ChevronRight size={13} className="nav-chevron" />
                 </a>
               </li>
               <li>
-                <a
-                  href="/#new-arrivals"
-                  onClick={(e) => handleSectionNav('new-arrivals', e)}
-                >
+                <a href="/#new-arrivals" onClick={(e) => handleSectionNav('new-arrivals', e)}>
                   New Arrivals <ChevronRight size={13} className="nav-chevron" />
                 </a>
               </li>
               <li>
-                <Link to="/shop?category=gift">Gift Boxes <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/shop?category=gift">
+                  Gift Boxes <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
               <li>
-                <Link to="/shop">All Collections <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/shop">
+                  All Collections <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
             </ul>
           </div>
 
-          {/* CATEGORIES COLUMN */}
+          {/* MIDDLE COLUMN 2 — CHOVIQUE */}
           <div className="footer-nav-col">
-            <h3 className="footer-col-title">CATEGORIES</h3>
+            <h3 className="footer-col-title">CHOVIQUE</h3>
             <ul className="footer-nav-links">
               <li>
-                <Link to="/shop?category=dark">Dark Chocolate <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/our-story">
+                  Our Story <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
               <li>
-                <Link to="/shop?category=milk">Milk Chocolate <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/our-story">
+                  Our Craft <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
               <li>
-                <Link to="/shop?category=white">White Chocolate <ChevronRight size={13} className="nav-chevron" /></Link>
-              </li>
-              <li>
-                <Link to="/shop?category=gift">Gift Hamper <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/contact">
+                  Contact Us <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
             </ul>
           </div>
 
-          {/* COMPANY COLUMN */}
+          {/* MIDDLE COLUMN 3 — HELP */}
           <div className="footer-nav-col">
-            <h3 className="footer-col-title">COMPANY</h3>
+            <h3 className="footer-col-title">HELP</h3>
             <ul className="footer-nav-links">
               <li>
-                <Link to="/our-story">Our Story <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/dashboard">
+                  Track My Order <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
               <li>
-                <Link to="/contact">Contact Us <ChevronRight size={13} className="nav-chevron" /></Link>
+                <Link to="/contact">
+                  Shipping & Delivery <ChevronRight size={13} className="nav-chevron" />
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact">
+                  Returns & Refunds <ChevronRight size={13} className="nav-chevron" />
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact">
+                  Help & Support <ChevronRight size={13} className="nav-chevron" />
+                </Link>
               </li>
             </ul>
           </div>
 
-          {/* RIGHT SIDE IMAGE CARD */}
-          <div className="footer-accent-col">
-            <div className="footer-accent-img-wrapper">
-              <img
-                src="/assets/footer-accent.png"
-                alt="CHOVIQUE Luxury Lion Emblem Dark Chocolate Box"
-                className="footer-accent-img"
-              />
+          {/* RIGHT — NEED HELP CARD */}
+          <div className="footer-concierge-card">
+            <div className="concierge-icon-circle">
+              <Headphones size={22} className="concierge-headphone-icon" />
             </div>
-          </div>
 
-        </div>
+            <h4 className="concierge-title">Need Help?</h4>
+            <p className="concierge-subtitle">Our chocolate concierge is here for you.</p>
 
-        {/* ─── MIDDLE STRIP: 4 FEATURE BOXES ─── */}
-        <div className="footer-features-strip">
-          {/* Beautifully Packed */}
-          <div className="footer-feature-box">
-            <div className="feature-icon-wrapper">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 12 20 22 4 22 4 12" />
-                <rect x="2" y="7" width="20" height="5" />
-                <line x1="12" y1="22" x2="12" y2="7" />
-                <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
-                <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
-              </svg>
-            </div>
-            <div className="feature-text-content">
-              <h4 className="feature-title">Beautifully Packed</h4>
-              <p className="feature-desc">Perfect for gifting every occasion</p>
-            </div>
-          </div>
-
-          <div className="feature-strip-divider" />
-
-          {/* 100% Handmade */}
-          <div className="footer-feature-box">
-            <div className="feature-icon-wrapper">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
-                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-              </svg>
-            </div>
-            <div className="feature-text-content">
-              <h4 className="feature-title">100% Handmade</h4>
-              <p className="feature-desc">Made with love by chocolate experts</p>
-            </div>
-          </div>
-
-          <div className="feature-strip-divider" />
-
-          {/* No Preservatives */}
-          <div className="footer-feature-box">
-            <div className="feature-icon-wrapper">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="m4.93 4.93 14.14 14.14" />
-              </svg>
-            </div>
-            <div className="feature-text-content">
-              <h4 className="feature-title">No Preservatives</h4>
-              <p className="feature-desc">Pure ingredients, no compromises</p>
-            </div>
-          </div>
-
-          <div className="feature-strip-divider" />
-
-          {/* Made with Love */}
-          <div className="footer-feature-box">
-            <div className="feature-icon-wrapper">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-              </svg>
-            </div>
-            <div className="feature-text-content">
-              <h4 className="feature-title">Made with Love</h4>
-              <p className="feature-desc">Crafted to spread happiness</p>
-            </div>
+            <button
+              type="button"
+              className="concierge-contact-btn"
+              onClick={() => navigate('/contact')}
+            >
+              <span>CONTACT CONCIERGE</span>
+              <ArrowRight size={14} />
+            </button>
           </div>
         </div>
 
-        {/* ─── BOTTOM BAR: COPYRIGHT + LEGAL + PAYMENTS ─── */}
-        <div className="footer-bottom-strip">
+        {/* ─── FOOTER BENEFITS STRIP (Middle section) ─── */}
+        <div className="footer-benefits-strip">
+          {/* Box 1 */}
+          <div className="footer-benefit-box">
+            <div className="benefit-icon-circle">
+              <Heart size={20} />
+            </div>
+            <div className="benefit-text">
+              <h4 className="benefit-title">HANDCRAFTED CHOCOLATES</h4>
+              <p className="benefit-desc">Made with passion and perfection</p>
+            </div>
+          </div>
+
+          <div className="benefit-divider" />
+
+          {/* Box 2 */}
+          <div className="footer-benefit-box">
+            <div className="benefit-icon-circle">
+              <Sparkles size={20} />
+            </div>
+            <div className="benefit-text">
+              <h4 className="benefit-title">PREMIUM INGREDIENTS</h4>
+              <p className="benefit-desc">Finest cocoa, sourced ethically</p>
+            </div>
+          </div>
+
+          <div className="benefit-divider" />
+
+          {/* Box 3 */}
+          <div className="footer-benefit-box">
+            <div className="benefit-icon-circle">
+              <Gift size={20} />
+            </div>
+            <div className="benefit-text">
+              <h4 className="benefit-title">BEAUTIFULLY PACKED</h4>
+              <p className="benefit-desc">Perfect for gifting every occasion</p>
+            </div>
+          </div>
+
+          <div className="benefit-divider" />
+
+          {/* Box 4 */}
+          <div className="footer-benefit-box">
+            <div className="benefit-icon-circle">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="benefit-text">
+              <h4 className="benefit-title">SECURE PAYMENTS</h4>
+              <p className="benefit-desc">Safe, encrypted & trusted checkout</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── BOTTOM LEGAL & PAYMENT BAR ─── */}
+        <div className="footer-bottom-bar">
           <div className="footer-bottom-left">
-            <p className="footer-copyright-text">
-              © 2026 CHOVIQUE. All rights reserved.
-            </p>
-            <div className="footer-legal-links">
-              <Link to="/privacy">Privacy Policy</Link>
-              <span className="legal-sep">|</span>
-              <Link to="/terms">Terms of Service</Link>
-            </div>
+            <p className="copyright-text">© 2026 CHOVIQUE. All rights reserved.</p>
+            <span className="footer-italic-tagline">The Art of Fine Chocolate</span>
+          </div>
+
+          <div className="footer-bottom-center">
+            <Link to="/contact">Privacy Policy</Link>
+            <span className="legal-pipe">|</span>
+            <Link to="/contact">Terms of Service</Link>
+            <span className="legal-pipe">|</span>
+            <Link to="/contact">Refund Policy</Link>
           </div>
 
           <div className="footer-bottom-right">
-            <span className="we-accept-title">WE ACCEPT</span>
+            <span className="secure-payments-label">SECURE PAYMENTS</span>
             <div className="payment-badges-row">
-              {/* PhonePe */}
-              <div className="payment-badge-pill" title="PhonePe">
-                <span style={{ fontWeight: 800, fontSize: '13px', color: '#5f259f', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#5f259f', color: '#fff', fontSize: '11px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>पे</span>
-                  PhonePe
+              {/* Visa */}
+              <div className="payment-badge-pill" title="VISA">
+                <span style={{ fontWeight: 900, fontSize: '13px', color: '#1a1f71', fontFamily: 'sans-serif', fontStyle: 'italic', letterSpacing: '0.5px' }}>
+                  VISA
                 </span>
               </div>
-              {/* GPay */}
-              <div className="payment-badge-pill" title="GPay">
-                <span style={{ fontWeight: 700, fontSize: '13px', color: '#3c4043', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ color: '#4285F4', fontWeight: 800 }}>G</span>
-                  <span style={{ color: '#EA4335', fontWeight: 800 }}>P</span>
-                  <span style={{ color: '#FBBC05', fontWeight: 800 }}>a</span>
-                  <span style={{ color: '#34A853', fontWeight: 800 }}>y</span>
+              {/* Mastercard */}
+              <div className="payment-badge-pill" title="Mastercard">
+                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#eb001b', display: 'inline-block' }} />
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#f79e1b', display: 'inline-block', marginLeft: '-7px', opacity: 0.9 }} />
                 </span>
               </div>
-              {/* Cards */}
-              <div className="payment-badge-pill" title="Cards">
-                <span style={{ fontWeight: 700, fontSize: '12px', color: '#2c3e50', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                    <line x1="1" y1="10" x2="23" y2="10" />
-                  </svg>
-                  Cards
+              {/* RuPay */}
+              <div className="payment-badge-pill" title="RuPay">
+                <span style={{ fontWeight: 800, fontSize: '12px', color: '#00539c', fontFamily: 'sans-serif' }}>
+                  RuPay<span style={{ color: '#f37021' }}>❯</span>
+                </span>
+              </div>
+              {/* UPI */}
+              <div className="payment-badge-pill" title="UPI">
+                <span style={{ fontWeight: 800, fontSize: '11px', color: '#0b8243', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <span style={{ color: '#0b8243' }}>U</span>
+                  <span style={{ color: '#0e70b7' }}>P</span>
+                  <span style={{ color: '#0b8243' }}>I</span>
+                </span>
+              </div>
+              {/* Apple Pay */}
+              <div className="payment-badge-pill" title="Apple Pay">
+                <span style={{ fontWeight: 700, fontSize: '12px', color: '#000000', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                   Pay
                 </span>
               </div>
             </div>
           </div>
         </div>
-
       </div>
     </footer>
   );
