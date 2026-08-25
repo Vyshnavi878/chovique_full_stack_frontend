@@ -72,7 +72,7 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   } catch (err: unknown) {
     throw new ApiError(
       0,
-      'Unable to connect to the backend API server. Please verify that the FastAPI backend is running on http://localhost:8000.'
+      'Unable to connect to the backend API server. Please verify your network connection or that the API service is reachable.'
     );
   }
 };
