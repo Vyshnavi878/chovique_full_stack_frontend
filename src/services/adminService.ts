@@ -4,7 +4,7 @@
  * All calls go directly to the FastAPI backend.
  */
 
-import { BASE_URL, apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut } from '../lib/api';
+import { BASE_URL, apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut, setAuthToken } from '../lib/api';
 import type {
   Banner,
   Testimonial,
@@ -367,8 +367,10 @@ export const adminService = {
   },
 
   /** Secure admin logout */
-  adminLogout: (): Promise<{ message: string }> =>
-    apiPost<{ message: string }>('/admin/logout', {}),
+  adminLogout: async (): Promise<{ message: string }> => {
+    setAuthToken(null);
+    return apiPost<{ message: string }>('/admin/logout', {});
+  },
 
   /** Update customer profile details */
   updateCustomer: (userId: string, payload: any): Promise<CustomerDetailsResponse> =>

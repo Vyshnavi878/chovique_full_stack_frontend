@@ -8,7 +8,7 @@
  *   - No demo mode, no localStorage auth fallbacks.
  */
 
-import { apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPost, setAuthToken } from '../lib/api';
 import type {
   User,
   LoginPayload,
@@ -26,10 +26,14 @@ export const authService = {
    * Backend sets httpOnly access + refresh cookies on success.
    */
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
-    return apiPost<AuthResponse>('/auth/login', {
+    const res = await apiPost<AuthResponse>('/auth/login', {
       email: payload.email,
       password: payload.password,
     });
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
   },
 
   /**
@@ -62,12 +66,16 @@ export const authService = {
    * Backend sets auth cookies and returns the created User.
    */
   verifyOtp: async (payload: VerifyOtpPayload): Promise<AuthResponse> => {
-    return apiPost<AuthResponse>('/auth/verify-otp', {
+    const res = await apiPost<AuthResponse>('/auth/verify-otp', {
       email: payload.email,
       otp: payload.otp,
       full_name: payload.fullName,
       password: payload.password,
     });
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
   },
 
   /**
@@ -157,28 +165,36 @@ export const authService = {
    * Google Sign-In — exchange a Google id_token for a Chovique session.
    */
   googleSignIn: async (idToken: string): Promise<GoogleAuthResponse> => {
-    return apiPost<GoogleAuthResponse>('/auth/google', { id_token: idToken });
+    const res = await apiPost<GoogleAuthResponse>('/auth/google', { id_token: idToken });
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
   },
 
   /**
    * Set password for OAuth / Google users who don't have a password yet — POST /auth/set-password.
    */
   setPassword: async (password: string, confirmPassword: string): Promise<AuthResponse> => {
-    return apiPost<AuthResponse>('/auth/set-password', {
+    const res = await apiPost<AuthResponse>('/auth/set-password', {
       password,
       confirm_password: confirmPassword,
     });
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
   },
 
   /**
-   * Logout — clears server-side session (cookie).
-   * Best-effort: even if server logout fails, session cookie will eventually expire.
+   * Logout — clears server-side session (cookie) and client auth token.
    */
   logout: async (): Promise<void> => {
+    setAuthToken(null);
     try {
       await apiPost<void>('/auth/logout');
     } catch {
-      // Best-effort: even if server logout fails, the cookie will expire
+      // Best-effort: even if server logout fails, the cookie and client token will clear
     }
   },
 
@@ -186,13 +202,17 @@ export const authService = {
    * Refresh access token using the httpOnly refresh cookie.
    * The backend replaces both cookies on success.
    */
-  refreshToken: async (): Promise<{ message: string }> => {
-    return apiPost<{ message: string }>('/auth/refresh');
+  refreshToken: async (): Promise<{ message: string; access_token?: string }> => {
+    const res = await apiPost<{ message: string; access_token?: string }>('/auth/refresh');
+    if (res?.access_token) {
+      setAuthToken(res.access_token);
+    }
+    return res;
   },
 
   /**
    * Fetch authenticated user's profile.
-   * Uses httpOnly cookie session — no token needed from localStorage.
+   * Uses httpOnly cookie session with Bearer header fallback.
    * Returns null-equivalent if not authenticated (401 redirects to /login).
    */
   getMe: async (): Promise<User> => {

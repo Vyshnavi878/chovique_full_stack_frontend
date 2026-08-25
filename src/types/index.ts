@@ -535,14 +535,15 @@ export interface OfflineSalePayload {
 export interface AuthResponse {
   message: string;
   user: User;
+  access_token?: string;
+  refresh_token?: string;
 }
 
 export interface GoogleAuthResponse {
   message: string;
   user: User;
-  /** Not currently returned by the backend — /auth/google always logs in or
-   *  creates the account directly. Kept optional so existing UI branches
-   *  that check for it degrade gracefully instead of breaking. */
+  access_token?: string;
+  refresh_token?: string;
   require_otp?: boolean;
   email?: string;
   expires_in?: number;

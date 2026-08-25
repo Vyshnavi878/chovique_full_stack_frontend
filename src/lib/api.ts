@@ -20,10 +20,35 @@ const getNormalizedBaseUrl = (): string => {
 
 export const BASE_URL = getNormalizedBaseUrl();
 
-/** Build default headers — JSON only, no auth header (cookies handle auth) */
+let memoryToken: string | null = null;
+
+export const setAuthToken = (token?: string | null): void => {
+  memoryToken = token || null;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      sessionStorage.setItem('chovique_access_token', token);
+    } else {
+      sessionStorage.removeItem('chovique_access_token');
+    }
+  }
+};
+
+export const getAuthToken = (): string | null => {
+  if (memoryToken) return memoryToken;
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('chovique_access_token');
+  }
+  return null;
+};
+
+/** Build default headers — JSON + Bearer token fallback (cookies also sent via credentials: include) */
 const buildHeaders = (isFormData = false): HeadersInit => {
-  if (isFormData) return {};
-  return { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' };
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 /** Handle 401 Unauthorized globally — skip redirect for session rehydration (/users/me) or public pages */
@@ -119,13 +144,21 @@ const fetchCsrfToken = async (): Promise<string | null> => {
 let refreshPromise: Promise<boolean> | null = null;
 
 const fetchWithAuth = async (path: string, init: RequestInit & { _isCsrfRetry?: boolean }): Promise<Response> => {
+  const token = getAuthToken();
+  if (token) {
+    init.headers = {
+      ...init.headers,
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+
   const method = init.method || 'GET';
   if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method.toUpperCase())) {
-    const token = await fetchCsrfToken();
-    if (token) {
+    const csrfTok = await fetchCsrfToken();
+    if (csrfTok) {
       init.headers = {
         ...init.headers,
-        'x-csrf-token': token,
+        'x-csrf-token': csrfTok,
       };
     }
   }
