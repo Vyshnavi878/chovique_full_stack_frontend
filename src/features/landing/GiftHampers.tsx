@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Gift, Sparkles, Check, ArrowRight } from 'lucide-react';
+import { Gift, Sparkles, Check, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
@@ -10,10 +10,21 @@ import { fadeInUp } from '../../lib/framer';
 export const GiftHampers: React.FC = () => {
   const { products, role } = useApp();
   const navigate = useNavigate();
+  const giftScrollRef = useRef<HTMLDivElement>(null);
 
   // Filter gift products strictly (by category 'gift' or badge 'Gift Hamper')
-  const displayList = products.filter((p) => p.category === 'gift' || p.badge === 'Gift Hamper' || p.badge === 'Gift Hampers').slice(0, 2);
+  const displayList = products.filter((p) => p.category === 'gift' || p.badge === 'Gift Hamper' || p.badge === 'Gift Hampers');
 
+  const scroll = (direction: 'left' | 'right') => {
+    if (giftScrollRef.current) {
+      const { scrollLeft, clientWidth } = giftScrollRef.current;
+      const scrollAmount = clientWidth * 0.75;
+      giftScrollRef.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - scrollAmount : scrollLeft + scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
 
   const benefits = [
     'Handwritten custom greeting cards',
@@ -158,15 +169,86 @@ export const GiftHampers: React.FC = () => {
               background: 'rgba(10, 10, 10, 0.35)',
             }}
           >
-            <div className="collection-header-group">
-              <span className="collection-tag silver">Ready to Gift</span>
-              <h3 className="collection-title">Gift Collections</h3>
-              <p className="collection-desc">
-                Select from our signature pre-packed truffles and custom presentation collections, ready to delight straight out of the box.
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div className="collection-header-group" style={{ marginBottom: 0, flex: 1 }}>
+                <span className="collection-tag silver">Ready to Gift</span>
+                <h3 className="collection-title">Gift Collections</h3>
+                <p className="collection-desc">
+                  Select from our signature pre-packed truffles and custom presentation collections, ready to delight straight out of the box.
+                </p>
+              </div>
+              {displayList.length > 2 && (
+                <div style={{ display: 'flex', gap: '8px', marginLeft: '12px', flexShrink: 0, marginTop: '8px' }}>
+                  <button
+                    onClick={() => scroll('left')}
+                    aria-label="Scroll Left"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => scroll('right')}
+                    aria-label="Scroll Right"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="collection-products-grid">
+            <div
+              ref={giftScrollRef}
+              style={{
+                display: 'flex',
+                gap: '20px',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                scrollBehavior: 'smooth',
+                padding: '4px 2px 16px 2px',
+              }}
+              className="hide-scrollbar"
+            >
               {displayList.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -176,6 +258,14 @@ export const GiftHampers: React.FC = () => {
                   variants={{
                     initial: { opacity: 0, y: 30 },
                     animate: { opacity: 1, y: 0, transition: { duration: 0.5, delay: index * 0.15 + 0.2 } },
+                  }}
+                  style={{
+                    flex: '0 0 calc(50% - 10px)',
+                    minWidth: '230px',
+                    maxWidth: '280px',
+                    scrollSnapAlign: 'start',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
                   <Card product={product} />

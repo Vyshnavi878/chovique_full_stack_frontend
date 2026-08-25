@@ -207,7 +207,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link to="dashboard?section=orders">
+                <Link to="/dashboard?section=orders">
                   Shipping & Delivery <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>

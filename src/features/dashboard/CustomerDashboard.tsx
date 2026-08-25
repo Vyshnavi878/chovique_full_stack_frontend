@@ -132,12 +132,39 @@ export const CustomerDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // 1. Check URL query parameters (e.g. ?section=orders or ?section=support)
+    const searchParams = new URLSearchParams(location.search);
+    const section = searchParams.get('section') || searchParams.get('tab');
+    if (section) {
+      const lower = section.toLowerCase();
+      if (lower === 'orders' || lower === 'order-history' || lower === 'track') {
+        setActiveTab('orders');
+        setSelectedOrder(null);
+        setOrderSubView('list');
+      } else if (lower === 'support' || lower === 'help' || lower === 'help-and-support') {
+        setActiveTab('help');
+      } else if (lower === 'profile') {
+        setActiveTab('profile');
+      } else if (lower === 'addresses' || lower === 'address') {
+        setActiveTab('addresses');
+      } else if (lower === 'coupons' || lower === 'coupon') {
+        setActiveTab('coupons');
+      } else if (lower === 'rewards' || lower === 'coins') {
+        setActiveTab('rewards');
+      } else if (lower === 'settings') {
+        setActiveTab('settings');
+      } else if (lower === 'notifications') {
+        setActiveTab('notifications');
+      }
+    }
+
+    // 2. Check location.state
     const navState = location.state as { tab?: CustomerTab } | null;
     if (navState?.tab) {
       setActiveTab(navState.tab);
       navigate('/dashboard', { replace: true, state: {} });
     }
-  }, [location.state, navigate]);
+  }, [location.search, location.state, navigate]);
 
   // Redirect if guest/non-customer accesses directly
   useEffect(() => {

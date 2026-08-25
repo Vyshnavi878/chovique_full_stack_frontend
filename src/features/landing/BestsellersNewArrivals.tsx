@@ -1,23 +1,37 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { Card } from '../../components/ui/Card';
 import { fadeInUp } from '../../lib/framer';
 
 export const BestsellersNewArrivals: React.FC = () => {
   const { products } = useApp();
+  const bestsellersRef = useRef<HTMLDivElement>(null);
+  const newArrivalsRef = useRef<HTMLDivElement>(null);
 
   // Filter Bestsellers (badge is Bestseller/Premium or isBestseller flag, strictly excluding Limited)
   const bestsellersList = products.filter(
     (p) => (p.isBestseller || p.badge === 'Bestseller' || p.badge === 'Premium') &&
            p.badge !== 'Limited' && p.badge !== 'Limited Edition'
-  ).slice(0, 2);
+  );
 
   // Filter New Arrivals (badge is New or isNewArrival flag, strictly excluding Limited and Bestseller/Premium unless explicitly marked as New)
   const newArrivalsList = products.filter(
     (p) => (p.isNewArrival || p.badge === 'New') &&
            p.badge !== 'Limited' && p.badge !== 'Limited Edition'
-  ).slice(0, 2);
+  );
+
+  const scroll = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
+    if (ref.current) {
+      const { scrollLeft, clientWidth } = ref.current;
+      const scrollAmount = clientWidth * 0.75;
+      ref.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - scrollAmount : scrollLeft + scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
 
   return (
     <section
@@ -82,15 +96,86 @@ export const BestsellersNewArrivals: React.FC = () => {
             variants={fadeInUp}
             className="collection-column"
           >
-            <div className="collection-header-group">
-              <span className="collection-tag gold">Connoisseur Choice</span>
-              <h3 className="collection-title">The Bestsellers</h3>
-              <p className="collection-desc">
-                Artisanal icons that have won the hearts of fine chocolate lovers globally. Elegant, refined, and rich in depth.
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div className="collection-header-group" style={{ marginBottom: 0, flex: 1 }}>
+                <span className="collection-tag gold">Connoisseur Choice</span>
+                <h3 className="collection-title">The Bestsellers</h3>
+                <p className="collection-desc">
+                  Artisanal icons that have won the hearts of fine chocolate lovers globally. Elegant, refined, and rich in depth.
+                </p>
+              </div>
+              {bestsellersList.length > 2 && (
+                <div style={{ display: 'flex', gap: '8px', marginLeft: '12px', flexShrink: 0, marginTop: '8px' }}>
+                  <button
+                    onClick={() => scroll(bestsellersRef, 'left')}
+                    aria-label="Scroll Left"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => scroll(bestsellersRef, 'right')}
+                    aria-label="Scroll Right"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
             </div>
             
-            <div className="collection-products-grid">
+            <div
+              ref={bestsellersRef}
+              style={{
+                display: 'flex',
+                gap: '20px',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                scrollBehavior: 'smooth',
+                padding: '4px 2px 16px 2px',
+              }}
+              className="hide-scrollbar"
+            >
               {bestsellersList.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -100,6 +185,14 @@ export const BestsellersNewArrivals: React.FC = () => {
                   variants={{
                     initial: { opacity: 0, y: 30 },
                     animate: { opacity: 1, y: 0, transition: { duration: 0.5, delay: index * 0.15 } },
+                  }}
+                  style={{
+                    flex: '0 0 calc(50% - 10px)',
+                    minWidth: '230px',
+                    maxWidth: '280px',
+                    scrollSnapAlign: 'start',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
                   <Card product={product} />
@@ -120,15 +213,86 @@ export const BestsellersNewArrivals: React.FC = () => {
             }}
             className="collection-column"
           >
-            <div className="collection-header-group">
-              <span className="collection-tag silver">Freshly Tempered</span>
-              <h3 className="collection-title">New Arrivals</h3>
-              <p className="collection-desc">
-                Seasonal innovations and brand new releases straight from the kitchen. Discover fresh notes and modern textures.
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div className="collection-header-group" style={{ marginBottom: 0, flex: 1 }}>
+                <span className="collection-tag silver">Freshly Tempered</span>
+                <h3 className="collection-title">New Arrivals</h3>
+                <p className="collection-desc">
+                  Seasonal innovations and brand new releases straight from the kitchen. Discover fresh notes and modern textures.
+                </p>
+              </div>
+              {newArrivalsList.length > 2 && (
+                <div style={{ display: 'flex', gap: '8px', marginLeft: '12px', flexShrink: 0, marginTop: '8px' }}>
+                  <button
+                    onClick={() => scroll(newArrivalsRef, 'left')}
+                    aria-label="Scroll Left"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => scroll(newArrivalsRef, 'right')}
+                    aria-label="Scroll Right"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--glass-bg)',
+                      border: '1px solid var(--glass-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cream)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--gold)';
+                      e.currentTarget.style.color = 'var(--gold)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                      e.currentTarget.style.color = 'var(--cream)';
+                    }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
             </div>
             
-            <div className="collection-products-grid">
+            <div
+              ref={newArrivalsRef}
+              style={{
+                display: 'flex',
+                gap: '20px',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                scrollBehavior: 'smooth',
+                padding: '4px 2px 16px 2px',
+              }}
+              className="hide-scrollbar"
+            >
               {newArrivalsList.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -138,6 +302,14 @@ export const BestsellersNewArrivals: React.FC = () => {
                   variants={{
                     initial: { opacity: 0, y: 30 },
                     animate: { opacity: 1, y: 0, transition: { duration: 0.5, delay: index * 0.15 + 0.2 } },
+                  }}
+                  style={{
+                    flex: '0 0 calc(50% - 10px)',
+                    minWidth: '230px',
+                    maxWidth: '280px',
+                    scrollSnapAlign: 'start',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
                   <Card product={product} />

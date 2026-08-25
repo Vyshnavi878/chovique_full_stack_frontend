@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, Heart, Target, Star, Leaf, Award, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { slideInLeft, slideInRight, fadeIn } from '../../lib/framer';
@@ -7,11 +8,26 @@ import { Footer } from '../../components/Footer';
 import { Reviews } from './Reviews';
 
 export const OurStoryPage: React.FC = () => {
+  const location = useLocation();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [videoUrl, setVideoUrl] = useState('https://assets.mixkit.co/videos/preview/mixkit-pouring-melted-chocolate-on-a-muffin-34289-large.mp4');
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace('#', '');
+      const el = document.getElementById(id);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     adminService.getStoryVideo()
@@ -358,7 +374,7 @@ export const OurStoryPage: React.FC = () => {
       </section>
 
       {/* The Artisanal Process */}
-      <section style={{ padding: '40px 0', background: 'var(--gradient-section-5)' }}>
+      <section id="the-bean-to-bar-process" style={{ padding: '40px 0', background: 'var(--gradient-section-5)' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <span className="section-label" style={{ justifyContent: 'center' }}>Step-By-Step</span>

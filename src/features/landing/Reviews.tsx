@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Star, Quote, MessageSquarePlus, X, CheckCircle, Loader2 } from 'lucide-react';
+import { Star, Quote, MessageSquarePlus, X, CheckCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { homeService } from '../../services/homeService';
 import { Button } from '../../components/ui/Button';
@@ -39,8 +39,20 @@ const FALLBACK_TESTIMONIALS: Testimonial[] = [
 export const Reviews: React.FC = () => {
   const { user, role } = useApp();
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [textTestimonials, setTextTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const { scrollLeft, clientWidth } = scrollRef.current;
+      const scrollAmount = clientWidth * 0.75;
+      scrollRef.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - scrollAmount : scrollLeft + scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
 
   // Modal State for submitting a testimonial
   const [showModal, setShowModal] = useState(false);
@@ -119,7 +131,7 @@ export const Reviews: React.FC = () => {
     >
       <div className="container">
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <span className="section-label" style={{ justifyContent: 'center' }}>
             Customer Love
           </span>
@@ -140,90 +152,201 @@ export const Reviews: React.FC = () => {
           </Button>
         </div>
 
-        {/* Written Testimonials Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '30px',
-          }}
-        >
-          {displayList.map((test, index) => {
-            const starsCount = test.rating || test.stars || 5;
-            return (
-              <motion.div
-                key={(test.id || test.author) + index}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="glass-panel"
-                style={{
-                  padding: '30px',
-                  border: '1px solid var(--glass-border)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  position: 'relative',
-                }}
-              >
-                <Quote
-                  size={40}
+        {/* Inline CSS to hide scrollbars & responsive */}
+        <style>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          @media (max-width: 640px) {
+            .reviews-carousel-wrapper {
+              padding: 0 40px !important;
+            }
+            .reviews-card-item {
+              flex: 0 0 280px !important;
+              width: 280px !important;
+            }
+          }
+        `}</style>
+
+        {/* Slider Container Wrapper */}
+        <div className="reviews-carousel-wrapper" style={{ position: 'relative', width: '100%', padding: '0 50px' }}>
+          {/* Left Arrow Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              scroll('left');
+            }}
+            aria-label="Scroll Left"
+            style={{
+              position: 'absolute',
+              left: '0px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--glass-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--cream)',
+              zIndex: 10,
+              boxShadow: 'var(--glass-shadow)',
+              backdropFilter: 'blur(5px)',
+              transition: 'background 0.3s, color 0.3s, border-color 0.3s',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--gold)';
+              e.currentTarget.style.color = 'var(--gold)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--glass-border)';
+              e.currentTarget.style.color = 'var(--cream)';
+            }}
+          >
+            <ChevronLeft size={24} />
+          </button>
+
+          {/* Slider content */}
+          <div
+            ref={scrollRef}
+            style={{
+              display: 'flex',
+              gap: '24px',
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              scrollBehavior: 'smooth',
+              padding: '10px 0 30px 0',
+            }}
+            className="hide-scrollbar"
+          >
+            {displayList.map((test, index) => {
+              const starsCount = test.rating || test.stars || 5;
+              return (
+                <motion.div
+                  key={(test.id || test.author) + index}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  className="glass-panel reviews-card-item"
                   style={{
-                    position: 'absolute',
-                    top: '20px',
-                    right: '20px',
-                    color: 'var(--gold)',
-                    opacity: 0.1,
+                    flex: '0 0 320px',
+                    width: '320px',
+                    maxWidth: '320px',
+                    scrollSnapAlign: 'start',
+                    padding: '30px',
+                    border: '1px solid var(--glass-border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    borderRadius: '12px',
                   }}
-                />
-                <div>
-                  <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)', marginBottom: '15px' }}>
-                    {Array.from({ length: starsCount }).map((_, i) => (
-                      <Star key={i} size={14} fill="currentColor" />
-                    ))}
-                  </div>
-                  <p
+                >
+                  <Quote
+                    size={40}
                     style={{
-                      color: 'var(--cream)',
-                      fontSize: '0.95rem',
-                      lineHeight: 1.6,
-                      fontStyle: 'italic',
-                      fontFamily: 'var(--font-elegant)',
-                      marginBottom: '24px',
-                    }}
-                  >
-                    "{test.text}"
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: 'var(--chocolate-brown)',
+                      position: 'absolute',
+                      top: '20px',
+                      right: '20px',
                       color: 'var(--gold)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 600,
-                      fontSize: '0.85rem',
-                      border: '1px solid var(--gold)',
+                      opacity: 0.1,
                     }}
-                  >
-                    {test.initials || test.author.substring(0, 2).toUpperCase()}
-                  </div>
+                  />
                   <div>
-                    <h5 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cream)', margin: 0 }}>
-                      {test.author}
-                    </h5>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>{test.title || 'Chocolate Enthusiast'}</p>
+                    <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)', marginBottom: '15px' }}>
+                      {Array.from({ length: starsCount }).map((_, i) => (
+                        <Star key={i} size={14} fill="currentColor" />
+                      ))}
+                    </div>
+                    <p
+                      style={{
+                        color: 'var(--cream)',
+                        fontSize: '0.95rem',
+                        lineHeight: 1.6,
+                        fontStyle: 'italic',
+                        fontFamily: 'var(--font-elegant)',
+                        marginBottom: '24px',
+                      }}
+                    >
+                      "{test.text}"
+                    </p>
                   </div>
-                </div>
-              </motion.div>
-            );
-          })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        background: 'var(--chocolate-brown)',
+                        color: 'var(--gold)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        border: '1px solid var(--gold)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {test.initials || (test.author ? test.author.substring(0, 2).toUpperCase() : 'CL')}
+                    </div>
+                    <div>
+                      <h5 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cream)', margin: 0 }}>
+                        {test.author}
+                      </h5>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>{test.title || 'Chocolate Enthusiast'}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Right Arrow Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              scroll('right');
+            }}
+            aria-label="Scroll Right"
+            style={{
+              position: 'absolute',
+              right: '0px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--glass-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--cream)',
+              zIndex: 10,
+              boxShadow: 'var(--glass-shadow)',
+              backdropFilter: 'blur(5px)',
+              transition: 'background 0.3s, color 0.3s, border-color 0.3s',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--gold)';
+              e.currentTarget.style.color = 'var(--gold)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--glass-border)';
+              e.currentTarget.style.color = 'var(--cream)';
+            }}
+          >
+            <ChevronRight size={24} />
+          </button>
         </div>
       </div>
 

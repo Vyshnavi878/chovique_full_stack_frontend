@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package,
@@ -28,6 +29,7 @@ import { apiPost } from '../../lib/api';
 import { adminService } from '../../services/adminService';
 
 export const ContactPage: React.FC = () => {
+  const location = useLocation();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -40,6 +42,20 @@ export const ContactPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace('#', '');
+      const el = document.getElementById(id);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [location.hash]);
 
   const [contactInfo, setContactInfo] = useState({
     phone: '+91 98765 43210',
@@ -349,7 +365,7 @@ export const ContactPage: React.FC = () => {
       </section>
 
       {/* MAIN 2-COLUMN SPLIT: FORM & SUPPORT CHANNELS */}
-      <section style={{ padding: '36px 0 50px 0', background: 'var(--black)' }}>
+      <section id="send-us-a-message" style={{ padding: '36px 0 50px 0', background: 'var(--black)' }}>
         <div className="container">
           <div
             style={{
