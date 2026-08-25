@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, User, LogOut, ChevronDown, Menu, X, Bell } from 'lucide-react';
 import { useApp } from '../app/providers';
 import { Button } from './ui/Button';
-import { BASE_URL } from '../lib/api';
+import { getImageUrl } from '../utils/imageUrl';
 import { NotificationHeaderDropdown } from './NotificationHeaderDropdown';
 
 export const Navbar: React.FC = () => {
@@ -24,15 +24,7 @@ export const Navbar: React.FC = () => {
     setAvatarError(false);
   }, [rawAvatar]);
 
-  const getAvatarSrc = (url?: string) => {
-    if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-      return url;
-    }
-    return url.startsWith('/') ? `${BASE_URL}${url}` : `${BASE_URL}/${url}`;
-  };
-
-  const avatarSrc = rawAvatar ? getAvatarSrc(rawAvatar) : '';
+  const avatarSrc = rawAvatar ? getImageUrl(rawAvatar) : '';
 
   // Close notifications and mobile menu on page/section navigation
   useEffect(() => {

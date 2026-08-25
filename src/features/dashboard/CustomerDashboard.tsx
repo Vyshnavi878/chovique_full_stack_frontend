@@ -48,7 +48,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { pageTransition } from '../../lib/framer';
 import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
-import { BASE_URL } from '../../lib/api';
+import { getImageUrl } from '../../utils/imageUrl';
 import { orderService } from '../../services/orderService';
 import { walletService, type CoinTransaction } from '../../services/walletService';
 import type { UserCoupon, CustomerAddress, SupportNotification } from '../../types';
@@ -1562,9 +1562,9 @@ export const CustomerDashboard: React.FC = () => {
 
                     {(() => {
                       const profileAvatarRaw = avatarPreviewUrl || user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
-                      const formattedAvatarUrl = profileAvatarRaw && !profileAvatarRaw.startsWith('http') && !profileAvatarRaw.startsWith('data:') && !profileAvatarRaw.startsWith('blob:')
-                        ? profileAvatarRaw.startsWith('/') ? `${BASE_URL}${profileAvatarRaw}` : `${BASE_URL}/${profileAvatarRaw}`
-                        : profileAvatarRaw;
+                      const formattedAvatarUrl = profileAvatarRaw && (profileAvatarRaw.startsWith('data:') || profileAvatarRaw.startsWith('blob:'))
+                        ? profileAvatarRaw
+                        : profileAvatarRaw ? getImageUrl(profileAvatarRaw) : '';
 
                       return formattedAvatarUrl && !imgLoadError ? (
                         <img
