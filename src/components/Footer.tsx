@@ -185,7 +185,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/our-story">
+                <Link to="/our-story#the-bean-to-bar-process">
                   Our Craft <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
@@ -202,22 +202,22 @@ export const Footer: React.FC = () => {
             <h3 className="footer-col-title">HELP</h3>
             <ul className="footer-nav-links">
               <li>
-                <Link to="/dashboard">
+                <Link to="/dashboard?section=orders">
                   Track My Order <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
               <li>
-                <Link to="/contact">
+                <Link to="dashboard?section=orders">
                   Shipping & Delivery <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
               <li>
-                <Link to="/contact">
+                <Link to="/dashboard?section=orders">
                   Returns & Refunds <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
               <li>
-                <Link to="/contact">
+                <Link to="/dashboard?section=support">
                   Help & Support <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
@@ -236,7 +236,7 @@ export const Footer: React.FC = () => {
             <button
               type="button"
               className="concierge-contact-btn"
-              onClick={() => navigate('/contact')}
+              onClick={() => navigate('/contact#send-us-a-message')}
             >
               <span>CONTACT CONCIERGE</span>
               <ArrowRight size={14} />
@@ -315,37 +315,42 @@ export const Footer: React.FC = () => {
           <div className="footer-bottom-right">
             <span className="secure-payments-label">SECURE PAYMENTS</span>
             <div className="payment-badges-row">
-              {/* Visa */}
-              <div className="payment-badge-pill" title="VISA">
-                <span style={{ fontWeight: 900, fontSize: '13px', color: '#1a1f71', fontFamily: 'sans-serif', fontStyle: 'italic', letterSpacing: '0.5px' }}>
-                  VISA
+              {/* Credit Card */}
+              <div className="payment-badge-pill" title="Credit Card">
+                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
+                  Credit Card
                 </span>
               </div>
-              {/* Mastercard */}
-              <div className="payment-badge-pill" title="Mastercard">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#eb001b', display: 'inline-block' }} />
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#f79e1b', display: 'inline-block', marginLeft: '-7px', opacity: 0.9 }} />
-                </span>
-              </div>
-              {/* RuPay */}
-              <div className="payment-badge-pill" title="RuPay">
-                <span style={{ fontWeight: 800, fontSize: '12px', color: '#00539c', fontFamily: 'sans-serif' }}>
-                  RuPay<span style={{ color: '#f37021' }}>❯</span>
+              {/* Debit Card */}
+              <div className="payment-badge-pill" title="Debit Card">
+                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
+                  Debit Card
                 </span>
               </div>
               {/* UPI */}
               <div className="payment-badge-pill" title="UPI">
-                <span style={{ fontWeight: 800, fontSize: '11px', color: '#0b8243', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <span style={{ fontWeight: 800, fontSize: '11px', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: '#0b8243' }}>U</span>
                   <span style={{ color: '#0e70b7' }}>P</span>
                   <span style={{ color: '#0b8243' }}>I</span>
                 </span>
               </div>
-              {/* Apple Pay */}
-              <div className="payment-badge-pill" title="Apple Pay">
-                <span style={{ fontWeight: 700, fontSize: '12px', color: '#000000', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                   Pay
+              {/* Google Pay */}
+              <div className="payment-badge-pill" title="Google Pay">
+                <span style={{ fontWeight: 700, fontSize: '11px', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '1px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#4285F4' }}>G</span>
+                  <span style={{ color: '#EA4335' }}>o</span>
+                  <span style={{ color: '#FBBC05' }}>o</span>
+                  <span style={{ color: '#4285F4' }}>g</span>
+                  <span style={{ color: '#34A853' }}>l</span>
+                  <span style={{ color: '#EA4335' }}>e</span>
+                  <span style={{ color: '#3c4043', marginLeft: '3px' }}>Pay</span>
+                </span>
+              </div>
+              {/* Cash on Delivery (COD) */}
+              <div className="payment-badge-pill" title="Cash on Delivery (COD)">
+                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
+                  COD
                 </span>
               </div>
             </div>
