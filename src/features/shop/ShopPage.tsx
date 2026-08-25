@@ -13,7 +13,6 @@ import {
   Heart,
   Loader2,
   X,
-  ChevronDown,
   Info,
   Plus,
 } from 'lucide-react';
@@ -41,11 +40,6 @@ export const ShopPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [categoriesList, setCategoriesList] = useState<{ value: string; label: string }[]>([
     { value: 'all', label: 'All Categories' },
-    { value: 'dark', label: 'Dark Collection' },
-    { value: 'milk', label: 'Milk Collection' },
-    { value: 'white', label: 'White Collection' },
-    { value: 'gift', label: 'Gift Hampers' },
-    { value: 'beverage', label: 'Truffles & Specialty' },
   ]);
 
   const [priceRange, setPriceRange] = useState({ min: 0, max: 50000 });
@@ -60,12 +54,10 @@ export const ShopPage: React.FC = () => {
   useEffect(() => {
     categoryService.getCategories()
       .then((cats) => {
-        if (Array.isArray(cats) && cats.length > 0) {
-          setCategoriesList([
-            { value: 'all', label: 'All Categories' },
-            ...cats.map((c) => ({ value: c.slug, label: c.name })),
-          ]);
-        }
+        setCategoriesList([
+          { value: 'all', label: 'All Categories' },
+          ...(Array.isArray(cats) ? cats.map((c) => ({ value: c.slug, label: c.name })) : []),
+        ]);
       })
       .catch((err) => console.error('Failed to fetch categories:', err));
   }, []);
@@ -235,13 +227,6 @@ export const ShopPage: React.FC = () => {
                     </button>
                   );
                 })}
-                <button
-                  className="chip-btn"
-                  onClick={() => setSelectedCategory('all')}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                >
-                  More <ChevronDown size={14} />
-                </button>
               </div>
             </div>
           </div>
