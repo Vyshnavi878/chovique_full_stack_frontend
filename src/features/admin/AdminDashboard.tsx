@@ -64,6 +64,7 @@ import { OfflineSalesView } from './OfflineSalesView';
 import { CreateCouponView } from './CreateCouponView';
 import { Product, OfflineSale, SystemUser, Banner } from '../../types';
 import { getImageUrl } from '../../utils/imageUrl';
+import { BASE_URL } from '../../lib/api';
 import {
   trimValue,
   isValidEmail,
@@ -1208,7 +1209,7 @@ export const AdminDashboard: React.FC = () => {
   const [isReplacingBannerImage, setIsReplacingBannerImage] = useState(false);
 
   const fetchSiteStats = () => {
-    fetch('http://localhost:8000/api/v1/home/stats')
+    fetch(`${BASE_URL}/home/stats`)
       .then((res) => res.json())
       .then((data) => {
         if (data && typeof data === 'object') {
@@ -1314,7 +1315,7 @@ export const AdminDashboard: React.FC = () => {
   const [isCreatingReel, setIsCreatingReel] = useState(false);
 
   const fetchCmsReels = () => {
-    fetch('http://localhost:8000/api/v1/home/reels')
+    fetch(`${BASE_URL}/home/reels`)
       .then((res) => res.json())
       .then((data) => { if (Array.isArray(data)) setCmsReels(data); })
       .catch(() => {});

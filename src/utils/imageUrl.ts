@@ -10,6 +10,9 @@ export const getImageUrl = (url?: string | null): string => {
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
     return url;
   }
-  const backendBase = (import.meta.env.VITE_API_URL as string)?.replace('/api/v1', '') || 'http://localhost:8000';
+  const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  const backendBase = rawApiUrl
+    ? rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')
+    : 'http://localhost:8000';
   return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
 };

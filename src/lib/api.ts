@@ -9,7 +9,16 @@
  *  - 401 → redirect to /login (session expired or not authenticated).
  */
 
-export const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1';
+const getNormalizedBaseUrl = (): string => {
+  const rawUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (!rawUrl) {
+    return 'http://localhost:8000/api/v1';
+  }
+  const cleanUrl = rawUrl.replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
+};
+
+export const BASE_URL = getNormalizedBaseUrl();
 
 /** Build default headers — JSON only, no auth header (cookies handle auth) */
 const buildHeaders = (isFormData = false): HeadersInit => {
