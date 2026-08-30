@@ -241,11 +241,15 @@ export const GiftHampers: React.FC = () => {
               ref={giftScrollRef}
               style={{
                 display: 'flex',
-                gap: '20px',
+                gap: '16px',
                 overflowX: 'auto',
                 scrollSnapType: 'x mandatory',
                 scrollBehavior: 'smooth',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehaviorX: 'contain',
                 padding: '4px 2px 16px 2px',
+                minWidth: 0,
+                width: '100%',
               }}
               className="hide-scrollbar"
             >
@@ -260,12 +264,13 @@ export const GiftHampers: React.FC = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.5, delay: index * 0.15 + 0.2 } },
                   }}
                   style={{
-                    flex: '0 0 calc(50% - 10px)',
-                    minWidth: '230px',
+                    flex: '0 0 clamp(200px, calc(50% - 8px), 260px)',
+                    minWidth: '200px',
                     maxWidth: '280px',
                     scrollSnapAlign: 'start',
                     display: 'flex',
                     flexDirection: 'column',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <Card product={product} />

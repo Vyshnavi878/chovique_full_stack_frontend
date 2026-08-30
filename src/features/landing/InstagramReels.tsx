@@ -179,7 +179,7 @@ export const InstagramReels: React.FC = () => {
           </p>
         </motion.div>
 
-        {/* Inline CSS to hide scrollbars */}
+        {/* Inline CSS to hide scrollbars & responsive helpers */}
         <style>{`
           .hide-scrollbar::-webkit-scrollbar {
             display: none;
@@ -188,19 +188,20 @@ export const InstagramReels: React.FC = () => {
             -ms-overflow-style: none;
             scrollbar-width: none;
           }
-          @media (max-width: 640px) {
+          @media (max-width: 768px) {
             .reels-carousel-wrapper {
-              padding: 0 40px !important;
+              padding: 0 42px !important;
             }
-            .reels-card-item {
-              flex: 0 0 250px !important;
-              width: 250px !important;
+          }
+          @media (max-width: 480px) {
+            .reels-carousel-wrapper {
+              padding: 0 36px !important;
             }
           }
         `}</style>
 
         {/* Slider Container Wrapper */}
-        <div className="reels-carousel-wrapper" style={{ position: 'relative', width: '100%', padding: '0 50px' }}>
+        <div className="reels-carousel-wrapper" style={{ position: 'relative', width: '100%', maxWidth: '100%', padding: '0 clamp(24px, 4vw, 50px)', boxSizing: 'border-box' }}>
           {/* Left Arrow Button */}
           <button
             onClick={(e) => {
@@ -213,8 +214,8 @@ export const InstagramReels: React.FC = () => {
               left: '0px',
               top: '50%',
               transform: 'translateY(-50%)',
-              width: '44px',
-              height: '44px',
+              width: 'clamp(36px, 4vw, 44px)',
+              height: 'clamp(36px, 4vw, 44px)',
               borderRadius: '50%',
               background: 'var(--glass-bg)',
               border: '1px solid var(--glass-border)',
@@ -224,9 +225,11 @@ export const InstagramReels: React.FC = () => {
               color: 'var(--cream)',
               zIndex: 10,
               boxShadow: 'var(--glass-shadow)',
-              backdropFilter: 'blur(5px)',
-              transition: 'background 0.3s, color 0.3s, border-color 0.3s',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              transition: 'background 0.3s, color 0.3s, border-color 0.3s, transform 0.2s',
               cursor: 'pointer',
+              flexShrink: 0,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--gold)';
@@ -237,7 +240,7 @@ export const InstagramReels: React.FC = () => {
               e.currentTarget.style.color = 'var(--cream)';
             }}
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={20} />
           </button>
 
           {/* Horizontal Reel Slider */}
@@ -245,11 +248,15 @@ export const InstagramReels: React.FC = () => {
             ref={scrollRef}
             style={{
               display: 'flex',
-              gap: '24px',
+              gap: 'clamp(14px, 2vw, 24px)',
               overflowX: 'auto',
               scrollSnapType: 'x mandatory',
               scrollBehavior: 'smooth',
-              padding: '10px 0 30px 0',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorX: 'contain',
+              padding: '10px 2px 30px 2px',
+              minWidth: 0,
+              width: '100%',
             }}
             className="hide-scrollbar"
           >
@@ -262,10 +269,10 @@ export const InstagramReels: React.FC = () => {
                   layout
                   className="reels-card-item"
                   style={{
-                    flex: '0 0 280px',
-                    width: '280px',
+                    flex: '0 0 clamp(240px, 260px, 280px)',
+                    width: 'clamp(240px, 260px, 280px)',
                     maxWidth: '280px',
-                    height: '480px',
+                    height: 'clamp(420px, 58vh, 480px)',
                     scrollSnapAlign: 'start',
                     position: 'relative',
                     borderRadius: '16px',
@@ -275,6 +282,7 @@ export const InstagramReels: React.FC = () => {
                     boxShadow: 'var(--glass-shadow)',
                     cursor: 'pointer',
                     transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+                    boxSizing: 'border-box',
                   }}
                   onMouseEnter={() => handleReelMouseEnter(reel.id)}
                   onMouseLeave={() => handleReelMouseLeave(reel.id)}

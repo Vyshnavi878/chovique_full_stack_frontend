@@ -31,7 +31,7 @@ export const LandingPage: React.FC = () => {
   }, [location.state]);
 
   return (
-    <div style={{ background: 'var(--black)', width: '100vw', overflowX: 'hidden' }}>
+    <div style={{ background: 'var(--black)', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Hero />
       <PopularProducts />
       <BestsellersNewArrivals />

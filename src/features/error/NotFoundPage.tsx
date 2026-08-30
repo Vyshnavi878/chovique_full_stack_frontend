@@ -16,7 +16,8 @@ export const NotFoundPage: React.FC = () => {
       exit="exit"
       style={{
         height: '100vh',
-        width: '100vw',
+        width: '100%',
+        maxWidth: '100%',
         background: 'var(--gradient-hero)',
         display: 'flex',
         alignItems: 'center',
