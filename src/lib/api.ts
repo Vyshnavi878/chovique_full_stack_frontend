@@ -20,14 +20,16 @@ const getNormalizedBaseUrl = (): string => {
 
 export const BASE_URL = getNormalizedBaseUrl();
 
-let memoryToken: string | null = null;
-
 export const setAuthToken = (token?: string | null): void => {
-  memoryToken = token || null;
+  if (token) {
+    localStorage.setItem('chovique_access_token', token);
+  } else {
+    localStorage.removeItem('chovique_access_token');
+  }
 };
 
 export const getAuthToken = (): string | null => {
-  return memoryToken;
+  return localStorage.getItem('chovique_access_token');
 };
 
 /** Build default headers — JSON + Bearer token fallback (cookies also sent via credentials: include) */

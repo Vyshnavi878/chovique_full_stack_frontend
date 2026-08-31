@@ -37,6 +37,16 @@ export const ProductDetails: React.FC = () => {
   }, [id, products, navigate]);
 
 
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (product) {
+      import('../../services/productService').then(({ productService }) => {
+        productService.getRelatedProducts(product.id, 4).then(setRelatedProducts);
+      });
+    }
+  }, [product]);
+
   if (!product) return null;
 
   const isLiked = wishlist.some((p) => p.id === product.id);
@@ -108,15 +118,6 @@ export const ProductDetails: React.FC = () => {
     setZoomOrigin(`${x}% ${y}%`);
   };
 
-  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (product) {
-      import('../../services/productService').then(({ productService }) => {
-        productService.getRelatedProducts(product.id, 4).then(setRelatedProducts);
-      });
-    }
-  }, [product]);
 
   return (
     <motion.div
