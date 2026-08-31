@@ -2856,12 +2856,23 @@ export const CustomerDashboard: React.FC = () => {
                       (() => {
                         const filteredList = orders
                           .filter((ord) => {
+                            // Hide incomplete/failed online payment orders
+                            const paymentMethodStr = (ord.payment_method || ord.paymentMethod || '').toLowerCase();
+                            const isOnline = !['cash on delivery', 'cod'].includes(paymentMethodStr);
+                            
+                            const ordStatus = ord.status || '';
+                            const payStatus = ord.payment_status || '';
+                            
+                            if (isOnline && (ordStatus.toUpperCase() === 'PENDING') && (payStatus.toUpperCase() === 'PENDING' || payStatus.toUpperCase() === 'FAILED')) {
+                              return false;
+                            }
+
                             if (orderStatusFilter !== 'All') {
-                              if (ord.status.toLowerCase() !== orderStatusFilter.toLowerCase()) return false;
+                              if (ordStatus.toLowerCase() !== orderStatusFilter.toLowerCase()) return false;
                             }
                             if (orderSearchQuery.trim() !== '') {
                               const q = orderSearchQuery.trim().toLowerCase();
-                              if (!ord.id.toLowerCase().includes(q)) return false;
+                              if (!(ord.id || '').toLowerCase().includes(q)) return false;
                             }
                             return true;
                           })

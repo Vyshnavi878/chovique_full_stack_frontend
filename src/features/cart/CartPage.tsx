@@ -90,7 +90,7 @@ export const CartPage: React.FC = () => {
   // Shipping
   const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
   const standardShipping = storeConfig?.standard_shipping_charge ?? 50;
-  const shippingAmount = subtotal > freeShippingMin || subtotal === 0 ? 0 : standardShipping;
+  const shippingAmount = (freeShippingMin > 0 && subtotal >= freeShippingMin) || subtotal === 0 ? 0 : standardShipping;
 
   // Tax
   const gstRate = storeConfig?.gst_rate ?? 0;

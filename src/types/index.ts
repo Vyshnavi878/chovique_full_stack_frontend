@@ -139,6 +139,7 @@ export interface Order {
   shippingAddress: CustomerAddress;
   deliveryOption: string;
   paymentMethod: string;
+  payment_method?: string;
   customerName?: string;
   customerEmail?: string;
   invoice_url?: string;

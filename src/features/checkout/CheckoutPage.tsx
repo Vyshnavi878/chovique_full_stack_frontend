@@ -224,7 +224,7 @@ export const CheckoutPage: React.FC = () => {
   // Shipping
   const freeShippingMin = storeConfig?.free_shipping_min_order ?? 500;
   const standardShipping = storeConfig?.standard_shipping_charge ?? 50;
-  const shippingFee = subtotal >= freeShippingMin || subtotal === 0 ? 0 : standardShipping;
+  const shippingFee = (freeShippingMin > 0 && subtotal >= freeShippingMin) || subtotal === 0 ? 0 : standardShipping;
 
   // Tax
   const gstRate = storeConfig?.gst_rate ?? 0;
