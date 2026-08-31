@@ -24,21 +24,10 @@ let memoryToken: string | null = null;
 
 export const setAuthToken = (token?: string | null): void => {
   memoryToken = token || null;
-  if (typeof window !== 'undefined') {
-    if (token) {
-      sessionStorage.setItem('chovique_access_token', token);
-    } else {
-      sessionStorage.removeItem('chovique_access_token');
-    }
-  }
 };
 
 export const getAuthToken = (): string | null => {
-  if (memoryToken) return memoryToken;
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem('chovique_access_token');
-  }
-  return null;
+  return memoryToken;
 };
 
 /** Build default headers — JSON + Bearer token fallback (cookies also sent via credentials: include) */
