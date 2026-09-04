@@ -3298,7 +3298,7 @@ export const SuperadminDashboard: React.FC = () => {
                     Collections &amp; Revenue (₹ Received vs Pending)
                   </span>
                 </div>
-                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '16px', marginBottom: '20px' }}>
                   {/* Card 1: TOTAL REVENUE */}
                   <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.35)', borderRadius: '12px', borderTop: '3px solid #c9a84c' }}>
                     <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
@@ -3361,7 +3361,7 @@ export const SuperadminDashboard: React.FC = () => {
                     Order Volume &amp; Status Breakdown
                   </span>
                 </div>
-                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                   {/* Card 5: TOTAL ORDERS */}
                   <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(52, 152, 219, 0.35)', borderRadius: '12px', borderTop: '3px solid #3498db' }}>
                     <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
@@ -3956,30 +3956,36 @@ export const SuperadminDashboard: React.FC = () => {
             {/* Date Preset Filter Bar */}
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
                 marginBottom: '20px',
-                flexWrap: 'wrap',
                 background: 'rgba(20, 16, 13, 0.85)',
-                padding: '12px 18px',
+                padding: '14px 18px',
                 borderRadius: '10px',
                 border: '1px solid rgba(201, 168, 76, 0.25)',
               }}
             >
-              {/* Presets Pills - scrollable horizontally on mobile */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  overflowX: 'auto',
-                  WebkitOverflowScrolling: 'touch',
-                  paddingBottom: '4px',
-                  maxWidth: '100%',
+              {/* MOBILE: Dropdown selector */}
+              <select
+                className="sales-period-dropdown"
+                value={salesPreset}
+                onChange={(e) => {
+                  setSalesPreset(e.target.value as any);
+                  setSalesProductsPage(1);
+                  setOnlineLedgerPage(1);
+                  setOfflineLedgerPage(1);
                 }}
               >
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last_7_days">Last 7 Days</option>
+                <option value="last_30_days">Last 30 Days</option>
+                <option value="this_month">This Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="all_time">All Time</option>
+                <option value="custom">Custom Range</option>
+              </select>
+
+              {/* DESKTOP: Pill buttons */}
+              <div className="sales-period-pills">
                 <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
                   Period:
                 </span>
@@ -4024,7 +4030,7 @@ export const SuperadminDashboard: React.FC = () => {
 
               {/* Custom Date Pickers when custom is selected */}
               {salesPreset === 'custom' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
                   <input
                     type="date"
                     value={salesDateFrom}
@@ -4038,6 +4044,8 @@ export const SuperadminDashboard: React.FC = () => {
                       padding: '6px 10px',
                       fontSize: '0.82rem',
                       cursor: 'pointer',
+                      flex: 1,
+                      minWidth: '130px',
                     }}
                   />
                   <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
@@ -4054,6 +4062,8 @@ export const SuperadminDashboard: React.FC = () => {
                       padding: '6px 10px',
                       fontSize: '0.82rem',
                       cursor: 'pointer',
+                      flex: 1,
+                      minWidth: '130px',
                     }}
                   />
                   <Button
@@ -4072,18 +4082,8 @@ export const SuperadminDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Sub-tab Navigation - Plain human language without corporate jargon */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '10px',
-                marginBottom: '24px',
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                borderBottom: '1px solid rgba(201, 168, 76, 0.2)',
-                paddingBottom: '12px',
-              }}
-            >
+            {/* Sub-tab Navigation */}
+            <div className="sales-sub-tab-strip">
               {[
                 { id: 'products' as const, label: 'Overview', icon: BarChart3 },
                 { id: 'online' as const, label: 'Online Orders', icon: Globe },
@@ -4167,10 +4167,10 @@ export const SuperadminDashboard: React.FC = () => {
                     {/* 10 SALES, ORDERS & STOCK KPI CARDS (STRICTLY NO REVENUE) */}
                     <div>
                       <h3 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, margin: '0 0 12px 0' }}>
-                        Core Sales & Orders KPIs
+                        Core Sales &amp; Orders KPIs
                       </h3>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+                      <div className="sales-kpi-grid">
                         {/* 1. Total Orders */}
                         <div
                           className="dashboard-stat-card glass-panel"
@@ -4181,20 +4181,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(20, 16, 13, 0.7)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              TOTAL ORDERS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600 }}>
-                              All Placed
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label">Total Orders</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              All
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.total_orders?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.total_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.total_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.total_orders?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.total_orders?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.total_orders?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4208,20 +4206,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(20, 16, 13, 0.7)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              TOTAL UNITS SOLD
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600 }}>
-                              Total Items
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label">Units Sold</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Total
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.total_units_sold?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.total_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.total_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.total_units_sold?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.total_units_sold?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.total_units_sold?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4235,20 +4231,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(93, 173, 226, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#5dade2', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              ONLINE ORDERS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600 }}>
-                              Web/App
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#5dade2' }}>Online Orders</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Web
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.online_orders?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.online_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.online_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.online_orders?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.online_orders?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.online_orders?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4262,20 +4256,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(93, 173, 226, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#5dade2', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              ONLINE UNITS SOLD
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600 }}>
-                              Digital Store
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#5dade2' }}>Online Units</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Digital
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.online_units_sold?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.online_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.online_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.online_units_sold?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.online_units_sold?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.online_units_sold?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4289,20 +4281,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(230, 126, 34, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              OFFLINE ORDERS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600 }}>
-                              POS Receipts
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#e67e22' }}>Store Orders</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              POS
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.offline_orders?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.offline_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.offline_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.offline_orders?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.offline_orders?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.offline_orders?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4316,20 +4306,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(230, 126, 34, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              OFFLINE UNITS SOLD
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600 }}>
-                              Store POS
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#e67e22' }}>Store Units</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              POS
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.offline_units_sold?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.offline_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.offline_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.offline_units_sold?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.offline_units_sold?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.offline_units_sold?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4343,20 +4331,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(241, 196, 15, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#f1c40f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              PENDING ORDERS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(241, 196, 15, 0.15)', color: '#f1c40f', fontWeight: 600 }}>
-                              Processing
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#f1c40f' }}>Pending</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(241, 196, 15, 0.15)', color: '#f1c40f', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Queue
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.pending_orders?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.pending_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.pending_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.pending_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.pending_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.pending_orders?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.pending_orders?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.pending_orders?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4370,20 +4356,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(231, 76, 60, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              CANCELLED ORDERS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600 }}>
-                              Returned/Void
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#e74c3c' }}>Cancelled</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Void
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.cancelled_orders?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.cancelled_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: (displaySalesProducts.kpis?.cancelled_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c', flexWrap: 'wrap' }}>
                             <span>{(displaySalesProducts.kpis?.cancelled_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.cancelled_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.cancelled_orders?.percentage_change}%`}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.cancelled_orders?.comparison_label}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400, fontSize: '0.68rem' }}>{displaySalesProducts.kpis?.cancelled_orders?.comparison_label}</span>
                           </div>
                         </div>
 
@@ -4397,20 +4381,18 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(46, 204, 113, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#2ecc71', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              CURRENT STOCK
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', fontWeight: 600 }}>
-                              Live Inventory
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#2ecc71' }}>Stock</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Live
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.current_stock?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: '#2ecc71' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: '#2ecc71', flexWrap: 'wrap' }}>
                             <Package size={12} />
-                            <span>{displaySalesProducts.inventory_summary?.total_catalog_products || 0} active products in catalog</span>
+                            <span>{displaySalesProducts.inventory_summary?.total_catalog_products || 0} active products</span>
                           </div>
                         </div>
 
@@ -4424,18 +4406,16 @@ export const SuperadminDashboard: React.FC = () => {
                             background: 'rgba(231, 76, 60, 0.05)',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-                              LOW STOCK PRODUCTS
-                            </span>
-                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600 }}>
-                              ≤ 10 Units
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <span className="sales-kpi-label" style={{ color: '#e74c3c' }}>Low Stock</span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              ≤10
                             </span>
                           </div>
                           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
                             {Math.round(displaySalesProducts.kpis?.low_stock_products?.current_value ?? 0).toLocaleString()}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: '#e74c3c' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, color: '#e74c3c', flexWrap: 'wrap' }}>
                             <AlertTriangle size={12} />
                             <span>{displaySalesProducts.inventory_summary?.out_of_stock_count || 0} out of stock</span>
                           </div>
@@ -4456,15 +4436,15 @@ export const SuperadminDashboard: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
                         <div>
                           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                            Sales & Order Placement Trend
+                            Sales &amp; Order Trend
                           </h3>
                           <p style={{ color: 'var(--beige)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
-                            Daily volume curve for {salesChartMetric === 'orders' ? 'Orders Placed' : 'Units Sold'} across sales channels
+                            Daily {salesChartMetric === 'orders' ? 'Orders' : 'Units Sold'} — {salesChartChannel === 'all' ? 'All Channels' : salesChartChannel === 'online' ? 'Online' : 'Store'}
                           </p>
                         </div>
 
                         {/* Chart View Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <div className="sales-chart-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           {/* Metric Toggle: Orders vs Units */}
                           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '3px', border: '1px solid rgba(255,255,255,0.1)' }}>
                             <button
@@ -4614,7 +4594,7 @@ export const SuperadminDashboard: React.FC = () => {
                       <h3 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, margin: '0 0 12px 0' }}>
                         Inventory & Fulfillment Overview
                       </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '14px' }}>
                         <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(201, 168, 76, 0.25)', background: 'rgba(20, 16, 13, 0.7)' }}>
                           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Total Current Stock</span>
                           <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f5efe6', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
@@ -5417,7 +5397,7 @@ export const SuperadminDashboard: React.FC = () => {
                       </div>
 
                       {/* Customer & Status Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '16px', marginBottom: '20px' }}>
                         <div style={{ background: 'rgba(255,255,255,0.025)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer</span>
                           <div style={{ fontWeight: 600, marginTop: '3px', color: '#f5efe6' }}>{selectedOrderForModal.customer_name}</div>
