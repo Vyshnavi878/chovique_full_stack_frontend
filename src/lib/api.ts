@@ -12,9 +12,14 @@
 const getNormalizedBaseUrl = (): string => {
   const rawUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (!rawUrl) {
-    return 'http://localhost:8000/api/v1';
+    return 'http://127.0.0.1:8000/api/v1';
   }
-  const cleanUrl = rawUrl.replace(/\/+$/, '');
+  let cleanUrl = rawUrl.replace(/\/+$/, '');
+  // On Windows, Chromium resolves 'localhost' to IPv6 [::1] where Python uvicorn
+  // is often not bound. Map localhost:8000 -> 127.0.0.1:8000 for seamless local dev.
+  if (cleanUrl.includes('localhost:8000')) {
+    cleanUrl = cleanUrl.replace('localhost:8000', '127.0.0.1:8000');
+  }
   return cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
 };
 
@@ -86,6 +91,19 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   try {
     return await fetch(input, init);
   } catch (err: unknown) {
+    // If request failed and URL contains localhost:8000, fallback to 127.0.0.1:8000
+    if (typeof input === 'string' && input.includes('localhost:8000')) {
+      try {
+        const fallbackUrl = input.replace('localhost:8000', '127.0.0.1:8000');
+        return await fetch(fallbackUrl, init);
+      } catch {}
+    } else if (input instanceof URL && input.host === 'localhost:8000') {
+      try {
+        const fallbackUrl = new URL(input.toString().replace('localhost:8000', '127.0.0.1:8000'));
+        return await fetch(fallbackUrl, init);
+      } catch {}
+    }
+    console.warn('safeFetch connection error:', err, input);
     throw new ApiError(
       0,
       'Unable to connect to the backend API server. Please verify your network connection or that the API service is reachable.'
@@ -268,6 +286,17 @@ export const apiPatch = async <T>(path: string, body?: unknown): Promise<T> => {
     headers: buildHeaders(),
     credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return response.json() as Promise<T>;
+};
+
+/** Core PATCH request with FormData (multipart) */
+export const apiPatchFormData = async <T>(path: string, formData: FormData): Promise<T> => {
+  const response = await fetchWithAuth(path, {
+    method: 'PATCH',
+    headers: buildHeaders(true),
+    credentials: 'include',
+    body: formData,
   });
   return response.json() as Promise<T>;
 };

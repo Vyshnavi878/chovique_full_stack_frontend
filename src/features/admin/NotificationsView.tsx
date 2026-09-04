@@ -332,7 +332,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           </div>
         ) : (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+            <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
               <thead>
                 <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>NOTIFICATION</th>

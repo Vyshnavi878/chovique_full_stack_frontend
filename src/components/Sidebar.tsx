@@ -20,8 +20,9 @@ import {
   X,
   Mail,
   BarChart3,
-  Bell
+  Bell,
 } from 'lucide-react';
+import { NotificationHeaderDropdown } from './NotificationHeaderDropdown';
 import { useApp } from '../app/providers';
 
 interface SidebarProps {
@@ -72,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     { id: 'sales-comparison', label: 'Sales Analytics', icon: Database },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
     { id: 'admin-mgmt', label: 'Admin Management', icon: Users },
+    { id: 'customers', label: 'Customer Directory', icon: Users },
     { id: 'audit-logs', label: 'Audit Logs', icon: FileClock },
     { id: 'theme-builder', label: 'Theme Builder', icon: Palette },
     { id: 'platform-settings', label: 'Platform Settings', icon: Settings },
@@ -112,9 +114,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
             </span>
           </div>
 
-          <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 600 }}>
-            {role === 'superadmin' ? 'S.Admin' : 'Admin'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 600 }}>
+              {role === 'superadmin' ? 'S.Admin' : 'Admin'}
+            </span>
+            <NotificationHeaderDropdown onNavigateTab={setActiveTab} isSuperadmin={role === 'superadmin'} />
+          </div>
         </div>
       )}
 

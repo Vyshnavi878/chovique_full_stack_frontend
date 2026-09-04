@@ -11,8 +11,11 @@ export const getImageUrl = (url?: string | null): string => {
     return url;
   }
   const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-  const backendBase = rawApiUrl
+  let backendBase = rawApiUrl
     ? rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')
-    : 'http://localhost:8000';
+    : 'http://127.0.0.1:8000';
+  if (backendBase.includes('localhost:8000')) {
+    backendBase = backendBase.replace('localhost:8000', '127.0.0.1:8000');
+  }
   return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
 };

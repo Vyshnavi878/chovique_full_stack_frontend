@@ -131,6 +131,17 @@ export const CustomerDashboard: React.FC = () => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const mobileTabs: { id: CustomerTab; label: string; icon: React.FC<{ size?: number }> }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'orders', label: 'Orders', icon: ShoppingBag },
+    { id: 'profile', label: 'My Profile', icon: User },
+    { id: 'addresses', label: 'Addresses', icon: MapPin },
+    { id: 'coupons', label: 'Coupons', icon: Tag },
+    { id: 'rewards', label: 'Rewards', icon: Coins },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'help', label: 'Help', icon: AlertTriangle },
+  ];
+
   useEffect(() => {
     // 1. Check URL query parameters (e.g. ?section=orders or ?section=support)
     const searchParams = new URLSearchParams(location.search);
@@ -155,6 +166,8 @@ export const CustomerDashboard: React.FC = () => {
         setActiveTab('settings');
       } else if (lower === 'notifications') {
         setActiveTab('notifications');
+      } else if (lower === 'overview') {
+        setActiveTab('overview');
       }
     }
 
@@ -162,9 +175,12 @@ export const CustomerDashboard: React.FC = () => {
     const navState = location.state as { tab?: CustomerTab } | null;
     if (navState?.tab) {
       setActiveTab(navState.tab);
-      navigate('/dashboard', { replace: true, state: {} });
+      if (navState.tab === 'orders') {
+        setSelectedOrder(null);
+        setOrderSubView('list');
+      }
     }
-  }, [location.search, location.state, navigate]);
+  }, [location.search, location.state]);
 
   // Redirect if guest/non-customer accesses directly
   useEffect(() => {
@@ -446,7 +462,25 @@ export const CustomerDashboard: React.FC = () => {
     }
     setActiveTab(newTab);
     setIsSidebarOpen(false);
+    if (newTab === 'orders') {
+      setSelectedOrder(null);
+      setOrderSubView('list');
+    }
   };
+
+  // Listen for custom event dispatched from top Navbar mobile menu
+  useEffect(() => {
+    const handleCustomTabSwitch = (e: Event) => {
+      const customEvent = e as CustomEvent<CustomerTab>;
+      if (customEvent.detail) {
+        handleTabChange(customEvent.detail);
+      }
+    };
+    window.addEventListener('chovique:switch-dashboard-tab', handleCustomTabSwitch);
+    return () => {
+      window.removeEventListener('chovique:switch-dashboard-tab', handleCustomTabSwitch);
+    };
+  }, [activeTab, isProfileDirty]);
 
   const handleConfirmDiscard = () => {
     if (user) {
@@ -1207,27 +1241,28 @@ export const CustomerDashboard: React.FC = () => {
 
         {/* Right Main Content Workspace Panel */}
         <main className="customer-workspace-main">
-          {/* Top Header Bar with Mobile Drawer Trigger */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
-            <button
-              className="dashboard-mobile-trigger"
-              onClick={() => setIsSidebarOpen(true)}
-              style={{ margin: 0 }}
-            >
-              <Menu size={18} />
-              <span>Customer Dashboard Menu</span>
-            </button>
-          </div>
+          {/* ── Mobile Horizontal Scrollable Tabs Bar (mobile/tablet ≤1024px) ── */}
+          {/* REMOVED: Top mobile nav tabs are duplicated and unnecessary on mobile views */}
+
 
           {/* OVERVIEW PANEL */}
           {activeTab === 'overview' && (
             <div>
               {/* Welcome Title Banner */}
-              <div style={{ marginBottom: '28px' }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+              <div style={{ marginBottom: '28px', marginTop: isMobileGrid ? '-12px' : '0' }}>
+                <h1 style={{ 
+                  fontFamily: 'var(--font-display)', 
+                  fontSize: isMobileGrid ? '1.8rem' : '2.1rem', 
+                  color: '#f5efe6', 
+                  margin: '0 0 6px 0', 
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
                   {orders.length === 0
-                    ? `Welcome, ${user.name ? user.name.split(' ')[0] : ''}! 👋`
-                    : `Welcome back, ${user.name ? user.name.split(' ')[0] : ''}! 👋`
+                    ? `Welcome, ${user.name ? user.name.split(' ')[0] : ''}!`
+                    : `Welcome back, ${user.name ? user.name.split(' ')[0] : ''}!`
                   }
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.92rem', margin: 0 }}>
@@ -1361,56 +1396,51 @@ export const CustomerDashboard: React.FC = () => {
                           <div
                             key={ord.id}
                             style={{
-                              padding: '12px 14px',
+                              padding: isMobileGrid ? '12px' : '12px 14px',
                               background: 'rgba(0,0,0,0.3)',
                               border: '1px solid rgba(255,255,255,0.06)',
                               borderRadius: '8px',
-                              display: 'grid',
-                              gridTemplateColumns: '1fr auto auto',
-                              alignItems: 'center',
-                              gap: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
                             }}
                           >
-                            {/* LEFT: thumbnail + order meta */}
+                            {/* TOP ROW: thumbnail + order meta */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                               <img
                                 src={ord.items[0]?.product?.image || ord.items[0]?.product?.images?.[0] || 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80'}
                                 alt="Product"
                                 style={{ width: '44px', height: '44px', flexShrink: 0, borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.2)' }}
                               />
-                              <div style={{ minWidth: 0 }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
                                 <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.82rem', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ord.id}</span>
-                                <span style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', display: 'block', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                  {ord.date} &middot; {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
+                                <span style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', display: 'block', marginTop: '2px' }}>
+                                  {ord.date} · {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
                                 </span>
                               </div>
                             </div>
 
-                            {/* MIDDLE: amount + status badge */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                              <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
-                                ₹{ord.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  padding: '2px 7px',
-                                  borderRadius: '4px',
-                                  display: 'inline-block',
-                                  whiteSpace: 'nowrap',
-                                  marginTop: '4px',
-                                  background: statusBg,
-                                  color: statusColor,
-                                  border: statusBorder,
-                                }}
-                              >
-                                {ord.status}
-                              </span>
-                            </div>
-
-                            {/* RIGHT: View Details button */}
-                            <div style={{ flexShrink: 0 }}>
+                            {/* BOTTOM ROW: amount, status, button */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
+                                  ₹{ord.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    background: statusBg,
+                                    color: statusColor,
+                                    border: statusBorder,
+                                  }}
+                                >
+                                  {ord.status}
+                                </span>
+                              </div>
                               <button
                                 onClick={() => {
                                   setSelectedOrder(ord);
@@ -2769,77 +2799,149 @@ export const CustomerDashboard: React.FC = () => {
 
                     {/* Filter Tabs & Search Row */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '28px' }}>
-                      {/* Status Filters */}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {['All Orders', 'Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Returned'].map((statusOption) => {
-                          const filterVal = statusOption === 'All Orders' ? 'All' : statusOption;
-                          const isActive = orderStatusFilter === filterVal;
-                          return (
-                            <button
-                              key={statusOption}
-                              type="button"
-                              onClick={() => setOrderStatusFilter(filterVal)}
+                      {!isMobileGrid ? (
+                        <>
+                          {/* Desktop: Status Filters Buttons */}
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {['All Orders', 'Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Returned'].map((statusOption) => {
+                              const filterVal = statusOption === 'All Orders' ? 'All' : statusOption;
+                              const isActive = orderStatusFilter === filterVal;
+                              return (
+                                <button
+                                  key={statusOption}
+                                  type="button"
+                                  onClick={() => setOrderStatusFilter(filterVal)}
+                                  style={{
+                                    padding: '8px 18px',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    border: isActive ? '1px solid #c9a84c' : '1px solid rgba(201, 168, 76, 0.2)',
+                                    background: isActive ? '#c9a84c' : 'rgba(18, 14, 11, 0.95)',
+                                    color: isActive ? '#0f0c0a' : 'rgba(255, 255, 255, 0.8)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                >
+                                  {statusOption}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Desktop: Search Input & Sort Dropdown */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+                            <div style={{ position: 'relative', width: '320px' }}>
+                              <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)' }} />
+                              <input
+                                type="text"
+                                placeholder="Search by Order ID"
+                                value={orderSearchQuery}
+                                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px 10px 38px',
+                                  borderRadius: '8px',
+                                  background: 'rgba(18, 14, 11, 0.95)',
+                                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                                  color: '#f5efe6',
+                                  fontSize: '0.88rem',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+                            <select
+                              value={orderSortOrder}
+                              onChange={(e) => setOrderSortOrder(e.target.value as 'newest' | 'oldest')}
                               style={{
-                                padding: '8px 18px',
+                                padding: '10px 16px',
                                 borderRadius: '8px',
-                                fontSize: '0.85rem',
-                                fontWeight: 700,
-                                border: isActive ? '1px solid #c9a84c' : '1px solid rgba(201, 168, 76, 0.2)',
-                                background: isActive ? '#c9a84c' : 'rgba(18, 14, 11, 0.95)',
-                                color: isActive ? '#0f0c0a' : 'rgba(255, 255, 255, 0.8)',
+                                background: '#120e0b',
+                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                color: '#f5efe6',
+                                fontSize: '0.88rem',
+                                outline: 'none',
                                 cursor: 'pointer',
-                                transition: 'all 0.2s ease',
                               }}
                             >
-                              {statusOption}
-                            </button>
-                          );
-                        })}
-                      </div>
+                              <option value="newest" style={{ background: '#120e0b' }}>Newest First</option>
+                              <option value="oldest" style={{ background: '#120e0b' }}>Oldest First</option>
+                            </select>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Mobile: Search Input Top */}
+                          <div style={{ position: 'relative', width: '100%' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)' }} />
+                            <input
+                              type="text"
+                              placeholder="Search by Order ID"
+                              value={orderSearchQuery}
+                              onChange={(e) => setOrderSearchQuery(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px 10px 38px',
+                                borderRadius: '8px',
+                                background: 'rgba(18, 14, 11, 0.95)',
+                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                color: '#f5efe6',
+                                fontSize: '0.88rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
 
-                      {/* Search Input & Sort Dropdown */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-                        {/* Search Input */}
-                        <div style={{ position: 'relative', width: isMobileGrid ? '100%' : '320px' }}>
-                          <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)' }} />
-                          <input
-                            type="text"
-                            placeholder="Search by Order ID"
-                            value={orderSearchQuery}
-                            onChange={(e) => setOrderSearchQuery(e.target.value)}
-                            style={{
-                              width: '100%',
-                              padding: '10px 14px 10px 38px',
-                              borderRadius: '8px',
-                              background: 'rgba(18, 14, 11, 0.95)',
-                              border: '1px solid rgba(201, 168, 76, 0.3)',
-                              color: '#f5efe6',
-                              fontSize: '0.88rem',
-                              outline: 'none',
-                              boxSizing: 'border-box',
-                            }}
-                          />
-                        </div>
+                          {/* Mobile: Status Dropdown & Sort Dropdown side by side */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <select
+                              value={orderStatusFilter === 'All' ? 'All Orders' : orderStatusFilter}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setOrderStatusFilter(val === 'All Orders' ? 'All' : val);
+                              }}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: '#120e0b',
+                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                color: '#f5efe6',
+                                fontSize: '0.85rem',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                width: '100%',
+                              }}
+                            >
+                              {['All Orders', 'Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Returned'].map((statusOption) => (
+                                <option key={statusOption} value={statusOption} style={{ background: '#120e0b' }}>
+                                  {statusOption}
+                                </option>
+                              ))}
+                            </select>
 
-                        {/* Sort Dropdown */}
-                        <select
-                          value={orderSortOrder}
-                          onChange={(e) => setOrderSortOrder(e.target.value as 'newest' | 'oldest')}
-                          style={{
-                            padding: '10px 16px',
-                            borderRadius: '8px',
-                            background: '#120e0b',
-                            border: '1px solid rgba(201, 168, 76, 0.3)',
-                            color: '#f5efe6',
-                            fontSize: '0.88rem',
-                            outline: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <option value="newest" style={{ background: '#120e0b' }}>Newest First</option>
-                          <option value="oldest" style={{ background: '#120e0b' }}>Oldest First</option>
-                        </select>
-                      </div>
+                            <select
+                              value={orderSortOrder}
+                              onChange={(e) => setOrderSortOrder(e.target.value as 'newest' | 'oldest')}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: '#120e0b',
+                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                color: '#f5efe6',
+                                fontSize: '0.85rem',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                width: '100%',
+                              }}
+                            >
+                              <option value="newest" style={{ background: '#120e0b' }}>Newest First</option>
+                              <option value="oldest" style={{ background: '#120e0b' }}>Oldest First</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Order Cards List */}
@@ -2925,9 +3027,9 @@ export const CustomerDashboard: React.FC = () => {
                                     padding: '24px',
                                     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                                     display: 'grid',
-                                    gridTemplateColumns: isMobileGrid ? '1fr' : '1.3fr 1.1fr 1.3fr',
+                                    gridTemplateColumns: isMobileGrid ? '1fr' : '1.5fr 1.2fr 1fr',
                                     gap: '24px',
-                                    alignItems: 'center',
+                                    alignItems: 'start',
                                   }}
                                 >
                                   {/* Left: Product Thumbnail & Order Info */}
@@ -3030,38 +3132,38 @@ export const CustomerDashboard: React.FC = () => {
                                   </div>
 
                                   {/* Middle: Item details & Calculation breakdown */}
-                                  <div style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.75)', lineHeight: 1.6 }}>
+                                  <div style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.75)', lineHeight: 1.6, width: '100%' }}>
                                     <div style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.92rem', marginBottom: '6px' }}>
                                       {prodName} {totalQty > 1 ? `(x${totalQty})` : ''}
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                       <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Subtotal</span>
                                       <span style={{ color: '#f5efe6' }}>₹{(ord.subtotal || ord.total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                     {(ord.coupon_discount || 0) > 0 && (
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                         <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Coupon Discount</span>
                                         <span style={{ color: '#2ecc71' }}>- ₹{(ord.coupon_discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                       </div>
                                     )}
                                     {(ord.coin_discount || 0) > 0 && (
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                         <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Coin Discount</span>
                                         <span style={{ color: '#2ecc71' }}>- ₹{(ord.coin_discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                       </div>
                                     )}
                                     {((ord.discount || 0) > 0 && !(ord.coupon_discount || 0) && !(ord.coin_discount || 0)) && (
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                         <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Promo Discount</span>
                                         <span style={{ color: '#2ecc71' }}>- ₹{(ord.discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                       </div>
                                     )}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                       <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Shipping</span>
                                       <span style={{ color: '#f5efe6' }}>₹{(ord.shipping || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                     {(ord.tax || 0) > 0 && (
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '220px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                                         <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tax (GST)</span>
                                         <span style={{ color: '#f5efe6' }}>₹{(ord.tax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                       </div>
@@ -3797,38 +3899,42 @@ export const CustomerDashboard: React.FC = () => {
                       </div>
 
                       {/* Date Filters Row */}
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>From Date:</span>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap' }}>From:</span>
                           <input
                             type="date"
                             value={walletDateFrom}
                             onChange={(e) => setWalletDateFrom(e.target.value)}
                             style={{
-                              padding: '6px 10px',
+                              flex: 1,
+                              minWidth: 0,
+                              padding: '6px 6px',
                               borderRadius: '6px',
                               background: 'rgba(0,0,0,0.3)',
                               border: '1px solid rgba(201,168,76,0.3)',
                               color: '#f5efe6',
-                              fontSize: '0.82rem',
+                              fontSize: '0.78rem',
                               colorScheme: 'dark',
                             }}
                           />
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>To Date:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap' }}>To:</span>
                           <input
                             type="date"
                             value={walletDateTo}
                             onChange={(e) => setWalletDateTo(e.target.value)}
                             style={{
-                              padding: '6px 10px',
+                              flex: 1,
+                              minWidth: 0,
+                              padding: '6px 6px',
                               borderRadius: '6px',
                               background: 'rgba(0,0,0,0.3)',
                               border: '1px solid rgba(201,168,76,0.3)',
                               color: '#f5efe6',
-                              fontSize: '0.82rem',
+                              fontSize: '0.78rem',
                               colorScheme: 'dark',
                             }}
                           />
@@ -3845,12 +3951,14 @@ export const CustomerDashboard: React.FC = () => {
                               background: 'none',
                               border: 'none',
                               color: '#c9a84c',
-                              fontSize: '0.8rem',
+                              fontSize: '0.78rem',
                               fontWeight: 600,
                               cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
                             }}
                           >
-                            Reset Dates
+                            Reset
                           </button>
                         )}
                       </div>
@@ -3933,7 +4041,7 @@ export const CustomerDashboard: React.FC = () => {
                         }
 
                         return (
-                          <div
+          <div
                             style={{
                               background: 'rgba(18, 14, 11, 0.95)',
                               border: '1px solid rgba(201, 168, 76, 0.25)',
@@ -3942,114 +4050,99 @@ export const CustomerDashboard: React.FC = () => {
                               boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
                             }}
                           >
-                            <div style={{ overflowX: 'auto' }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-                                <thead>
-                                  <tr style={{ background: 'rgba(0, 0, 0, 0.4)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
-                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Date</th>
-                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Type</th>
-                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Amount</th>
-                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700 }}>Description</th>
-                                    <th style={{ padding: '14px 18px', color: '#c9a84c', fontWeight: 700, textAlign: 'right' }}>Order Ref</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {filteredTxs.map((tx) => {
-                                    const isEarn = tx.type === 'EARN';
-                                    const isRedeem = tx.type === 'REDEEM';
-
-                                    const typeLabel = isEarn ? 'EARN' : isRedeem ? 'REDEEM' : 'ADJUSTMENT';
-                                    const typeBadgeColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#f1c40f';
-                                    const typeBadgeBg = isEarn ? 'rgba(46, 204, 113, 0.15)' : isRedeem ? 'rgba(231, 76, 60, 0.15)' : 'rgba(241, 196, 15, 0.15)';
-
-                                    const absCoins = Math.abs(tx.coins);
-                                    const isPositive = tx.coins > 0 || isEarn;
-                                    const formattedCoins = isPositive ? `+${absCoins} Coins` : `−${absCoins} Coins`;
-                                    const coinsColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#c9a84c';
-
-                                    let dateStr = 'Recently';
-                                    if (tx.created_at) {
-                                      try {
-                                        dateStr = new Date(tx.created_at).toLocaleDateString('en-GB', {
-                                          day: '2-digit',
-                                          month: 'short',
-                                          year: 'numeric',
-                                        });
-                                      } catch {
-                                        dateStr = tx.created_at;
+                            {isMobileGrid ? (
+                              /* MOBILE: Card layout */
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: 'rgba(255,255,255,0.04)' }}>
+                                {filteredTxs.map((tx) => {
+                                  const isEarn = tx.type === 'EARN';
+                                  const isRedeem = tx.type === 'REDEEM';
+                                  const typeLabel = isEarn ? 'EARN' : isRedeem ? 'REDEEM' : 'ADJUSTMENT';
+                                  const typeBadgeColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#f1c40f';
+                                  const typeBadgeBg = isEarn ? 'rgba(46,204,113,0.15)' : isRedeem ? 'rgba(231,76,60,0.15)' : 'rgba(241,196,15,0.15)';
+                                  const absCoins = Math.abs(tx.coins);
+                                  const isPositive = tx.coins > 0 || isEarn;
+                                  const formattedCoins = isPositive ? `+${absCoins} Coins` : `−${absCoins} Coins`;
+                                  const coinsColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#c9a84c';
+                                  let dateStr = 'Recently';
+                                  if (tx.created_at) {
+                                    try { dateStr = new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); } catch { dateStr = tx.created_at; }
+                                  }
+                                  return (
+                                    <div key={tx.id} style={{ background: 'rgba(18,14,11,0.98)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.5px', padding: '3px 10px', borderRadius: '6px', background: typeBadgeBg, color: typeBadgeColor, border: `1px solid ${typeBadgeColor}`, textTransform: 'uppercase' }}>● {typeLabel}</span>
+                                        <span style={{ fontWeight: 800, color: coinsColor, fontSize: '0.95rem' }}>{formattedCoins}</span>
+                                      </div>
+                                      <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>{tx.description || (isEarn ? 'Coins earned for purchase' : isRedeem ? 'Coins redeemed on order' : 'Reward adjustment')}</div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                        <span style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.45)' }}>{dateStr}</span>
+                                        {tx.order_id ? (
+                                          <span onClick={() => setActiveTab('orders')} style={{ fontSize: '0.76rem', fontWeight: 700, color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer' }}>Order #{tx.order_id.slice(-8)}</span>
+                                        ) : <span style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.3)' }}>—</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              /* DESKTOP: Table layout */
+                              <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', tableLayout: 'fixed' }}>
+                                  <colgroup>
+                                    <col style={{ width: '110px' }} />
+                                    <col style={{ width: '130px' }} />
+                                    <col style={{ width: '110px' }} />
+                                    <col />
+                                    <col style={{ width: '140px' }} />
+                                  </colgroup>
+                                  <thead>
+                                    <tr style={{ background: 'rgba(0, 0, 0, 0.4)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
+                                      <th style={{ padding: '12px 14px', color: '#c9a84c', fontWeight: 700, whiteSpace: 'nowrap' }}>Date</th>
+                                      <th style={{ padding: '12px 14px', color: '#c9a84c', fontWeight: 700, whiteSpace: 'nowrap' }}>Type</th>
+                                      <th style={{ padding: '12px 14px', color: '#c9a84c', fontWeight: 700, whiteSpace: 'nowrap' }}>Amount</th>
+                                      <th style={{ padding: '12px 14px', color: '#c9a84c', fontWeight: 700 }}>Description</th>
+                                      <th style={{ padding: '12px 14px', color: '#c9a84c', fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>Order Ref</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filteredTxs.map((tx) => {
+                                      const isEarn = tx.type === 'EARN';
+                                      const isRedeem = tx.type === 'REDEEM';
+                                      const typeLabel = isEarn ? 'EARN' : isRedeem ? 'REDEEM' : 'ADJUSTMENT';
+                                      const typeBadgeColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#f1c40f';
+                                      const typeBadgeBg = isEarn ? 'rgba(46, 204, 113, 0.15)' : isRedeem ? 'rgba(231, 76, 60, 0.15)' : 'rgba(241, 196, 15, 0.15)';
+                                      const absCoins = Math.abs(tx.coins);
+                                      const isPositive = tx.coins > 0 || isEarn;
+                                      const formattedCoins = isPositive ? `+${absCoins} Coins` : `−${absCoins} Coins`;
+                                      const coinsColor = isEarn ? '#2ecc71' : isRedeem ? '#e74c3c' : '#c9a84c';
+                                      let dateStr = 'Recently';
+                                      if (tx.created_at) {
+                                        try {
+                                          dateStr = new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                        } catch { dateStr = tx.created_at; }
                                       }
-                                    }
-
-                                    return (
-                                      <tr
-                                        key={tx.id}
-                                        style={{
-                                          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                                          transition: 'background 0.2s ease',
-                                        }}
-                                      >
-                                        {/* Date */}
-                                        <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.8)' }}>
-                                          {dateStr}
-                                        </td>
-
-                                        {/* Type Badge */}
-                                        <td style={{ padding: '14px 18px' }}>
-                                          <span
-                                            style={{
-                                              fontSize: '0.72rem',
-                                              fontWeight: 800,
-                                              letterSpacing: '0.5px',
-                                              padding: '4px 10px',
-                                              borderRadius: '6px',
-                                              background: typeBadgeBg,
-                                              color: typeBadgeColor,
-                                              border: `1px solid ${typeBadgeColor}`,
-                                              textTransform: 'uppercase',
-                                            }}
-                                          >
-                                            ● {typeLabel}
-                                          </span>
-                                        </td>
-
-                                        {/* Coins Amount */}
-                                        <td style={{ padding: '14px 18px', fontWeight: 800, color: coinsColor, fontSize: '0.95rem' }}>
-                                          {formattedCoins}
-                                        </td>
-
-                                        {/* Description */}
-                                        <td style={{ padding: '14px 18px', color: 'rgba(255, 255, 255, 0.7)' }}>
-                                          {tx.description || (isEarn ? 'Coins earned for purchase' : isRedeem ? 'Coins redeemed on order' : 'Reward adjustment')}
-                                        </td>
-
-                                        {/* Related Order Ref */}
-                                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                                          {tx.order_id ? (
-                                            <span
-                                              onClick={() => setActiveTab('orders')}
-                                              style={{
-                                                fontSize: '0.8rem',
-                                                fontWeight: 700,
-                                                color: '#c9a84c',
-                                                background: 'rgba(201, 168, 76, 0.1)',
-                                                border: '1px solid rgba(201, 168, 76, 0.3)',
-                                                padding: '4px 10px',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                              }}
-                                            >
-                                              Order #{tx.order_id.slice(-8)}
-                                            </span>
-                                          ) : (
-                                            <span style={{ color: 'rgba(255, 255, 255, 0.35)', fontSize: '0.8rem' }}>—</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
+                                      return (
+                                        <tr key={tx.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', transition: 'background 0.2s ease' }}>
+                                          <td style={{ padding: '12px 14px', color: 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' }}>{dateStr}</td>
+                                          <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '6px', background: typeBadgeBg, color: typeBadgeColor, border: `1px solid ${typeBadgeColor}`, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>● {typeLabel}</span>
+                                          </td>
+                                          <td style={{ padding: '12px 14px', fontWeight: 800, color: coinsColor, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{formattedCoins}</td>
+                                          <td style={{ padding: '12px 14px', color: 'rgba(255, 255, 255, 0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.description || ''}>{tx.description || (isEarn ? 'Coins earned for purchase' : isRedeem ? 'Coins redeemed on order' : 'Reward adjustment')}</td>
+                                          <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                            {tx.order_id ? (
+                                              <span onClick={() => setActiveTab('orders')} style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c9a84c', background: 'rgba(201, 168, 76, 0.1)', border: '1px solid rgba(201, 168, 76, 0.3)', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' }}>#{tx.order_id.slice(-8)}</span>
+                                            ) : (
+                                              <span style={{ color: 'rgba(255, 255, 255, 0.35)', fontSize: '0.8rem' }}>—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
 
                             {/* Pagination Footer */}
                             <div
@@ -4716,7 +4809,7 @@ export const CustomerDashboard: React.FC = () => {
                       </div>
                     ) : (
                       <div style={{ width: '100%', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                        <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
                           <thead>
                             <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
                               <th style={{ padding: '16px 20px', fontWeight: 700 }}>NOTIFICATION</th>

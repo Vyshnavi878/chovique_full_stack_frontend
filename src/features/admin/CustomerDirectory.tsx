@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   X,
@@ -12,10 +12,12 @@ import {
   AlertTriangle,
   RefreshCw,
   Trash2,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { SystemUser } from '../../types';
-import { Pagination } from '../../components/ui/Pagination';
 
 interface CustomerDirectoryProps {
   systemUsers?: SystemUser[];
@@ -30,10 +32,29 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   onRefreshUsers,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const limit = 5; // Exactly 5 customers per page
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 860);
+
+  const reqIdRef = useRef(0);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 860);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Debounce search query input to avoid race condition and lag
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersData, setCustomersData] = useState<any>(null);
@@ -54,31 +75,43 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
 
   // Fetch paginated customer directory & summary statistics from DB
   const fetchCustomersList = useCallback(async () => {
+    const currentReqId = ++reqIdRef.current;
     setCustomersLoading(true);
     try {
       const res = await adminService.getCustomers({
-        search: searchQuery.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         status: statusFilter,
         page,
         limit,
       });
+
+      // Discard stale out-of-order response
+      if (currentReqId !== reqIdRef.current) return;
+
       setCustomersData(res);
 
       if (res.items && res.items.length > 0) {
-        if (!selectedCustomerId || !res.items.some((c: any) => c.id === selectedCustomerId)) {
-          setSelectedCustomerId(res.items[0].id);
-        }
+        setSelectedCustomerId((prevId) => {
+          if (prevId && res.items.some((c: any) => c.id === prevId)) {
+            return prevId;
+          }
+          return res.items[0].id;
+        });
       } else {
         setSelectedCustomerId(null);
         setCustomerDetails(null);
       }
     } catch (err: any) {
-      console.error('Failed to fetch customers from database:', err);
-      addToast('error', err?.detail || err?.message || 'Failed to load customers from database.', 'Error');
+      if (currentReqId === reqIdRef.current) {
+        console.error('Failed to fetch customers from database:', err);
+        addToast('error', err?.detail || err?.message || 'Failed to load customers from database.', 'Error');
+      }
     } finally {
-      setCustomersLoading(false);
+      if (currentReqId === reqIdRef.current) {
+        setCustomersLoading(false);
+      }
     }
-  }, [searchQuery, statusFilter, page, limit, selectedCustomerId, addToast]);
+  }, [debouncedSearch, statusFilter, page, limit, addToast]);
 
   useEffect(() => {
     fetchCustomersList();
@@ -118,8 +151,6 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
         : `Are you sure you want to reactivate ${cust.name}'s account?`,
     });
   };
-
-
 
   // Execute confirmed action
   const executeConfirmAction = async () => {
@@ -161,13 +192,25 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     totalRevenue: summary.lifetime_spend ?? 0,
   };
 
-  const customersList = customersData?.items || [];
+  const rawCustomersList = customersData?.items || [];
+  // Client-side safety filter to guarantee only matching customers are displayed
+  const customersList = debouncedSearch.trim()
+    ? rawCustomersList.filter((c: any) => {
+        const q = debouncedSearch.trim().toLowerCase();
+        return (
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.email && c.email.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.toLowerCase().includes(q))
+        );
+      })
+    : rawCustomersList;
+
   const totalCount = customersData?.total || 0;
-  const totalPages = customersData?.total_pages || 1;
+  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
   const selectedCust = customersList.find((c: any) => c.id === selectedCustomerId) || (customerDetails?.user ? {
     id: customerDetails.user.id,
-    name: customerDetails.user.full_name,
+    name: customerDetails.user.full_name || customerDetails.user.name,
     email: customerDetails.user.email,
     phone: customerDetails.user.phone,
     is_active: customerDetails.user.is_active,
@@ -183,6 +226,15 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   const totalOrdersCount = customerDetails?.total_orders != null ? customerDetails.total_orders : (customerOrdersList.length > 0 ? customerOrdersList.length : (selectedCust?.orders_count ?? 0));
   const totalSpentAmount = customerDetails?.total_spent != null ? customerDetails.total_spent : (customerOrdersList.length > 0 ? customerOrdersList.filter((o: any) => o.status !== 'Cancelled').reduce((sum: number, o: any) => sum + (o.total || 0), 0) : (selectedCust?.total_spent ?? 0));
   const totalRewardCoins = customerDetails?.reward_coins != null ? customerDetails.reward_coins : (selectedCust?.reward_coins ?? 0);
+
+  // Address Extraction
+  const defaultAddr = customerDetails?.default_address || (customerDetails?.addresses && customerDetails.addresses.length > 0 ? customerDetails.addresses[0] : null);
+  const addrStreet = defaultAddr?.street || defaultAddr?.address || customerDetails?.user?.profile?.address?.street || '';
+  const addrCity = defaultAddr?.city || customerDetails?.user?.profile?.address?.city || '';
+  const addrState = defaultAddr?.state || customerDetails?.user?.profile?.address?.state || '';
+  const addrZip = defaultAddr?.zip || defaultAddr?.zip_code || defaultAddr?.pincode || customerDetails?.user?.profile?.address?.zip || '';
+  const addrPhone = defaultAddr?.phone || selectedCust?.phone || '';
+  const hasAddress = Boolean(addrStreet || addrCity || addrState || addrZip);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -255,26 +307,29 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
-        <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', borderRadius: '12px' }}>
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ position: 'relative', marginBottom: '14px' }}>
+      {/* Directory & Details Container — Symmetrical & Equal Length on Desktop */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(320px, 1.15fr) minmax(320px, 1fr)', gap: '22px', alignItems: 'stretch' }}>
+        
+        {/* LEFT CARD: Customer Directory List (5 per page) */}
+        <div className="glass-panel" style={{ padding: isMobile ? '16px' : '22px', border: '1px solid var(--glass-border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ position: 'relative', marginBottom: '12px' }}>
               <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--grey-light)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 placeholder="Search by name, email or phone..."
                 value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%', paddingLeft: '36px', paddingRight: searchQuery ? '32px' : '12px',
                   paddingTop: '9px', paddingBottom: '9px',
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: '6px', color: 'var(--cream)', fontSize: '0.85rem', outline: 'none',
+                  borderRadius: '6px', color: 'var(--cream)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
                 }}
               />
               {searchQuery && (
                 <button
-                  onClick={() => { setSearchQuery(''); setPage(1); }}
+                  onClick={() => setSearchQuery('')}
                   style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}
                 >
                   <X size={14} />
@@ -300,21 +355,22 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             </div>
           </div>
 
-          <div style={{ fontSize: '0.78rem', color: 'var(--grey-light)', marginBottom: '12px' }}>
+          <div style={{ fontSize: '0.76rem', color: 'var(--grey-light)', marginBottom: '12px' }}>
             Showing {totalCount > 0 ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, totalCount)} of {totalCount} customers
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '580px', overflowY: 'auto', paddingRight: '4px' }}>
+          {/* List of 5 customers */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, minHeight: '340px' }}>
             {customersLoading ? (
               <div style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
-                <Loader2 size={30} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px', display: 'block' }} />
+                <Loader2 size={30} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px', display: 'block', color: 'var(--gold)' }} />
                 <p style={{ margin: 0, fontSize: '0.85rem' }}>Loading customer records...</p>
               </div>
             ) : customersList.length === 0 ? (
               <div style={{ padding: '50px 20px', textAlign: 'center' }}>
                 <User size={36} color="var(--grey-light)" style={{ margin: '0 auto 12px', display: 'block' }} />
                 <p style={{ color: 'var(--grey-light)', margin: 0, fontSize: '0.88rem' }}>
-                  {totalCount === 0 && !searchQuery && statusFilter === 'ALL'
+                  {totalCount === 0 && !debouncedSearch && statusFilter === 'ALL'
                     ? 'No Customers Found.'
                     : 'No customers match the current filter or search criteria.'}
                 </p>
@@ -330,34 +386,35 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                     key={cust.id}
                     onClick={() => handleSelectCustomer(cust)}
                     style={{
-                      padding: '14px 16px', borderRadius: '8px', cursor: 'pointer',
+                      padding: '13px 15px', borderRadius: '8px', cursor: 'pointer',
                       background: isSelected ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)',
                       border: isSelected ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.06)',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      transition: 'all 0.2s ease',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div
                         style={{
-                          width: '40px', height: '40px', borderRadius: '50%',
+                          width: '38px', height: '38px', borderRadius: '50%', flexShrink: 0,
                           background: isSelected ? 'var(--gold)' : 'rgba(255,255,255,0.08)',
                           color: isSelected ? '#000' : 'var(--gold)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: '0.85rem', fontFamily: 'var(--font-display)',
+                          fontWeight: 700, fontSize: '0.82rem', fontFamily: 'var(--font-display)',
                         }}
                       >
                         {cust.name ? cust.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'CU'}
                       </div>
                       <div>
-                        <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: '0.95rem', fontWeight: 600 }}>{cust.name}</h4>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--grey-light)' }}>{cust.email}</div>
+                        <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>{cust.name}</h4>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{cust.email}</div>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>
                         ₹{totalSpent.toLocaleString('en-IN')}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ordersCnt} order{ordersCnt === 1 ? '' : 's'}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ordersCnt} order{ordersCnt === 1 ? '' : 's'}</div>
                     </div>
                   </div>
                 );
@@ -365,60 +422,92 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             )}
           </div>
 
-          {totalPages > 1 && (
-            <div style={{ marginTop: '16px' }}>
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                totalItems={totalCount}
-                itemsPerPage={limit}
-                onPageChange={(p) => setPage(p)}
-              />
+          {/* Left/Right Arrow Pagination Controls */}
+          <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+              Page <strong style={{ color: 'var(--gold)' }}>{page}</strong> of <strong style={{ color: 'var(--cream)' }}>{totalPages}</strong>
             </div>
-          )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                disabled={page <= 1 || customersLoading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  padding: '6px 12px', borderRadius: '6px',
+                  background: page <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(201,168,76,0.1)',
+                  border: page <= 1 ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(201,168,76,0.35)',
+                  color: page <= 1 ? 'rgba(255,255,255,0.25)' : 'var(--gold)',
+                  cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.76rem', fontWeight: 600, transition: 'all 0.2s',
+                }}
+              >
+                <ChevronLeft size={14} /> Prev
+              </button>
+
+              <button
+                type="button"
+                disabled={page >= totalPages || customersLoading}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  padding: '6px 12px', borderRadius: '6px',
+                  background: page >= totalPages ? 'rgba(255,255,255,0.02)' : 'rgba(201,168,76,0.1)',
+                  border: page >= totalPages ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(201,168,76,0.35)',
+                  color: page >= totalPages ? 'rgba(255,255,255,0.25)' : 'var(--gold)',
+                  cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '0.76rem', fontWeight: 600, transition: 'all 0.2s',
+                }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div>
+        {/* RIGHT CARD: Customer Profile & Details (Equal Height) */}
+        <div className="glass-panel" style={{ padding: isMobile ? '16px' : '22px', border: '1px solid var(--glass-border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
           {loadingDetails ? (
-            <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ padding: '60px', textAlign: 'center', margin: 'auto' }}>
               <Loader2 size={36} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 16px', display: 'block', color: 'var(--gold)' }} />
               <p style={{ color: 'var(--beige)', margin: 0 }}>Loading customer profile...</p>
             </div>
           ) : selectedCust ? (
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', borderRadius: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'linear-gradient(135deg, #c9a84c 0%, #8a7028 100%)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg, #c9a84c 0%, #8a7028 100%)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
                     {selectedCust.name ? selectedCust.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'CU'}
                   </div>
                   <div>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--cream)', margin: 0 }}>{selectedCust.name}</h2>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--grey-light)' }}>Customer since {customerDetails?.joined_date || 'Aug 2024'}</div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>{selectedCust.name}</h2>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Customer since {customerDetails?.joined_date || 'Aug 2024'}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => initiateToggleStatus(selectedCust)} style={{ padding: '7px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', background: selectedCust.is_active !== false ? 'rgba(231,76,60,0.1)' : 'rgba(46,204,113,0.1)', border: `1px solid ${selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71'}40`, color: selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71' }}>
+                  <button onClick={() => initiateToggleStatus(selectedCust)} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer', background: selectedCust.is_active !== false ? 'rgba(231,76,60,0.1)' : 'rgba(46,204,113,0.1)', border: `1px solid ${selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71'}40`, color: selectedCust.is_active !== false ? '#e74c3c' : '#2ecc71' }}>
                     {selectedCust.is_active !== false ? 'Deactivate' : 'Activate'}
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', marginBottom: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', marginBottom: '16px' }}>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Total Orders</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{totalOrdersCount}</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{totalOrdersCount}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Total Spent</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{totalSpentAmount.toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>₹{totalSpentAmount.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase' }}>Reward Coins</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f39c12', fontFamily: 'var(--font-display)' }}>{totalRewardCoins}</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f39c12', fontFamily: 'var(--font-display)' }}>{totalRewardCoins}</div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '18px', paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '16px', paddingBottom: '8px', overflowX: 'auto' }}>
                 {[
                   { id: 'profile', label: 'Profile' },
                   { id: 'orders', label: `Orders (${customerOrdersList.length})` },
@@ -428,62 +517,125 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id as any)}
-                    style={{ background: 'none', border: 'none', padding: '6px 12px', fontSize: '0.8rem', fontWeight: activeTab === t.id ? 700 : 500, color: activeTab === t.id ? 'var(--gold)' : 'var(--grey-light)', borderBottom: activeTab === t.id ? '2px solid var(--gold)' : '2px solid transparent', cursor: 'pointer' }}
+                    style={{ background: 'none', border: 'none', padding: '5px 10px', fontSize: '0.78rem', fontWeight: activeTab === t.id ? 700 : 500, color: activeTab === t.id ? 'var(--gold)' : 'var(--grey-light)', borderBottom: activeTab === t.id ? '2px solid var(--gold)' : '2px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
                     {t.label}
                   </button>
                 ))}
               </div>
 
-              {activeTab === 'profile' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Mail size={15} color="var(--gold)" /><div><div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Email Address</div><div style={{ color: 'var(--cream)', fontWeight: 500 }}>{selectedCust.email}</div></div></div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Phone size={15} color="var(--gold)" /><div><div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Phone Number</div><div style={{ color: 'var(--cream)', fontWeight: 500 }}>{selectedCust.phone || 'Not provided'}</div></div></div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Calendar size={15} color="var(--gold)" /><div><div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Account Status</div><div style={{ color: selectedCust.is_active !== false ? '#2ecc71' : '#e74c3c', fontWeight: 600 }}>{selectedCust.is_active !== false ? 'Active Account' : 'Deactivated / Inactive'}</div></div></div>
-                </div>
-              )}
-
-              {activeTab === 'orders' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
-                  {customerOrdersList.length === 0 ? (
-                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>No orders placed by this customer yet.</div>
-                  ) : (
-                    customerOrdersList.map((ord: any) => (
-                      <div key={ord.id} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div><div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.8rem', fontFamily: 'monospace' }}>{ord.id}</div><div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ord.created_at || ord.date}</div></div>
-                        <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.85rem' }}>₹{ord.total?.toLocaleString()}</div><span style={{ fontSize: '0.68rem', fontWeight: 700, color: ord.status === 'Cancelled' ? '#e74c3c' : '#2ecc71' }}>{ord.status}</span></div>
+              <div style={{ flex: 1 }}>
+                {activeTab === 'profile' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.84rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Mail size={15} color="var(--gold)" />
+                        <div>
+                          <div style={{ fontSize: '0.67rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email Address</div>
+                          <div style={{ color: 'var(--cream)', fontWeight: 500, wordBreak: 'break-all' }}>{selectedCust.email}</div>
+                        </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'coins' && (
-                <div style={{ padding: '16px', background: 'rgba(243,156,18,0.05)', border: '1px solid rgba(243,156,18,0.2)', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}><Award size={18} color="#f39c12" /><span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f39c12' }}>Reward Wallet</span></div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{customerDetails?.reward_coins || 0} <span style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Coins</span></div>
-                </div>
-              )}
-
-              {activeTab === 'tickets' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
-                  {customerDetails?.support_tickets?.length === 0 ? (
-                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>No support tickets submitted by this customer.</div>
-                  ) : (
-                    customerDetails?.support_tickets?.map((t: any) => (
-                      <div key={t.id} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--cream)' }}>{t.subject || 'Support Ticket'}</span><span style={{ fontSize: '0.68rem', fontWeight: 700, color: t.status === 'Resolved' ? '#2ecc71' : '#f39c12' }}>{t.status}</span></div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--grey-light)', margin: 0 }}>{t.message}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Phone size={15} color="var(--gold)" />
+                        <div>
+                          <div style={{ fontSize: '0.67rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone Number</div>
+                          <div style={{ color: 'var(--cream)', fontWeight: 500 }}>{selectedCust.phone || 'Not provided'}</div>
+                        </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Calendar size={15} color="var(--gold)" />
+                        <div>
+                          <div style={{ fontSize: '0.67rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Status</div>
+                          <div style={{ color: selectedCust.is_active !== false ? '#2ecc71' : '#e74c3c', fontWeight: 600 }}>
+                            {selectedCust.is_active !== false ? '● Active Account' : '● Deactivated'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Default Address Section */}
+                    <div style={{ background: 'rgba(255,255,255,0.025)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+                          <MapPin size={13} /> Default Delivery Address
+                        </div>
+                        {hasAddress && (
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: 'rgba(46,204,113,0.15)', color: '#2ecc71', border: '1px solid rgba(46,204,113,0.3)' }}>
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
+
+                      {hasAddress ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: 'var(--cream)', fontSize: '0.84rem' }}>
+                          {addrStreet && <div style={{ fontWeight: 500, lineHeight: 1.4 }}>{addrStreet}</div>}
+                          {(addrCity || addrState || addrZip) && (
+                            <div style={{ color: 'var(--beige)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                              <span>{[addrCity, addrState].filter(Boolean).join(', ')}</span>
+                              {addrZip && (
+                                <span style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid rgba(201,168,76,0.3)' }}>
+                                  PIN: {addrZip}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {addrPhone && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '2px' }}>
+                              Contact: {addrPhone}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', padding: '6px 0' }}>
+                          No default address on file for this customer.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'orders' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {customerOrdersList.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>No orders placed by this customer yet.</div>
+                    ) : (
+                      customerOrdersList.map((ord: any) => (
+                        <div key={ord.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div><div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.78rem', fontFamily: 'monospace' }}>{ord.id}</div><div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ord.created_at || ord.date}</div></div>
+                          <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.82rem' }}>₹{ord.total?.toLocaleString()}</div><span style={{ fontSize: '0.67rem', fontWeight: 700, color: ord.status === 'Cancelled' ? '#e74c3c' : '#2ecc71' }}>{ord.status}</span></div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'coins' && (
+                  <div style={{ padding: '16px', background: 'rgba(243,156,18,0.05)', border: '1px solid rgba(243,156,18,0.2)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}><Award size={18} color="#f39c12" /><span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f39c12' }}>Reward Wallet</span></div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--font-display)' }}>{customerDetails?.reward_coins || 0} <span style={{ fontSize: '0.85rem', color: 'var(--beige)' }}>Coins</span></div>
+                  </div>
+                )}
+
+                {activeTab === 'tickets' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {customerDetails?.support_tickets?.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>No support tickets submitted by this customer.</div>
+                    ) : (
+                      customerDetails?.support_tickets?.map((t: any) => (
+                        <div key={t.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--cream)' }}>{t.subject || 'Support Ticket'}</span><span style={{ fontSize: '0.67rem', fontWeight: 700, color: t.status === 'Resolved' ? '#2ecc71' : '#f39c12' }}>{t.status}</span></div>
+                          <p style={{ fontSize: '0.73rem', color: 'var(--grey-light)', margin: 0 }}>{t.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
-            <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ padding: '60px 20px', textAlign: 'center', margin: 'auto' }}>
               <User size={36} color="var(--grey-light)" style={{ margin: '0 auto 12px', display: 'block' }} />
-              <p style={{ color: 'var(--grey-light)', margin: 0 }}>Select a customer from the left directory list to view profile details.</p>
+              <p style={{ color: 'var(--grey-light)', margin: 0, fontSize: '0.88rem' }}>Select a customer from the left directory list to view profile details.</p>
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@
  * All calls go directly to the FastAPI backend.
  */
 
-import { BASE_URL, apiDelete, apiGet, apiPatch, apiPost, apiPostFormData, apiPut, setAuthToken } from '../lib/api';
+import { BASE_URL, apiDelete, apiGet, apiPatch, apiPatchFormData, apiPost, apiPostFormData, apiPut, setAuthToken } from '../lib/api';
 import type {
   Banner,
   Testimonial,
@@ -512,6 +512,12 @@ export const adminService = {
     apiDelete<void>(`/admin/reels/${reelId}`),
 
   /**
+   * Update an Instagram reel entry (text fields + optional new video file).
+   */
+  updateReel: (reelId: string, formData: FormData): Promise<any> =>
+    apiPatchFormData<any>(`/admin/reels/${reelId}`, formData),
+
+  /**
    * Fetch all testimonials for admin moderation (supports status filter).
    */
   adminGetTestimonials: (status?: string): Promise<Testimonial[]> =>
@@ -692,26 +698,30 @@ export const adminService = {
 
   /** Super Admin Revenue Analytics */
   getRevenueAnalytics: (
-    preset = 'month',
+    preset = 'this_month',
     dateFrom?: string,
-    dateTo?: string
+    dateTo?: string,
+    dateBasis = 'order_date'
   ): Promise<SuperadminRevenueResponse> => {
     const q = new URLSearchParams();
     if (preset) q.set('preset', preset);
     if (dateFrom) q.set('date_from', dateFrom);
     if (dateTo) q.set('date_to', dateTo);
+    if (dateBasis) q.set('date_basis', dateBasis);
     return apiGet<SuperadminRevenueResponse>(`/superadmin/analytics/revenue?${q.toString()}`);
   },
 
   exportRevenueAnalyticsCsv: async (
-    preset = 'month',
+    preset = 'this_month',
     dateFrom?: string,
-    dateTo?: string
+    dateTo?: string,
+    dateBasis = 'order_date'
   ): Promise<void> => {
     const q = new URLSearchParams();
     if (preset) q.set('preset', preset);
     if (dateFrom) q.set('date_from', dateFrom);
     if (dateTo) q.set('date_to', dateTo);
+    if (dateBasis) q.set('date_basis', dateBasis);
     
     const url = `${BASE_URL}/superadmin/analytics/revenue/export?${q.toString()}`;
     const response = await fetch(url, {
@@ -728,7 +738,7 @@ export const adminService = {
     const blobUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `revenue_analytics_${preset}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `revenue_analytics_${preset}_${dateBasis}_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -736,14 +746,18 @@ export const adminService = {
 
   /** Super Admin Sales Analytics & Ledgers */
   getSalesAnalytics: (params?: {
+    preset?: string;
     search?: string;
+    category?: string;
     date_from?: string;
     date_to?: string;
     page?: number;
     limit?: number;
   }): Promise<ProductSalesPerformanceResponse> => {
     const q = new URLSearchParams();
+    if (params?.preset) q.set('preset', params.preset);
     if (params?.search) q.set('search', params.search);
+    if (params?.category) q.set('category', params.category);
     if (params?.date_from) q.set('date_from', params.date_from);
     if (params?.date_to) q.set('date_to', params.date_to);
     if (params?.page) q.set('page', String(params.page));
@@ -752,6 +766,7 @@ export const adminService = {
   },
 
   getOnlineSalesLedger: (params?: {
+    preset?: string;
     search?: string;
     status?: string;
     payment_method?: string;
@@ -762,6 +777,7 @@ export const adminService = {
     limit?: number;
   }): Promise<OnlineLedgerResponse> => {
     const q = new URLSearchParams();
+    if (params?.preset) q.set('preset', params.preset);
     if (params?.search) q.set('search', params.search);
     if (params?.status) q.set('status', params.status);
     if (params?.payment_method) q.set('payment_method', params.payment_method);
@@ -774,6 +790,7 @@ export const adminService = {
   },
 
   getOfflineSalesLedger: (params?: {
+    preset?: string;
     search?: string;
     payment_method?: string;
     date_from?: string;
@@ -782,6 +799,7 @@ export const adminService = {
     limit?: number;
   }): Promise<OfflineLedgerResponse> => {
     const q = new URLSearchParams();
+    if (params?.preset) q.set('preset', params.preset);
     if (params?.search) q.set('search', params.search);
     if (params?.payment_method) q.set('payment_method', params.payment_method);
     if (params?.date_from) q.set('date_from', params.date_from);
@@ -793,13 +811,17 @@ export const adminService = {
 
   exportSalesAnalyticsCsv: async (
     tab: 'products' | 'online' | 'offline' = 'products',
+    preset: string = 'this_month',
     search?: string,
+    category?: string,
     dateFrom?: string,
     dateTo?: string
   ): Promise<void> => {
     const q = new URLSearchParams();
     q.set('tab', tab);
+    if (preset) q.set('preset', preset);
     if (search) q.set('search', search);
+    if (category) q.set('category', category);
     if (dateFrom) q.set('date_from', dateFrom);
     if (dateTo) q.set('date_to', dateTo);
 
@@ -818,7 +840,7 @@ export const adminService = {
     const blobUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `sales_analytics_${tab}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `sales_analytics_${tab}_${preset}_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -992,46 +1014,76 @@ export interface KPICardWithComparison {
 
 export interface RevenueTrendDataPoint {
   date: string;
-  online_revenue: number;
-  offline_revenue: number;
   total_revenue: number;
-}
-
-export interface RevenueBySource {
   online_revenue: number;
-  online_percentage: number;
-  offline_revenue: number;
-  offline_percentage: number;
+  cod_collected: number;
+  pending_payment: number;
+  total_orders: number;
+  paid_orders: number;
+  cod_orders: number;
+  pending_orders: number;
 }
 
 export interface PaymentMethodRevenue {
   method: string;
   amount: number;
   percentage: number;
+  orders_count: number;
+}
+
+export interface TransactionOrderRow {
+  order_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  order_date: string;
+  payment_date?: string | null;
+  amount: number;
+  payment_method: string;
+  payment_status: string;
+  order_status: string;
 }
 
 export interface RevenueSummaryRow {
   date: string;
-  online_orders: number;
-  online_revenue: number;
-  offline_sales: number;
-  offline_revenue: number;
+  total_orders: number;
+  paid_orders: number;
+  cod_orders: number;
+  pending_orders: number;
   total_revenue: number;
+  online_revenue: number;
+  cod_collected: number;
+  pending_payment: number;
   avg_order_value: number;
 }
 
 export interface SuperadminRevenueResponse {
   preset: string;
+  date_basis: string;
   date_from: string;
   date_to: string;
   display_range: string;
-  total_income: KPICardWithComparison;
+  
+  // 8 Primary KPI Cards
+  total_revenue: KPICardWithComparison;
   online_revenue: KPICardWithComparison;
-  offline_revenue: KPICardWithComparison;
-  avg_order_value: KPICardWithComparison;
+  cod_collected: KPICardWithComparison;
+  pending_payment: KPICardWithComparison;
+  total_orders: KPICardWithComparison;
+  paid_orders: KPICardWithComparison;
+  cod_orders: KPICardWithComparison;
+  pending_orders: KPICardWithComparison;
+  
+  // Trend Chart
   revenue_trend: RevenueTrendDataPoint[];
-  revenue_by_source: RevenueBySource;
+  
+  // Distributions
   revenue_by_payment_method: PaymentMethodRevenue[];
+  
+  // Detailed Transactions Table
+  transactions: TransactionOrderRow[];
+  
+  // Detailed Summary Rows
   summary_rows: RevenueSummaryRow[];
 }
 
@@ -1083,21 +1135,42 @@ export interface SuperadminOverviewResponse {
   recent_activities: RecentActivityItem[];
 }
 
-export interface SalesKPICard {
-  total_units_sold: number;
-  total_units_prev: number;
-  units_pct_change: number;
-  total_revenue: number;
-  total_revenue_prev: number;
-  revenue_pct_change: number;
-  online_revenue: number;
-  online_revenue_prev: number;
-  online_pct_change: number;
-  offline_revenue: number;
-  offline_revenue_prev: number;
-  offline_pct_change: number;
-  top_selling_chocolate?: string | null;
+export interface SalesMetricCard {
+  current_value: number;
+  previous_value: number;
+  percentage_change: number;
   comparison_label: string;
+}
+
+export interface SalesKPICard {
+  total_orders: SalesMetricCard;
+  total_units_sold: SalesMetricCard;
+  online_orders: SalesMetricCard;
+  online_units_sold: SalesMetricCard;
+  offline_orders: SalesMetricCard;
+  offline_units_sold: SalesMetricCard;
+  pending_orders: SalesMetricCard;
+  cancelled_orders: SalesMetricCard;
+  current_stock: SalesMetricCard;
+  low_stock_products: SalesMetricCard;
+}
+
+export interface SalesTrendPoint {
+  date: string;
+  total_orders: number;
+  online_orders: number;
+  offline_orders: number;
+  total_units: number;
+  online_units: number;
+  offline_units: number;
+}
+
+export interface InventorySummary {
+  current_stock: number;
+  sold_quantity: number;
+  low_stock_count: number;
+  out_of_stock_count: number;
+  total_catalog_products: number;
 }
 
 export interface ProductSalesPerformanceItem {
@@ -1106,17 +1179,22 @@ export interface ProductSalesPerformanceItem {
   category_name: string;
   image_url?: string | null;
   price: number;
+  units_sold: number;
   online_units: number;
   offline_units: number;
-  total_units: number;
-  total_revenue: number;
-  stock_available: number;
+  current_stock: number;
 }
 
 export interface ProductSalesPerformanceResponse {
+  preset: string;
+  date_from: string;
+  date_to: string;
+  display_range: string;
   kpis: SalesKPICard;
+  sales_trend: SalesTrendPoint[];
+  inventory_summary: InventorySummary;
   products: ProductSalesPerformanceItem[];
-  total: number;
+  total_products: number;
   page: number;
   limit: number;
 }
@@ -1132,6 +1210,11 @@ export interface OnlineLedgerItem {
   payment_method: string;
   amount: number;
   order_status: string;
+  payment_status?: string;
+  subtotal?: number;
+  discount?: number;
+  delivery_option?: string;
+  shipping_address?: any;
 }
 
 export interface OnlineLedgerResponse {
@@ -1149,6 +1232,8 @@ export interface OfflineLedgerItem {
   quantity: number;
   payment_method: string;
   amount: number;
+  customer_name?: string;
+  phone?: string;
 }
 
 export interface OfflineLedgerResponse {

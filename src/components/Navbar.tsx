@@ -1,23 +1,51 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Heart, User, LogOut, ChevronDown, Menu, X, Bell } from 'lucide-react';
+import {
+  ShoppingBag,
+  Heart,
+  User,
+  LogOut,
+  ChevronDown,
+  ChevronUp,
+  Menu,
+  X,
+  Bell,
+  Home,
+  Package,
+  Coins,
+  Tag,
+  MapPin,
+  Settings,
+  HelpCircle,
+  Sparkles,
+  Mail,
+  BookOpen,
+  LayoutDashboard,
+} from 'lucide-react';
 import { useApp } from '../app/providers';
 import { Button } from './ui/Button';
 import { getImageUrl } from '../utils/imageUrl';
 import { NotificationHeaderDropdown } from './NotificationHeaderDropdown';
 
 export const Navbar: React.FC = () => {
-  const { role, cart, wishlist, logout, user, notifications, removeNotification } = useApp();
+  const { role, cart, wishlist, logout, user, wallet, notifications, removeNotification } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [shopExpanded, setShopExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isProfileHovered, setIsProfileHovered] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  const handleCustomerNav = (tab: string) => {
+    setMobileMenuOpen(false);
+    navigate('/dashboard', { state: { tab, timestamp: Date.now() } });
+    window.dispatchEvent(new CustomEvent('chovique:switch-dashboard-tab', { detail: tab }));
+  };
 
   const rawAvatar = user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
   useEffect(() => {
@@ -321,104 +349,285 @@ export const Navbar: React.FC = () => {
             </>
           )}
 
-          {/* Mobile Menu Icon */}
+          {/* Mobile Menu Toggle Button — Always available on mobile screens */}
           <button
             className="mobile-menu-toggle"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
+            aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Drawer Overlay */}
+      {/* Modern Luxury Mobile Menu Drawer Overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              width: '100%',
-              background: 'rgba(var(--dark-chocolate-rgb), 0.98)',
-              borderBottom: '1px solid var(--glass-border)',
-              zIndex: 99,
-              overflow: 'hidden',
-            }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="mobile-drawer-sheet"
           >
-                <div className="mobile-nav-actions">
-                  {role === 'guest' ? (
-                    <>
-                      <Link to="/login" className="mobile-nav-action-btn" onClick={() => setMobileMenuOpen(false)}>
-                        Sign In
-                      </Link>
-                      <Link to="/register" className="mobile-nav-action-btn" onClick={() => setMobileMenuOpen(false)}>
-                        Register
-                      </Link>
-                    </>
+            {/* 1. Logged-in Customer Profile Banner */}
+            {role === 'customer' && user && (
+              <div className="mobile-drawer-profile-card">
+                <div className="mobile-drawer-avatar">
+                  {avatarSrc && !avatarError ? (
+                    <img
+                      src={avatarSrc}
+                      alt={user.name || 'User'}
+                      onError={() => setAvatarError(true)}
+                    />
                   ) : (
-                    <>
-                      <Link to="/cart" className="mobile-nav-action-btn" onClick={() => setMobileMenuOpen(false)}>
-                        Cart ({cartCount})
-                      </Link>
-                      <Link to="/wishlist" className="mobile-nav-action-btn" onClick={() => setMobileMenuOpen(false)}>
-                        Wishlist ({wishlist.length})
-                      </Link>
-                      <Link to="/dashboard" className="mobile-nav-action-btn" onClick={() => setMobileMenuOpen(false)}>
-                        Dashboard
-                      </Link>
-                      <button 
-                        className="mobile-nav-action-btn" 
-                        onClick={() => {
-                          logout();
-                          setMobileMenuOpen(false);
-                        }}
-                        style={{
-                          background: 'rgba(231, 76, 60, 0.1)',
-                          border: '1px solid rgba(231, 76, 60, 0.3)',
-                          color: '#e74c3c',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Log Out
-                      </button>
-                    </>
+                    <span>{user.name ? user.name.charAt(0).toUpperCase() : <User size={18} />}</span>
                   )}
                 </div>
-            <ul style={{ padding: '20px 5%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <li style={{ listStyle: 'none' }}>
-                <Link to="/" style={{ color: 'var(--cream)', textTransform: 'uppercase', fontSize: '1rem' }} onClick={() => setMobileMenuOpen(false)}>Home</Link>
-              </li>
-              <li style={{ listStyle: 'none' }}>
-                <Link to="/shop" style={{ color: 'var(--cream)', textTransform: 'uppercase', fontSize: '1rem' }} onClick={() => setMobileMenuOpen(false)}>Shop All</Link>
-              </li>
-              <li style={{ listStyle: 'none', color: 'var(--gold)', fontWeight: 'bold' }}>Collections</li>
-              {megaMenuCollections.map((cat) => (
-                <li key={cat.name} style={{ listStyle: 'none', paddingLeft: '15px' }}>
-                  <Link to={cat.link} style={{ color: 'var(--beige)', fontSize: '0.9rem' }} onClick={() => setMobileMenuOpen(false)}>
-                    {cat.name}
+                <div className="mobile-drawer-profile-info">
+                  <div className="mobile-drawer-profile-name">{user.name}</div>
+                  <div className="mobile-drawer-profile-email">{user.email}</div>
+                  {wallet && (
+                    <div className="mobile-drawer-coins-badge">
+                      <Coins size={12} />
+                      <span>{wallet.coin_balance} Chovique Coins</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Quick Action Buttons Row (Cart, Wishlist, Dashboard) */}
+            <div className="mobile-drawer-quick-bar">
+              <Link
+                to="/cart"
+                className="mobile-drawer-quick-btn"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <ShoppingBag size={18} />
+                <span>Cart ({cartCount})</span>
+              </Link>
+
+              <Link
+                to="/wishlist"
+                className="mobile-drawer-quick-btn"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Heart size={18} />
+                <span>Wishlist ({wishlist.length})</span>
+              </Link>
+
+              {role === 'customer' && (
+                <button
+                  type="button"
+                  className="mobile-drawer-quick-btn gold"
+                  onClick={() => handleCustomerNav('overview')}
+                >
+                  <LayoutDashboard size={18} />
+                  <span>Dashboard</span>
+                </button>
+              )}
+            </div>
+
+            {/* 3. Primary Store Navigation Links */}
+            <div className="mobile-drawer-nav-section">
+              <div className="mobile-drawer-nav-title">STORE NAVIGATION</div>
+              <div className="mobile-drawer-links-list">
+                <Link
+                  to="/"
+                  className={`mobile-drawer-nav-link ${location.pathname === '/' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <div className="mobile-drawer-nav-link-left">
+                    <Home size={18} />
+                    <span>Home</span>
+                  </div>
+                </Link>
+
+                {/* Shop All with interactive collection accordion */}
+                <div className="mobile-drawer-shop-group">
+                  <div
+                    className={`mobile-drawer-nav-link shop-header ${location.pathname.startsWith('/shop') ? 'active' : ''}`}
+                    onClick={() => setShopExpanded(!shopExpanded)}
+                  >
+                    <div className="mobile-drawer-nav-link-left">
+                      <Package size={18} />
+                      <span>Shop Chocolates</span>
+                    </div>
+                    {shopExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </div>
+
+                  <AnimatePresence>
+                    {shopExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="mobile-drawer-sublinks-box"
+                      >
+                        <Link
+                          to="/shop"
+                          className="mobile-drawer-sublink highlight"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          ✦ Browse All Chocolates
+                        </Link>
+                        {megaMenuCollections.map((cat) => (
+                          <Link
+                            key={cat.name}
+                            to={cat.link}
+                            className="mobile-drawer-sublink"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {cat.name}
+                          </Link>
+                        ))}
+                        {megaMenuSpecialty.map((item) => (
+                          <Link
+                            key={item.name}
+                            to={item.link}
+                            className={`mobile-drawer-sublink ${item.highlight ? 'gold-highlight' : ''}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <Link
+                  to="/our-story"
+                  className={`mobile-drawer-nav-link ${location.pathname === '/our-story' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <div className="mobile-drawer-nav-link-left">
+                    <BookOpen size={18} />
+                    <span>Our Story</span>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/contact"
+                  className={`mobile-drawer-nav-link ${location.pathname === '/contact' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <div className="mobile-drawer-nav-link-left">
+                    <Mail size={18} />
+                    <span>Contact Us</span>
+                  </div>
+                </Link>
+              </div>
+            </div>
+
+            {/* 4. Customer Account & Dashboard Quick Grid (When Customer Logged In) */}
+            {role === 'customer' && (
+              <div className="mobile-drawer-nav-section">
+                <div className="mobile-drawer-nav-title">MY ACCOUNT & ORDERS</div>
+                <div className="mobile-drawer-account-grid">
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('overview')}
+                  >
+                    <LayoutDashboard size={17} />
+                    <span>Overview</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('orders')}
+                  >
+                    <ShoppingBag size={17} />
+                    <span>My Orders</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('profile')}
+                  >
+                    <User size={17} />
+                    <span>My Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('addresses')}
+                  >
+                    <MapPin size={17} />
+                    <span>Addresses</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('coupons')}
+                  >
+                    <Tag size={17} />
+                    <span>Coupons</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('rewards')}
+                  >
+                    <Coins size={17} />
+                    <span>Rewards</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('settings')}
+                  >
+                    <Settings size={17} />
+                    <span>Settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-grid-item"
+                    onClick={() => handleCustomerNav('help')}
+                  >
+                    <HelpCircle size={17} />
+                    <span>Help</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 5. Guest Sign In / Register OR Log Out Button */}
+            <div className="mobile-drawer-footer-actions">
+              {role === 'guest' ? (
+                <div className="mobile-drawer-guest-auth">
+                  <Link
+                    to="/login"
+                    className="mobile-drawer-auth-btn signin"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Sign In
                   </Link>
-                </li>
-              ))}
-              <li style={{ listStyle: 'none', color: 'var(--gold)', fontWeight: 'bold' }}>Our Specialty</li>
-              {megaMenuSpecialty.map((item) => (
-                <li key={item.name} style={{ listStyle: 'none', paddingLeft: '15px' }}>
-                  <Link to={item.link} style={{ color: 'var(--beige)', fontSize: '0.9rem' }} onClick={() => setMobileMenuOpen(false)}>
-                    {item.name}
+                  <Link
+                    to="/register"
+                    className="mobile-drawer-auth-btn register"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Register
                   </Link>
-                </li>
-              ))}
-              <li style={{ listStyle: 'none' }}>
-                <Link to="/our-story" style={{ color: 'var(--cream)', textTransform: 'uppercase', fontSize: '1rem' }} onClick={() => setMobileMenuOpen(false)}>Our Story</Link>
-              </li>
-              <li style={{ listStyle: 'none' }}>
-                <Link to="/contact" style={{ color: 'var(--cream)', textTransform: 'uppercase', fontSize: '1rem' }} onClick={() => setMobileMenuOpen(false)}>Contact</Link>
-              </li>
-            </ul>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="mobile-drawer-logout-btn"
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <LogOut size={18} />
+                  <span>Log Out of Account</span>
+                </button>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

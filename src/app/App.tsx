@@ -155,11 +155,9 @@ const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <AppProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AppProvider>
+    <Router>
+      <AppContent />
+    </Router>
   );
 };
 

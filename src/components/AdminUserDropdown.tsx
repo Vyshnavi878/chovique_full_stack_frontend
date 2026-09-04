@@ -79,8 +79,8 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
             initial
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f5efe6', lineHeight: 1.2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f5efe6', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px' }}>
             {user?.name || 'Admin'}
           </span>
           <span style={{ fontSize: '0.7rem', color: 'rgba(201, 168, 76, 0.85)', fontWeight: 600 }}>

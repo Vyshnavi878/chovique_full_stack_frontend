@@ -40,7 +40,10 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
-  Bell
+  Bell,
+  Package,
+  BarChart3,
+  Copy
 } from 'lucide-react';
 import {
   BarChart,
@@ -73,6 +76,8 @@ import { AdminUserDropdown } from '../../components/AdminUserDropdown';
 import { AuditLogDetailModal } from '../../components/AuditLogDetailModal';
 import { AdminProfileView } from '../admin/AdminProfileView';
 import { ChangePasswordView } from '../admin/ChangePasswordView';
+import { CustomerDirectory } from '../admin/CustomerDirectory';
+import type { OnlineLedgerItem } from '../../services/adminService';
 
 const formatActionLabel = (action?: string | null): string => {
   if (!action) return 'Activity Event';
@@ -122,6 +127,7 @@ import {
   type SuperadminOverviewResponse,
   type SuperadminRevenueResponse,
   type ProductSalesPerformanceResponse,
+  type SalesTrendPoint,
   type OnlineLedgerResponse,
   type OfflineLedgerResponse,
   type AdminUserRecord,
@@ -221,6 +227,12 @@ export const SuperadminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('enterprise');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
 
+  // --- Enterprise Overview Panel Pagination State ---
+  const TOP_SELLING_PER_PAGE = 3;
+  const ACTIVITY_PER_PAGE = 4;
+  const [topSellingPage, setTopSellingPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1);
+
   const [selectedPaymentMetric, setSelectedPaymentMetric] = useState<'completed' | 'pending' | 'cancelled' | null>(null);
   const [paymentMetricOrders, setPaymentMetricOrders] = useState<any[]>([]);
   const [isPaymentMetricLoading, setIsPaymentMetricLoading] = useState(false);
@@ -284,40 +296,28 @@ export const SuperadminDashboard: React.FC = () => {
     }
   };
 
-  // --- Enterprise Overview Default Fallback ---
+  // --- Enterprise Overview Default Fallback (No Dummy Data) ---
   const defaultOverviewData: SuperadminOverviewResponse = {
-    total_revenue: { current_value: 76986, previous_value: 68432, percentage_change: 12.5, comparison_label: 'vs last 7 days' },
-    total_orders: { current_value: 124, previous_value: 114, percentage_change: 8.2, comparison_label: 'vs last 7 days' },
-    online_orders: { current_value: 88, previous_value: 80, percentage_change: 10.0, comparison_label: 'vs last 7 days' },
-    offline_orders: { current_value: 36, previous_value: 34, percentage_change: 5.9, comparison_label: 'vs last 7 days' },
-    total_customers: { current_value: 248, previous_value: 232, percentage_change: 6.7, comparison_label: 'vs last 7 days' },
-    active_admins: { current_value: 3, previous_value: 3, percentage_change: 0.0, comparison_label: 'vs last 7 days' },
+    total_revenue: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    total_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    online_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    offline_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    total_customers: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    active_admins: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
     payment_metrics: {
-      completed: 110,
-      pending: 10,
-      cancelled: 4,
+      completed: 0,
+      pending: 0,
+      cancelled: 0,
     },
-    revenue_trend: [
-      { date: '1 Aug', revenue: 6000 },
-      { date: '6 Aug', revenue: 12000 },
-      { date: '11 Aug', revenue: 28000 },
-      { date: '16 Aug', revenue: 22000 },
-      { date: '21 Aug', revenue: 40000 },
-      { date: '26 Aug', revenue: 32000 },
-      { date: '31 Aug', revenue: 54000 },
-    ],
+    revenue_trend: [],
     sales_source: {
-      online_revenue: 54326,
-      online_percentage: 70.6,
-      offline_revenue: 22660,
-      offline_percentage: 29.4,
+      online_revenue: 0,
+      online_percentage: 0,
+      offline_revenue: 0,
+      offline_percentage: 0,
     },
     top_selling_products: [],
-    recent_activities: [
-      { id: 'act-1', action: 'NEW_ORDER', description: 'New order #ORD1245', timestamp: '12 Aug 2026, 10:45 AM', user_name: 'Customer' },
-      { id: 'act-2', action: 'PRODUCT_UPDATE', description: 'Admin Vaishnavi updated product', timestamp: '12 Aug 2026, 09:15 AM', user_name: 'Admin Vaishnavi' },
-      { id: 'act-3', action: 'OFFLINE_SALE', description: 'Offline sale recorded', timestamp: '12 Aug 2026, 08:20 AM', user_name: 'System' },
-    ],
+    recent_activities: [],
   };
 
   // --- Enterprise Overview State ---
@@ -407,59 +407,51 @@ export const SuperadminDashboard: React.FC = () => {
 
   const displayOverview = overviewData || defaultOverviewData;
 
-  // --- Revenue Analytics Default Fallback ---
+  // --- Revenue Analytics Clean Fallback (No Dummy Data) ---
   const defaultRevenueData: SuperadminRevenueResponse = {
-    preset: 'month',
-    date_from: '2026-08-01',
-    date_to: '2026-08-31',
-    display_range: '01 Aug 2026 - 31 Aug 2026',
-    total_income: { current_value: 76986, previous_value: 68432, percentage_change: 12.5, comparison_label: 'vs last month' },
-    online_revenue: { current_value: 54326, previous_value: 47320, percentage_change: 14.8, comparison_label: 'vs last month' },
-    offline_revenue: { current_value: 22660, previous_value: 22192, percentage_change: 2.1, comparison_label: 'vs last month' },
-    avg_order_value: { current_value: 621, previous_value: 602, percentage_change: 3.1, comparison_label: 'vs last month' },
-    revenue_trend: [
-      { date: '1 Aug', online_revenue: 4200, offline_revenue: 1800, total_revenue: 6000 },
-      { date: '6 Aug', online_revenue: 8500, offline_revenue: 3500, total_revenue: 12000 },
-      { date: '11 Aug', online_revenue: 19500, offline_revenue: 8500, total_revenue: 28000 },
-      { date: '16 Aug', online_revenue: 15000, offline_revenue: 7000, total_revenue: 22000 },
-      { date: '21 Aug', online_revenue: 28000, offline_revenue: 12000, total_revenue: 40000 },
-      { date: '26 Aug', online_revenue: 22000, offline_revenue: 10000, total_revenue: 32000 },
-      { date: '31 Aug', online_revenue: 38000, offline_revenue: 16000, total_revenue: 54000 },
-    ],
-    revenue_by_source: {
-      online_revenue: 54326,
-      online_percentage: 70.6,
-      offline_revenue: 22660,
-      offline_percentage: 29.4,
-    },
-    revenue_by_payment_method: [
-      { method: 'UPI', amount: 32450, percentage: 42.1 },
-      { method: 'Credit / Debit Card', amount: 26180, percentage: 34.0 },
-      { method: 'Cash on Delivery', amount: 18356, percentage: 23.9 },
-    ],
-    summary_rows: [
-      { date: '2026-08-31', online_orders: 14, online_revenue: 8200, offline_sales: 6, offline_revenue: 3200, total_revenue: 11400, avg_order_value: 570 },
-      { date: '2026-08-30', online_orders: 12, online_revenue: 7500, offline_sales: 5, offline_revenue: 2800, total_revenue: 10300, avg_order_value: 605 },
-      { date: '2026-08-29', online_orders: 10, online_revenue: 6200, offline_sales: 4, offline_revenue: 2100, total_revenue: 8300, avg_order_value: 592 },
-      { date: '2026-08-28', online_orders: 15, online_revenue: 9400, offline_sales: 7, offline_revenue: 3900, total_revenue: 13300, avg_order_value: 604 },
-    ],
+    preset: 'this_month',
+    date_basis: 'order_date',
+    date_from: new Date().toISOString().slice(0, 10),
+    date_to: new Date().toISOString().slice(0, 10),
+    display_range: 'This Month',
+    total_revenue: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    online_revenue: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    cod_collected: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    pending_payment: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    total_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    paid_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    cod_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    pending_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+    revenue_trend: [],
+    revenue_by_payment_method: [],
+    transactions: [],
+    summary_rows: [],
   };
 
   // --- Revenue Analytics State ---
   const [revenueData, setRevenueData] = useState<SuperadminRevenueResponse | null>(null);
   const [revenueLoading, setRevenueLoading] = useState(true);
   const [revenueError, setRevenueError] = useState<string | null>(null);
-  const [revenuePreset, setRevenuePreset] = useState<string>('month');
+  const [revenuePreset, setRevenuePreset] = useState<string>('this_month');
+  const [revenueDateBasis, setRevenueDateBasis] = useState<'order_date' | 'payment_date'>('order_date');
   const [revenueDateFrom, setRevenueDateFrom] = useState<string>('');
   const [revenueDateTo, setRevenueDateTo] = useState<string>('');
   const [revenueExporting, setRevenueExporting] = useState(false);
+  const [revenueChartMetric, setRevenueChartMetric] = useState<'revenue' | 'orders' | 'payments' | 'pending'>('revenue');
+  
+  // Transaction Table State
+  const [transactionSearch, setTransactionSearch] = useState<string>('');
+  const [transactionStatusFilter, setTransactionStatusFilter] = useState<string>('ALL');
+  const [transactionPage, setTransactionPage] = useState<number>(1);
+  const transactionPageSize = 10;
   const [summaryPage, setSummaryPage] = useState(1);
   const summaryRowsPerPage = 5;
 
   const fetchRevenueAnalytics = async (
     preset = revenuePreset,
     dateFrom = revenueDateFrom,
-    dateTo = revenueDateTo
+    dateTo = revenueDateTo,
+    dateBasis = revenueDateBasis
   ) => {
     setRevenueLoading(true);
     setRevenueError(null);
@@ -467,7 +459,8 @@ export const SuperadminDashboard: React.FC = () => {
       const data = await adminService.getRevenueAnalytics(
         preset,
         preset === 'custom' ? dateFrom : undefined,
-        preset === 'custom' ? dateTo : undefined
+        preset === 'custom' ? dateTo : undefined,
+        dateBasis
       );
       if (data) {
         setRevenueData(data);
@@ -484,9 +477,9 @@ export const SuperadminDashboard: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'revenue') {
-      fetchRevenueAnalytics(revenuePreset, revenueDateFrom, revenueDateTo);
+      fetchRevenueAnalytics(revenuePreset, revenueDateFrom, revenueDateTo, revenueDateBasis);
     }
-  }, [activeTab, revenuePreset, revenueDateFrom, revenueDateTo]);
+  }, [activeTab, revenuePreset, revenueDateFrom, revenueDateTo, revenueDateBasis]);
 
   const handleExportRevenueCsv = async () => {
     setRevenueExporting(true);
@@ -494,7 +487,8 @@ export const SuperadminDashboard: React.FC = () => {
       await adminService.exportRevenueAnalyticsCsv(
         revenuePreset,
         revenuePreset === 'custom' ? revenueDateFrom : undefined,
-        revenuePreset === 'custom' ? revenueDateTo : undefined
+        revenuePreset === 'custom' ? revenueDateTo : undefined,
+        revenueDateBasis
       );
       addToast('success', 'Revenue report CSV exported successfully!', 'Report Exported');
     } catch (err: any) {
@@ -506,54 +500,48 @@ export const SuperadminDashboard: React.FC = () => {
 
   const displayRevenue = revenueData || defaultRevenueData;
 
-  // --- Sales Analytics & Ledger Default Fallbacks ---
+  // --- Sales Analytics Clean Fallback (No Dummy Data) ---
   const defaultSalesProducts: ProductSalesPerformanceResponse = {
+    preset: 'this_month',
+    date_from: new Date().toISOString().slice(0, 10),
+    date_to: new Date().toISOString().slice(0, 10),
+    display_range: 'This Month',
     kpis: {
-      total_units_sold: 248,
-      total_units_prev: 225,
-      units_pct_change: 10.2,
-      total_revenue: 76986,
-      total_revenue_prev: 68432,
-      revenue_pct_change: 12.5,
-      online_revenue: 54326,
-      online_revenue_prev: 47320,
-      online_pct_change: 14.8,
-      offline_revenue: 22660,
-      offline_revenue_prev: 22192,
-      offline_pct_change: 2.1,
-      top_selling_chocolate: 'Belgian Dark Truffle Bar',
-      comparison_label: 'vs last month',
+      total_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      total_units_sold: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      online_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      online_units_sold: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      offline_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      offline_units_sold: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      pending_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      cancelled_orders: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      current_stock: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
+      low_stock_products: { current_value: 0, previous_value: 0, percentage_change: 0, comparison_label: '' },
     },
-    products: [
-      { id: 'p1', name: 'Belgian Dark Truffle Bar', category_name: 'Dark Chocolate', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 175, online_units: 45, offline_units: 18, total_units: 63, total_revenue: 10125, stock_available: 37 },
-      { id: 'p2', name: 'Salted Caramel Bonbons', category_name: 'Bonbons', image_url: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=150&q=80', price: 159, online_units: 38, offline_units: 12, total_units: 50, total_revenue: 7950, stock_available: 20 },
-      { id: 'p3', name: 'Gold Leaf Pralines', category_name: 'Luxury Boxes', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 160, online_units: 28, offline_units: 10, total_units: 38, total_revenue: 6080, stock_available: 42 },
-      { id: 'p4', name: 'Milk Chocolate Almonds', category_name: 'Milk Chocolate', image_url: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=150&q=80', price: 150, online_units: 25, offline_units: 8, total_units: 33, total_revenue: 4950, stock_available: 26 },
-      { id: 'p5', name: 'Ruby Cocoa Delight', category_name: 'Ruby Chocolate', image_url: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80', price: 160, online_units: 20, offline_units: 6, total_units: 26, total_revenue: 4160, stock_available: 35 },
-    ],
-    total: 24,
+    sales_trend: [],
+    inventory_summary: {
+      current_stock: 0,
+      sold_quantity: 0,
+      low_stock_count: 0,
+      out_of_stock_count: 0,
+      total_catalog_products: 0,
+    },
+    products: [],
+    total_products: 0,
     page: 1,
-    limit: 5,
+    limit: 10,
   };
 
   const defaultOnlineLedger: OnlineLedgerResponse = {
-    items: [
-      { id: 'ord-1', order_id: 'ORD-1245', created_at: '12 Aug 2026, 10:45 AM', customer_name: 'Aarav Sharma', customer_email: 'aarav@example.com', product_summary: 'Belgian Dark Truffle Bar (x2)', quantity: 2, payment_method: 'UPI', amount: 350, order_status: 'Paid' },
-      { id: 'ord-2', order_id: 'ORD-1244', created_at: '12 Aug 2026, 09:30 AM', customer_name: 'Priya Patel', customer_email: 'priya@example.com', product_summary: 'Salted Caramel Bonbons (x1)', quantity: 1, payment_method: 'Card', amount: 159, order_status: 'Shipped' },
-      { id: 'ord-3', order_id: 'ORD-1243', created_at: '11 Aug 2026, 04:15 PM', customer_name: 'Rohan Mehta', customer_email: 'rohan@example.com', product_summary: 'Gold Leaf Pralines (x3)', quantity: 3, payment_method: 'UPI', amount: 480, order_status: 'Delivered' },
-    ],
-    total: 3,
+    items: [],
+    total: 0,
     page: 1,
     limit: 10,
   };
 
   const defaultOfflineLedger: OfflineLedgerResponse = {
-    items: [
-      { id: 'pos-1', receipt_id: 'POS-8821', created_at: '12 Aug 2026, 11:20 AM', product_name: 'Belgian Dark Truffle Bar', quantity: 3, payment_method: 'Cash', amount: 525 },
-      { id: 'pos-2', receipt_id: 'POS-8820', created_at: '12 Aug 2026, 10:15 AM', product_name: 'Ruby Cocoa Delight', quantity: 2, payment_method: 'UPI', amount: 320 },
-      { id: 'pos-3', receipt_id: 'POS-8819', created_at: '11 Aug 2026, 06:40 PM', product_name: 'Milk Chocolate Almonds', quantity: 4, payment_method: 'Card', amount: 600 },
-    ],
-    total: 3,
+    items: [],
+    total: 0,
     page: 1,
     limit: 10,
   };
@@ -570,18 +558,117 @@ export const SuperadminDashboard: React.FC = () => {
   const [salesError, setSalesError] = useState<string | null>(null);
   const [salesExporting, setSalesExporting] = useState(false);
 
-  // Search & Filter states
-  const [salesSearch, setSalesSearch] = useState('');
+  // Date Filters & Search
+  const [salesPreset, setSalesPreset] = useState<'today' | 'yesterday' | 'last_7_days' | 'last_30_days' | 'this_month' | 'last_month' | 'all_time' | 'custom'>('this_month');
   const [salesDateFrom, setSalesDateFrom] = useState('');
   const [salesDateTo, setSalesDateTo] = useState('');
+  const [salesSearch, setSalesSearch] = useState('');
+  const [salesCategory, setSalesCategory] = useState('ALL');
   const [salesOnlineStatus, setSalesOnlineStatus] = useState('ALL');
   const [salesPaymentMethod, setSalesPaymentMethod] = useState('ALL');
+
+  // Interactive Modal & Copy State
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<OnlineLedgerItem | null>(null);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+
+  // Helper for single-line, styled payment method badge (no icons)
+  const renderPaymentBadge = (method?: string) => {
+    const m = (method || 'UPI').trim();
+    const lower = m.toLowerCase();
+
+    let bg = 'rgba(255, 255, 255, 0.08)';
+    let color = '#f5efe6';
+    let border = 'rgba(255, 255, 255, 0.15)';
+
+    if (lower.includes('cod') || lower.includes('cash')) {
+      bg = 'rgba(46, 204, 113, 0.12)';
+      color = '#2ecc71';
+      border = 'rgba(46, 204, 113, 0.3)';
+    } else if (lower.includes('upi')) {
+      bg = 'rgba(52, 152, 219, 0.12)';
+      color = '#5dade2';
+      border = 'rgba(52, 152, 219, 0.3)';
+    } else if (lower.includes('card') || lower.includes('credit') || lower.includes('debit')) {
+      bg = 'rgba(155, 89, 182, 0.12)';
+      color = '#bb86fc';
+      border = 'rgba(155, 89, 182, 0.3)';
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4px 10px',
+          borderRadius: '8px',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          background: bg,
+          color: color,
+          border: `1px solid ${border}`,
+          whiteSpace: 'nowrap',
+          lineHeight: 1.2,
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ whiteSpace: 'nowrap' }}>{m}</span>
+      </span>
+    );
+  };
+
+  // Helper for order status badge
+  const renderOrderStatusBadge = (status?: string) => {
+    const s = (status || 'Processing').trim();
+    const lower = s.toLowerCase();
+
+    let bg = 'rgba(201, 168, 76, 0.15)';
+    let color = '#c9a84c';
+
+    if (lower === 'delivered' || lower === 'completed') {
+      bg = 'rgba(46, 204, 113, 0.15)';
+      color = '#2ecc71';
+    } else if (lower === 'paid' || lower === 'confirmed') {
+      bg = 'rgba(52, 152, 219, 0.15)';
+      color = '#3498db';
+    } else if (lower === 'shipped' || lower === 'in transit') {
+      bg = 'rgba(155, 89, 182, 0.15)';
+      color = '#bb86fc';
+    } else if (lower === 'cancelled' || lower === 'refunded' || lower === 'failed') {
+      bg = 'rgba(231, 76, 60, 0.15)';
+      color = '#e74c3c';
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: '4px 10px',
+          borderRadius: '12px',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          background: bg,
+          color: color,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />
+        <span>{s}</span>
+      </span>
+    );
+  };
+
+  // Trend Chart Toggle States
+  const [salesChartMetric, setSalesChartMetric] = useState<'orders' | 'units'>('orders');
+  const [salesChartChannel, setSalesChartChannel] = useState<'all' | 'online' | 'offline'>('all');
   
   // Pagination states
   const [salesProductsPage, setSalesProductsPage] = useState(1);
   const [onlineLedgerPage, setOnlineLedgerPage] = useState(1);
   const [offlineLedgerPage, setOfflineLedgerPage] = useState(1);
-  const salesPageLimit = 5;
+  const salesPageLimit = 10;
 
   const fetchSalesData = async () => {
     setSalesLoading(true);
@@ -589,37 +676,41 @@ export const SuperadminDashboard: React.FC = () => {
     try {
       if (salesSubTab === 'products') {
         const res = await adminService.getSalesAnalytics({
+          preset: salesPreset,
           search: salesSearch || undefined,
-          date_from: salesDateFrom || undefined,
-          date_to: salesDateTo || undefined,
+          category: salesCategory !== 'ALL' ? salesCategory : undefined,
+          date_from: salesPreset === 'custom' ? (salesDateFrom || undefined) : undefined,
+          date_to: salesPreset === 'custom' ? (salesDateTo || undefined) : undefined,
           page: salesProductsPage,
           limit: salesPageLimit,
         });
         if (res) setSalesProductsData(res);
       } else if (salesSubTab === 'online') {
         const res = await adminService.getOnlineSalesLedger({
+          preset: salesPreset,
           search: salesSearch || undefined,
           status: salesOnlineStatus !== 'ALL' ? salesOnlineStatus : undefined,
           payment_method: salesPaymentMethod !== 'ALL' ? salesPaymentMethod : undefined,
-          date_from: salesDateFrom || undefined,
-          date_to: salesDateTo || undefined,
+          date_from: salesPreset === 'custom' ? (salesDateFrom || undefined) : undefined,
+          date_to: salesPreset === 'custom' ? (salesDateTo || undefined) : undefined,
           page: onlineLedgerPage,
           limit: salesPageLimit,
         });
         if (res) setOnlineLedgerData(res);
       } else if (salesSubTab === 'offline') {
         const res = await adminService.getOfflineSalesLedger({
+          preset: salesPreset,
           search: salesSearch || undefined,
           payment_method: salesPaymentMethod !== 'ALL' ? salesPaymentMethod : undefined,
-          date_from: salesDateFrom || undefined,
-          date_to: salesDateTo || undefined,
+          date_from: salesPreset === 'custom' ? (salesDateFrom || undefined) : undefined,
+          date_to: salesPreset === 'custom' ? (salesDateTo || undefined) : undefined,
           page: offlineLedgerPage,
           limit: salesPageLimit,
         });
         if (res) setOfflineLedgerData(res);
       }
     } catch (err: any) {
-      console.error('Failed to fetch Sales Analytics / Ledger data:', err);
+      console.error('Failed to fetch Sales Analytics data:', err);
       setSalesError(err?.detail || err?.message || 'Failed to load sales data.');
     } finally {
       setSalesLoading(false);
@@ -633,7 +724,9 @@ export const SuperadminDashboard: React.FC = () => {
   }, [
     activeTab,
     salesSubTab,
+    salesPreset,
     salesSearch,
+    salesCategory,
     salesDateFrom,
     salesDateTo,
     salesOnlineStatus,
@@ -648,9 +741,11 @@ export const SuperadminDashboard: React.FC = () => {
     try {
       await adminService.exportSalesAnalyticsCsv(
         salesSubTab,
+        salesPreset,
         salesSearch || undefined,
-        salesDateFrom || undefined,
-        salesDateTo || undefined
+        salesCategory !== 'ALL' ? salesCategory : undefined,
+        salesPreset === 'custom' ? (salesDateFrom || undefined) : undefined,
+        salesPreset === 'custom' ? (salesDateTo || undefined) : undefined
       );
       addToast('success', `Exported ${salesSubTab} sales data as CSV successfully!`, 'CSV Exported');
     } catch (err: any) {
@@ -2420,29 +2515,33 @@ export const SuperadminDashboard: React.FC = () => {
       {/* Main content pane */}
       <div className="admin-workspace">
         {/* Top-Right Admin Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-          {/* Notification Bell Dropdown */}
-          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={true} />
+        <div className="admin-header-actions">
+          {/* Notification Bell Dropdown - Desktop only; on mobile it sits inside the top navbar beside S.Admin */}
+          <div className="desktop-only-header-notification">
+            <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={true} />
+          </div>
 
           {/* View Home Button */}
           <button
+            className="view-home-btn"
             onClick={() => navigate('/')}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               height: '42px',
-              padding: '0 16px',
+              padding: '0 14px',
               borderRadius: '10px',
               background: 'rgba(20, 16, 13, 0.9)',
               border: '1px solid rgba(201, 168, 76, 0.3)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
               cursor: 'pointer',
               color: '#f5efe6',
-              fontSize: '0.85rem',
+              fontSize: '0.84rem',
               fontWeight: 600,
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.6)';
@@ -2455,12 +2554,14 @@ export const SuperadminDashboard: React.FC = () => {
             title="View Public Site Homepage"
             aria-label="View Home"
           >
-            <Home size={18} color="#c9a84c" />
+            <Home size={16} color="#c9a84c" />
             <span>View Home</span>
           </button>
 
           {/* Admin User Profile Dropdown Menu */}
-          <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+          <div style={{ flexShrink: 0 }}>
+            <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+          </div>
         </div>
         
         {/* ENTERPRISE DASHBOARD TAB */}
@@ -2612,7 +2713,7 @@ export const SuperadminDashboard: React.FC = () => {
             ) : displayOverview ? (
               <>
                 {/* 4 KPI Cards Grid */}
-                <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div className="enterprise-kpi-grid">
                   {/* Card 1: TOTAL REVENUE */}
                   <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
                     <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
@@ -2690,7 +2791,7 @@ export const SuperadminDashboard: React.FC = () => {
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: 'var(--cream)', marginBottom: '16px', fontWeight: 700 }}>
                       PAYMENT METRICS
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                    <div className="enterprise-payment-grid">
                       {/* Completed Payments */}
                       <div className="glass-panel" onClick={() => handlePaymentMetricClick('completed')} style={{ cursor: 'pointer', padding: '16px', border: '1px solid rgba(46, 204, 113, 0.3)', borderRadius: '12px', background: 'rgba(46, 204, 113, 0.05)' }}>
                         <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
@@ -2725,7 +2826,7 @@ export const SuperadminDashboard: React.FC = () => {
                 )}
 
                 {/* ROW 1: Revenue Trend Chart & Sales Source Donut Chart */}
-                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.4fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                <div className="enterprise-charts-row">
                   {/* Revenue Trend Chart */}
                   <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -2808,49 +2909,82 @@ export const SuperadminDashboard: React.FC = () => {
                 </div>
 
                 {/* ROW 2: Top Selling Product & Recent Activity */}
-                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '24px' }}>
+                <div className="enterprise-bottom-row">
                   {/* Top Selling Product */}
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
-                      TOP SELLING PRODUCT
-                    </h3>
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        TOP SELLING PRODUCTS
+                      </h3>
+                      {displayOverview.top_selling_products.length > TOP_SELLING_PER_PAGE && (
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
+                          {displayOverview.top_selling_products.length} total
+                        </span>
+                      )}
+                    </div>
                     {displayOverview.top_selling_products.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {displayOverview.top_selling_products.slice(0, 3).map((prod) => (
-                          <div
-                            key={prod.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '16px',
-                              padding: '14px',
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              borderRadius: '10px',
-                              border: '1px solid rgba(201, 168, 76, 0.15)',
-                            }}
-                          >
-                            <img
-                              src={getImageUrl(prod.image_url)}
-                              alt={prod.name}
-                              style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(201, 168, 76, 0.3)' }}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80';
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                          {displayOverview.top_selling_products
+                            .slice((topSellingPage - 1) * TOP_SELLING_PER_PAGE, topSellingPage * TOP_SELLING_PER_PAGE)
+                            .map((prod) => (
+                            <div
+                              key={prod.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '14px',
+                                padding: '12px',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(201, 168, 76, 0.15)',
                               }}
-                            />
-                            <div style={{ flex: 1 }}>
-                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6', margin: '0 0 4px 0' }}>
-                                {prod.name}
-                              </h4>
-                              <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: '2px' }}>
-                                Sold: {prod.units_sold} units
-                              </span>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c9a84c' }}>
-                                Revenue: ₹{prod.revenue.toLocaleString('en-IN')}
-                              </span>
+                            >
+                              <img
+                                src={getImageUrl(prod.image_url)}
+                                alt={prod.name}
+                                style={{ width: '54px', height: '54px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(201, 168, 76, 0.3)', flexShrink: 0 }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80';
+                                }}
+                              />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f5efe6', margin: '0 0 3px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {prod.name}
+                                </h4>
+                                <span style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.55)', display: 'block', marginBottom: '2px' }}>
+                                  Sold: {prod.units_sold} units
+                                </span>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#c9a84c' }}>
+                                  ₹{prod.revenue.toLocaleString('en-IN')}
+                                </span>
+                              </div>
                             </div>
+                          ))}
+                        </div>
+                        {/* Pagination */}
+                        {Math.ceil(displayOverview.top_selling_products.length / TOP_SELLING_PER_PAGE) > 1 && (
+                          <div className="enterprise-panel-pagination">
+                            <button
+                              className="enterprise-pagination-btn"
+                              disabled={topSellingPage <= 1}
+                              onClick={() => setTopSellingPage(p => Math.max(1, p - 1))}
+                            >
+                              ← Prev
+                            </button>
+                            <span className="enterprise-pagination-label">
+                              {topSellingPage} / {Math.ceil(displayOverview.top_selling_products.length / TOP_SELLING_PER_PAGE)}
+                            </span>
+                            <button
+                              className="enterprise-pagination-btn"
+                              disabled={topSellingPage >= Math.ceil(displayOverview.top_selling_products.length / TOP_SELLING_PER_PAGE)}
+                              onClick={() => setTopSellingPage(p => Math.min(Math.ceil(displayOverview.top_selling_products.length / TOP_SELLING_PER_PAGE), p + 1))}
+                            >
+                              Next →
+                            </button>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     ) : (
                       <div style={{ padding: '30px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
                         No product sales recorded for this timeframe.
@@ -2859,45 +2993,71 @@ export const SuperadminDashboard: React.FC = () => {
                   </div>
 
                   {/* Recent Activity */}
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
                         RECENT ACTIVITY
                       </h3>
                       <button
                         onClick={() => setActiveTab('audit-logs')}
-                        style={{ background: 'none', border: 'none', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                        style={{ background: 'none', border: 'none', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
                       >
                         View All
                       </button>
                     </div>
 
                     {displayOverview.recent_activities.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {displayOverview.recent_activities.slice(0, 4).map((act) => (
-                          <div
-                            key={act.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              gap: '12px',
-                              padding: '10px 12px',
-                              background: 'rgba(255, 255, 255, 0.02)',
-                              borderRadius: '8px',
-                              borderLeft: '3px solid #c9a84c',
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <p style={{ margin: '0 0 2px 0', fontSize: '0.82rem', color: '#f5efe6', fontWeight: 600 }}>
-                                {act.description || act.action}
-                              </p>
-                              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>
-                                {act.timestamp}
-                              </span>
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                          {displayOverview.recent_activities
+                            .slice((activityPage - 1) * ACTIVITY_PER_PAGE, activityPage * ACTIVITY_PER_PAGE)
+                            .map((act) => (
+                            <div
+                              key={act.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                padding: '10px 12px',
+                                background: 'rgba(255, 255, 255, 0.02)',
+                                borderRadius: '8px',
+                                borderLeft: '3px solid #c9a84c',
+                              }}
+                            >
+                              <div style={{ flex: 1 }}>
+                                <p style={{ margin: '0 0 3px 0', fontSize: '0.82rem', color: '#f5efe6', fontWeight: 600, lineHeight: 1.4 }}>
+                                  {act.description || act.action}
+                                </p>
+                                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>
+                                  {act.timestamp}
+                                </span>
+                              </div>
                             </div>
+                          ))}
+                        </div>
+                        {/* Pagination */}
+                        {Math.ceil(displayOverview.recent_activities.length / ACTIVITY_PER_PAGE) > 1 && (
+                          <div className="enterprise-panel-pagination">
+                            <button
+                              className="enterprise-pagination-btn"
+                              disabled={activityPage <= 1}
+                              onClick={() => setActivityPage(p => Math.max(1, p - 1))}
+                            >
+                              ← Prev
+                            </button>
+                            <span className="enterprise-pagination-label">
+                              {activityPage} / {Math.ceil(displayOverview.recent_activities.length / ACTIVITY_PER_PAGE)}
+                            </span>
+                            <button
+                              className="enterprise-pagination-btn"
+                              disabled={activityPage >= Math.ceil(displayOverview.recent_activities.length / ACTIVITY_PER_PAGE)}
+                              onClick={() => setActivityPage(p => Math.min(Math.ceil(displayOverview.recent_activities.length / ACTIVITY_PER_PAGE), p + 1))}
+                            >
+                              Next →
+                            </button>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     ) : (
                       <div style={{ padding: '30px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
                         No recent activity recorded.
@@ -2910,17 +3070,26 @@ export const SuperadminDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* CUSTOMER DIRECTORY TAB — accessible to Superadmin */}
+        {activeTab === 'customers' && (
+          <div>
+            <CustomerDirectory
+              addToast={addToast}
+            />
+          </div>
+        )}
+
         {/* REVENUE ANALYTICS TAB */}
         {activeTab === 'revenue' && (
           <div>
             {/* Header Title & Export Button */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
-                  Revenue Performance
+                <h1 className="revenue-title-heading" style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                  Revenue &amp; Sales Analytics
                 </h1>
                 <p style={{ color: 'var(--beige)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
-                  Track and analyze your revenue performance
+                  Real-time accounting of revenue, order volumes, COD collections, and payment statuses
                 </p>
               </div>
               <Button
@@ -2934,8 +3103,9 @@ export const SuperadminDashboard: React.FC = () => {
               </Button>
             </div>
 
-            {/* Filter Toolbar: Preset selector + Custom Range */}
+            {/* Filter Toolbar: Preset selector + Custom Range + Date Basis Toggle */}
             <div
+              className="revenue-filter-bar"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -2944,40 +3114,46 @@ export const SuperadminDashboard: React.FC = () => {
                 marginBottom: '24px',
                 flexWrap: 'wrap',
                 background: 'rgba(20, 16, 13, 0.85)',
-                padding: '12px 18px',
-                borderRadius: '10px',
+                padding: '14px 18px',
+                borderRadius: '12px',
                 border: '1px solid rgba(201, 168, 76, 0.25)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <select
-                  value={revenuePreset}
-                  onChange={(e) => {
-                    setRevenuePreset(e.target.value);
-                    fetchRevenueAnalytics(e.target.value, revenueDateFrom, revenueDateTo);
-                  }}
-                  style={{
-                    background: '#14100d',
-                    color: '#f5efe6',
-                    border: '1px solid rgba(201, 168, 76, 0.4)',
-                    borderRadius: '8px',
-                    padding: '8px 14px',
-                    fontSize: '0.88rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    outline: 'none',
-                  }}
-                >
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="3months">Last 3 Months</option>
-                  <option value="year">This Year</option>
-                  <option value="custom">Custom Date Range</option>
-                </select>
+              <div className="revenue-filter-timeframe-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Timeframe:
+                  </span>
+                  <select
+                    value={revenuePreset}
+                    onChange={(e) => {
+                      setRevenuePreset(e.target.value);
+                      fetchRevenueAnalytics(e.target.value, revenueDateFrom, revenueDateTo, revenueDateBasis);
+                    }}
+                    style={{
+                      background: '#14100d',
+                      color: '#f5efe6',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last_7_days">Last 7 Days</option>
+                    <option value="last_30_days">Last 30 Days</option>
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+                </div>
 
                 {revenuePreset === 'custom' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
                     <input
                       type="date"
                       value={revenueDateFrom}
@@ -2991,6 +3167,8 @@ export const SuperadminDashboard: React.FC = () => {
                         padding: '6px 10px',
                         fontSize: '0.82rem',
                         cursor: 'pointer',
+                        flex: 1,
+                        minWidth: '120px',
                       }}
                     />
                     <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
@@ -3007,12 +3185,14 @@ export const SuperadminDashboard: React.FC = () => {
                         padding: '6px 10px',
                         fontSize: '0.82rem',
                         cursor: 'pointer',
+                        flex: 1,
+                        minWidth: '120px',
                       }}
                     />
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => fetchRevenueAnalytics('custom', revenueDateFrom, revenueDateTo)}
+                      onClick={() => fetchRevenueAnalytics('custom', revenueDateFrom, revenueDateTo, revenueDateBasis)}
                     >
                       Apply
                     </Button>
@@ -3020,9 +3200,60 @@ export const SuperadminDashboard: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c9a84c', fontSize: '0.85rem', fontWeight: 600 }}>
-                <Calendar size={16} />
-                <span>{displayRevenue.display_range}</span>
+              {/* "Date Based On" Dimension Filter */}
+              <div className="revenue-filter-basis-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                  Date Based On:
+                </span>
+                <div className="revenue-filter-basis-buttons" style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRevenueDateBasis('order_date');
+                      fetchRevenueAnalytics(revenuePreset, revenueDateFrom, revenueDateTo, 'order_date');
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: revenueDateBasis === 'order_date' ? 'rgba(201, 168, 76, 0.25)' : 'transparent',
+                      color: revenueDateBasis === 'order_date' ? 'var(--gold)' : 'var(--beige)',
+                      boxShadow: revenueDateBasis === 'order_date' ? '0 0 10px rgba(201, 168, 76, 0.2)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    📅 Order Date
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRevenueDateBasis('payment_date');
+                      fetchRevenueAnalytics(revenuePreset, revenueDateFrom, revenueDateTo, 'payment_date');
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: revenueDateBasis === 'payment_date' ? 'rgba(201, 168, 76, 0.25)' : 'transparent',
+                      color: revenueDateBasis === 'payment_date' ? 'var(--gold)' : 'var(--beige)',
+                      boxShadow: revenueDateBasis === 'payment_date' ? '0 0 10px rgba(201, 168, 76, 0.2)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    💳 Payment Date
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 600 }}>
+                  <Calendar size={14} />
+                  <span>{displayRevenue.display_range}</span>
+                </div>
               </div>
             </div>
 
@@ -3059,206 +3290,573 @@ export const SuperadminDashboard: React.FC = () => {
               </div>
             ) : displayRevenue ? (
               <>
-                {/* 4 KPI Cards */}
-                <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                  {/* Card 1: TOTAL REVENUE / INCOME */}
-                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                      TOTAL REVENUE
+                {/* ── 8 KPI CARDS (Financials & Order Volumes) ─────────────── */}
+                
+                {/* ROW 1: Financials (₹ Received, Online, COD, Pending) */}
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+                    Collections &amp; Revenue (₹ Received vs Pending)
+                  </span>
+                </div>
+                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                  {/* Card 1: TOTAL REVENUE */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.35)', borderRadius: '12px', borderTop: '3px solid #c9a84c' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      TOTAL REVENUE (RECEIVED)
                     </span>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                      ₹{displayRevenue.total_income.current_value.toLocaleString('en-IN')}
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--gold)', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{(displayRevenue.total_revenue?.current_value ?? 0).toLocaleString('en-IN')}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.total_income.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                      <span>{displayRevenue.total_income.percentage_change >= 0 ? `+${displayRevenue.total_income.percentage_change}%` : `${displayRevenue.total_income.percentage_change}%`}</span>
-                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.total_income.comparison_label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.total_revenue?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.total_revenue?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.total_revenue?.percentage_change ?? 0}%` : `${displayRevenue.total_revenue?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.total_revenue?.comparison_label || 'vs previous'}</span>
                     </div>
                   </div>
 
                   {/* Card 2: ONLINE REVENUE */}
-                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(46, 204, 113, 0.35)', borderRadius: '12px', borderTop: '3px solid #2ecc71' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
                       ONLINE REVENUE
                     </span>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                      ₹{displayRevenue.online_revenue.current_value.toLocaleString('en-IN')}
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#2ecc71', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{(displayRevenue.online_revenue?.current_value ?? 0).toLocaleString('en-IN')}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.online_revenue.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                      <span>{displayRevenue.online_revenue.percentage_change >= 0 ? `+${displayRevenue.online_revenue.percentage_change}%` : `${displayRevenue.online_revenue.percentage_change}%`}</span>
-                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.online_revenue.comparison_label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.online_revenue?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.online_revenue?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.online_revenue?.percentage_change ?? 0}%` : `${displayRevenue.online_revenue?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.online_revenue?.comparison_label || 'vs previous'}</span>
                     </div>
                   </div>
 
-                  {/* Card 3: OFFLINE REVENUE */}
-                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                      OFFLINE REVENUE
+                  {/* Card 3: COD COLLECTED */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(230, 126, 34, 0.35)', borderRadius: '12px', borderTop: '3px solid #e67e22' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      COD COLLECTED (PAID)
                     </span>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                      ₹{displayRevenue.offline_revenue.current_value.toLocaleString('en-IN')}
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#e67e22', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{(displayRevenue.cod_collected?.current_value ?? 0).toLocaleString('en-IN')}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.offline_revenue.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                      <span>{displayRevenue.offline_revenue.percentage_change >= 0 ? `+${displayRevenue.offline_revenue.percentage_change}%` : `${displayRevenue.offline_revenue.percentage_change}%`}</span>
-                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.offline_revenue.comparison_label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.cod_collected?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.cod_collected?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.cod_collected?.percentage_change ?? 0}%` : `${displayRevenue.cod_collected?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.cod_collected?.comparison_label || 'vs previous'}</span>
                     </div>
                   </div>
 
-                  {/* Card 4: AVERAGE ORDER VALUE */}
-                  <div className="dashboard-stat-card glass-panel" style={{ padding: '20px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                      AVG ORDER VALUE
+                  {/* Card 4: PENDING PAYMENT */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(231, 76, 60, 0.35)', borderRadius: '12px', borderTop: '3px solid #e74c3c' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      PENDING PAYMENTS (₹)
                     </span>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                      ₹{displayRevenue.avg_order_value.current_value.toLocaleString('en-IN')}
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#e74c3c', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      ₹{(displayRevenue.pending_payment?.current_value ?? 0).toLocaleString('en-IN')}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displayRevenue.avg_order_value.percentage_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                      <span>{displayRevenue.avg_order_value.percentage_change >= 0 ? `+${displayRevenue.avg_order_value.percentage_change}%` : `${displayRevenue.avg_order_value.percentage_change}%`}</span>
-                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.avg_order_value.comparison_label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: '#f39c12' }}>
+                      <span>Uncollected amounts on orders</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Main Trend Chart: REVENUE TREND */}
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                      REVENUE TREND
-                    </h3>
+                {/* ROW 2: Order Volume Counts */}
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#3498db', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+                    Order Volume &amp; Status Breakdown
+                  </span>
+                </div>
+                <div className="stats-grid-dashboard revenue-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  {/* Card 5: TOTAL ORDERS */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(52, 152, 219, 0.35)', borderRadius: '12px', borderTop: '3px solid #3498db' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      TOTAL ORDERS PLACED
+                    </span>
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#3498db', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {Math.round(displayRevenue.total_orders?.current_value ?? 0)}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.total_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.total_orders?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.total_orders?.percentage_change ?? 0}%` : `${displayRevenue.total_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.total_orders?.comparison_label || 'vs previous'}</span>
+                    </div>
                   </div>
-                  <div style={{ height: '300px', width: '100%' }}>
+
+                  {/* Card 6: PAID ORDERS */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(46, 204, 113, 0.35)', borderRadius: '12px', borderTop: '3px solid #2ecc71' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      PAID ORDERS
+                    </span>
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#2ecc71', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {Math.round(displayRevenue.paid_orders?.current_value ?? 0)}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.paid_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.paid_orders?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.paid_orders?.percentage_change ?? 0}%` : `${displayRevenue.paid_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.paid_orders?.comparison_label || 'vs previous'}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 7: COD ORDERS */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(155, 89, 182, 0.35)', borderRadius: '12px', borderTop: '3px solid #9b59b6' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      COD ORDERS (TOTAL)
+                    </span>
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#9b59b6', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {Math.round(displayRevenue.cod_orders?.current_value ?? 0)}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.cod_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                      <span>{(displayRevenue.cod_orders?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.cod_orders?.percentage_change ?? 0}%` : `${displayRevenue.cod_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.cod_orders?.comparison_label || 'vs previous'}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 8: PENDING ORDERS */}
+                  <div className="dashboard-stat-card glass-panel revenue-kpi-card" style={{ padding: '20px', border: '1px solid rgba(243, 156, 18, 0.35)', borderRadius: '12px', borderTop: '3px solid #f39c12' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      PENDING ORDERS
+                    </span>
+                    <span className="revenue-kpi-val" style={{ fontSize: '1.85rem', fontWeight: 800, color: '#f39c12', display: 'block', fontFamily: 'var(--font-display)' }}>
+                      {Math.round(displayRevenue.pending_orders?.current_value ?? 0)}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: (displayRevenue.pending_orders?.percentage_change ?? 0) >= 0 ? '#e74c3c' : '#2ecc71' }}>
+                      <span>{(displayRevenue.pending_orders?.percentage_change ?? 0) >= 0 ? `+${displayRevenue.pending_orders?.percentage_change ?? 0}%` : `${displayRevenue.pending_orders?.percentage_change ?? 0}%`}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displayRevenue.pending_orders?.comparison_label || 'vs previous'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── INTERACTIVE MULTI-METRIC CHART ──────────────────────── */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+                    <div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        PERFORMANCE TREND CURVE
+                      </h3>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                        Filtered by {revenueDateBasis === 'payment_date' ? 'Payment Received Date' : 'Order Placed Date'}
+                      </span>
+                    </div>
+
+                    {/* Chart Metric Switcher Tabs */}
+                    <div className="revenue-chart-metric-tabs" style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
+                      {[
+                        { id: 'revenue', label: '💰 Revenue' },
+                        { id: 'orders', label: '📦 Orders' },
+                        { id: 'payments', label: '💳 Collections' },
+                        { id: 'pending', label: '⏳ Pending' },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setRevenueChartMetric(tab.id as any)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '0.78rem',
+                            fontWeight: revenueChartMetric === tab.id ? 700 : 500,
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: revenueChartMetric === tab.id ? 'rgba(201, 168, 76, 0.2)' : 'transparent',
+                            color: revenueChartMetric === tab.id ? 'var(--gold)' : 'var(--beige)',
+                            borderBottom: revenueChartMetric === tab.id ? '2px solid var(--gold)' : '2px solid transparent',
+                            transition: 'all 0.2s',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="revenue-chart-container" style={{ height: '340px', width: '100%' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={displayRevenue.revenue_trend}>
-                        <defs>
-                          <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#c9a84c" stopOpacity={0.5} />
-                            <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.0} />
-                          </linearGradient>
-                          <linearGradient id="roseGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#b76e79" stopOpacity={0.5} />
-                            <stop offset="95%" stopColor="#b76e79" stopOpacity={0.0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
-                        <Tooltip
-                          contentStyle={{ background: '#14100d', borderColor: '#c9a84c', borderRadius: '8px', color: '#f5efe6' }}
-                          formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
-                        />
-                        <Legend />
-                        <Area type="monotone" dataKey="online_revenue" name="Online Revenue" stroke="#c9a84c" strokeWidth={2.5} fillOpacity={1} fill="url(#goldGradient)" />
-                        <Area type="monotone" dataKey="offline_revenue" name="Offline Revenue" stroke="#b76e79" strokeWidth={2.5} fillOpacity={1} fill="url(#roseGradient)" />
-                      </AreaChart>
+                      {revenueChartMetric === 'revenue' ? (
+                        <AreaChart data={displayRevenue.revenue_trend}>
+                          <defs>
+                            <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#c9a84c" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#c9a84c" stopOpacity={0.0} />
+                            </linearGradient>
+                            <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2ecc71" stopOpacity={0.5} />
+                              <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.0} />
+                            </linearGradient>
+                            <linearGradient id="orangeGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#e67e22" stopOpacity={0.5} />
+                              <stop offset="95%" stopColor="#e67e22" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                          <Tooltip
+                            contentStyle={{ background: '#14100d', borderColor: '#c9a84c', borderRadius: '8px', color: '#f5efe6' }}
+                            formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
+                          />
+                          <Legend />
+                          <Area type="monotone" dataKey="total_revenue" name="Total Revenue (₹)" stroke="#c9a84c" strokeWidth={2.5} fillOpacity={1} fill="url(#goldGradient)" />
+                          <Area type="monotone" dataKey="online_revenue" name="Online Revenue (₹)" stroke="#2ecc71" strokeWidth={2} fillOpacity={1} fill="url(#greenGradient)" />
+                          <Area type="monotone" dataKey="cod_collected" name="COD Collected (₹)" stroke="#e67e22" strokeWidth={2} fillOpacity={1} fill="url(#orangeGradient)" />
+                        </AreaChart>
+                      ) : revenueChartMetric === 'orders' ? (
+                        <BarChart data={displayRevenue.revenue_trend}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{ background: '#14100d', borderColor: '#3498db', borderRadius: '8px', color: '#f5efe6' }}
+                            formatter={(val: any, name: any) => [`${Number(val)} orders`, name]}
+                          />
+                          <Legend />
+                          <Bar dataKey="total_orders" name="Total Placed" fill="#3498db" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="paid_orders" name="Paid Orders" fill="#2ecc71" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="cod_orders" name="COD Orders" fill="#9b59b6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="pending_orders" name="Pending Orders" fill="#f39c12" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      ) : revenueChartMetric === 'payments' ? (
+                        <AreaChart data={displayRevenue.revenue_trend}>
+                          <defs>
+                            <linearGradient id="greenGradient2" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2ecc71" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.0} />
+                            </linearGradient>
+                            <linearGradient id="orangeGradient2" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#e67e22" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#e67e22" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                          <Tooltip
+                            contentStyle={{ background: '#14100d', borderColor: '#2ecc71', borderRadius: '8px', color: '#f5efe6' }}
+                            formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
+                          />
+                          <Legend />
+                          <Area type="monotone" dataKey="online_revenue" name="Online Paid (₹)" stroke="#2ecc71" strokeWidth={2.5} fillOpacity={1} fill="url(#greenGradient2)" />
+                          <Area type="monotone" dataKey="cod_collected" name="COD Collected (₹)" stroke="#e67e22" strokeWidth={2.5} fillOpacity={1} fill="url(#orangeGradient2)" />
+                        </AreaChart>
+                      ) : (
+                        <AreaChart data={displayRevenue.revenue_trend}>
+                          <defs>
+                            <linearGradient id="redGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#e74c3c" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#e74c3c" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
+                          <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                          <Tooltip
+                            contentStyle={{ background: '#14100d', borderColor: '#e74c3c', borderRadius: '8px', color: '#f5efe6' }}
+                            formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
+                          />
+                          <Legend />
+                          <Area type="monotone" dataKey="pending_payment" name="Pending Payment Amount (₹)" stroke="#e74c3c" strokeWidth={2.5} fillOpacity={1} fill="url(#redGradient)" />
+                        </AreaChart>
+                      )}
                     </ResponsiveContainer>
                   </div>
                 </div>
 
-                {/* Additional Sections: Revenue by Source & Revenue by Payment Method */}
-                <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1.2fr', gap: '24px', marginBottom: '24px' }}>
-                  {/* Revenue by Source */}
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
-                      REVENUE BY SOURCE
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '16px' }}>
-                      <div style={{ width: '150px', height: '150px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                { name: 'Online', value: displayRevenue.revenue_by_source.online_revenue, fill: '#b76e79' },
-                                { name: 'Offline', value: displayRevenue.revenue_by_source.offline_revenue, fill: '#80343f' },
-                              ]}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={70}
-                              paddingAngle={4}
-                              dataKey="value"
-                            >
-                              <Cell key="online" fill="#b76e79" />
-                              <Cell key="offline" fill="#80343f" />
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
+                {/* ── PAYMENT METHOD DISTRIBUTION ─────────────────────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', marginBottom: '24px' }}>
+                  {/* Revenue by Payment Method */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        REVENUE BY PAYMENT METHOD
+                      </h3>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600 }}>
+                        ₹{(displayRevenue.total_revenue?.current_value ?? 0).toLocaleString('en-IN')} Total
+                      </span>
+                    </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#b76e79' }} />
-                          <div>
-                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Online</span>
-                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
-                              ₹{displayRevenue.revenue_by_source.online_revenue.toLocaleString('en-IN')} ({displayRevenue.revenue_by_source.online_percentage}%)
-                            </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {(displayRevenue.revenue_by_payment_method || []).length > 0 ? (
+                        (displayRevenue.revenue_by_payment_method || []).map((pm, i) => (
+                          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                              <span style={{ color: '#f5efe6', fontWeight: 600 }}>{pm.method}</span>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ color: '#c9a84c', fontWeight: 700 }}>
+                                  ₹{(pm.amount || 0).toLocaleString('en-IN')}
+                                </span>
+                                <span style={{ color: 'var(--grey-light)', fontSize: '0.75rem', marginLeft: '6px' }}>
+                                  ({pm.percentage}% • {pm.orders_count || 0} orders)
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, pm.percentage || 0))}%`,
+                                  height: '100%',
+                                  background: i === 0 ? 'var(--gradient-gold)' : i === 1 ? '#2ecc71' : i === 2 ? '#e67e22' : '#9b59b6',
+                                  borderRadius: '4px',
+                                  transition: 'width 0.5s ease',
+                                }}
+                              />
+                            </div>
                           </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--grey-light)', fontSize: '0.85rem' }}>
+                          No collected payments in this period.
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#80343f' }} />
-                          <div>
-                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', display: 'block' }}>Offline</span>
-                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>
-                              ₹{displayRevenue.revenue_by_source.offline_revenue.toLocaleString('en-IN')} ({displayRevenue.revenue_by_source.offline_percentage}%)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Revenue by Payment Method */}
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '16px', fontWeight: 700 }}>
-                      REVENUE BY PAYMENT METHOD
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {displayRevenue.revenue_by_payment_method.map((pm, i) => (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                            <span style={{ color: '#f5efe6', fontWeight: 600 }}>{pm.method}</span>
-                            <span style={{ color: '#c9a84c', fontWeight: 700 }}>
-                              ₹{pm.amount.toLocaleString('en-IN')} ({pm.percentage}%)
-                            </span>
-                          </div>
-                          <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                width: `${Math.min(100, Math.max(0, pm.percentage))}%`,
-                                height: '100%',
-                                background: i === 0 ? 'var(--gradient-gold)' : i === 1 ? '#b76e79' : '#80343f',
-                                borderRadius: '4px',
-                                transition: 'width 0.5s ease',
-                              }}
-                            />
-                          </div>
+                  {/* Accounting Logic & Compliance Note Card */}
+                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', marginBottom: '12px', fontWeight: 700 }}>
+                        ACCOUNTING &amp; COD RECOGNITION RULES
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.82rem', color: 'var(--beige)', lineHeight: 1.5 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>●</span>
+                          <span><strong>Orders vs. Revenue:</strong> Placed orders are registered immediately into Total Orders. Only orders with confirmed payment (Online or Mark COD Paid) are recognized in Total Revenue.</span>
                         </div>
-                      ))}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <span style={{ color: '#e67e22', fontWeight: 700 }}>●</span>
+                          <span><strong>Cash on Delivery:</strong> Uncollected COD orders remain in Pending Payments &amp; Pending Orders until collected. Once marked paid, funds appear under COD Collected on the actual Payment Date.</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <span style={{ color: '#3498db', fontWeight: 700 }}>●</span>
+                          <span><strong>Date Filtering:</strong> Switching between <em>Order Date</em> and <em>Payment Date</em> re-indexes all financial curves according to placed vs collected timestamps.</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Revenue Summary Datatable */}
+                {/* ── DETAILED ORDER TRANSACTIONS TABLE ─────────────────────── */}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '14px' }}>
+                    <div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                        ORDER &amp; TRANSACTION BREAKDOWN
+                      </h3>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                        All order records matching the current date range ({(displayRevenue.transactions || []).length} records)
+                      </span>
+                    </div>
+
+                    {/* Filter / Search within transactions */}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--grey-light)' }} />
+                        <input
+                          type="text"
+                          placeholder="Search order ID, customer..."
+                          value={transactionSearch}
+                          onChange={(e) => { setTransactionSearch(e.target.value); setTransactionPage(1); }}
+                          style={{
+                            padding: '6px 12px 6px 30px',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '6px',
+                            color: 'var(--cream)',
+                            fontSize: '0.8rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      <select
+                        value={transactionStatusFilter}
+                        onChange={(e) => { setTransactionStatusFilter(e.target.value); setTransactionPage(1); }}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#14100d',
+                          border: '1px solid rgba(201,168,76,0.35)',
+                          borderRadius: '6px',
+                          color: 'var(--gold)',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <option value="ALL">All Payment Statuses</option>
+                        <option value="PAID">PAID</option>
+                        <option value="PENDING">PENDING</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Transactions Table */}
+                  {(() => {
+                    const filteredTx = (displayRevenue.transactions || []).filter((tx) => {
+                      const q = transactionSearch.trim().toLowerCase();
+                      const matchesSearch = !q || (
+                        tx.order_id.toLowerCase().includes(q) ||
+                        tx.customer_name.toLowerCase().includes(q) ||
+                        tx.customer_email.toLowerCase().includes(q) ||
+                        tx.customer_phone.toLowerCase().includes(q)
+                      );
+                      const matchesStatus = transactionStatusFilter === 'ALL' || tx.payment_status.toUpperCase() === transactionStatusFilter.toUpperCase();
+                      return matchesSearch && matchesStatus;
+                    });
+
+                    const totalTxCount = filteredTx.length;
+                    const totalTxPages = Math.max(1, Math.ceil(totalTxCount / transactionPageSize));
+                    const pagedTx = filteredTx.slice((transactionPage - 1) * transactionPageSize, transactionPage * transactionPageSize);
+
+                    return (
+                      <>
+                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                          <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '0.84rem', color: '#f5efe6' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                                <th style={{ padding: '12px' }}>Order ID</th>
+                                <th style={{ padding: '12px' }}>Customer</th>
+                                <th style={{ padding: '12px' }}>Order Date</th>
+                                <th style={{ padding: '12px' }}>Payment Date</th>
+                                <th style={{ padding: '12px' }}>Amount</th>
+                                <th style={{ padding: '12px' }}>Payment Method</th>
+                                <th style={{ padding: '12px' }}>Payment Status</th>
+                                <th style={{ padding: '12px' }}>Order Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pagedTx.length > 0 ? (
+                                pagedTx.map((tx, idx) => (
+                                  <tr
+                                    key={tx.order_id || idx}
+                                    style={{
+                                      borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                      background: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+                                    }}
+                                  >
+                                    <td style={{ padding: '12px', fontWeight: 700, fontFamily: 'monospace', color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                                      {tx.order_id}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{tx.customer_name}</div>
+                                      <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)' }}>{tx.customer_email || tx.customer_phone || 'N/A'}</div>
+                                    </td>
+                                    <td style={{ padding: '12px', fontSize: '0.78rem', color: 'var(--beige)', whiteSpace: 'nowrap' }}>
+                                      {tx.order_date}
+                                    </td>
+                                    <td style={{ padding: '12px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                      {tx.payment_date ? (
+                                        <span style={{ color: '#2ecc71', fontWeight: 600 }}>{tx.payment_date}</span>
+                                      ) : (
+                                        <span style={{ color: '#f39c12', fontStyle: 'italic' }}>Pending Payment</span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '12px', fontWeight: 700, color: 'var(--cream)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                                      ₹{tx.amount.toLocaleString('en-IN')}
+                                    </td>
+                                    <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                                      {renderPaymentBadge(tx.payment_method)}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <span
+                                        style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          background: tx.payment_status === 'PAID' ? 'rgba(46, 204, 113, 0.15)' : tx.payment_status === 'PENDING' ? 'rgba(243, 156, 18, 0.15)' : 'rgba(231, 76, 60, 0.15)',
+                                          color: tx.payment_status === 'PAID' ? '#2ecc71' : tx.payment_status === 'PENDING' ? '#f39c12' : '#e74c3c',
+                                          border: `1px solid ${tx.payment_status === 'PAID' ? '#2ecc71' : tx.payment_status === 'PENDING' ? '#f39c12' : '#e74c3c'}35`,
+                                        }}
+                                      >
+                                        {tx.payment_status}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '12px', fontSize: '0.78rem', color: 'var(--beige)' }}>
+                                      {tx.order_status}
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'rgba(255,255,255,0.45)' }}>
+                                    No transactions match the selected filter.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Transaction Pagination Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>
+                            Showing {totalTxCount > 0 ? (transactionPage - 1) * transactionPageSize + 1 : 0}–{Math.min(transactionPage * transactionPageSize, totalTxCount)} of {totalTxCount} transactions
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              disabled={transactionPage <= 1}
+                              onClick={() => setTransactionPage((p) => Math.max(1, p - 1))}
+                              style={{
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                background: transactionPage <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(201,168,76,0.1)',
+                                border: transactionPage <= 1 ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(201,168,76,0.35)',
+                                color: transactionPage <= 1 ? 'rgba(255,255,255,0.25)' : 'var(--gold)',
+                                cursor: transactionPage <= 1 ? 'not-allowed' : 'pointer',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              ← Prev
+                            </button>
+
+                            <span style={{ fontSize: '0.75rem', color: 'var(--cream)', fontWeight: 600 }}>
+                              Page {transactionPage} of {totalTxPages}
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={transactionPage >= totalTxPages}
+                              onClick={() => setTransactionPage((p) => Math.min(totalTxPages, p + 1))}
+                              style={{
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                background: transactionPage >= totalTxPages ? 'rgba(255,255,255,0.02)' : 'rgba(201,168,76,0.1)',
+                                border: transactionPage >= totalTxPages ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(201,168,76,0.35)',
+                                color: transactionPage >= totalTxPages ? 'rgba(255,255,255,0.25)' : 'var(--gold)',
+                                cursor: transactionPage >= totalTxPages ? 'not-allowed' : 'pointer',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Next →
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* ── DAILY REVENUE SUMMARY TABLE ─────────────────────────── */}
                 <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                      REVENUE SUMMARY BREAKDOWN
+                      DAILY SUMMARY BREAKDOWN
                     </h3>
                     <Button variant="secondary" size="sm" onClick={handleExportRevenueCsv} disabled={revenueExporting}>
                       <Download size={14} style={{ marginRight: '6px' }} />
-                      Export Table CSV
+                      Export Summary CSV
                     </Button>
                   </div>
 
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem', color: '#f5efe6' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
                           <th style={{ padding: '12px' }}>Date</th>
-                          <th style={{ padding: '12px' }}>Online Orders</th>
-                          <th style={{ padding: '12px' }}>Online Revenue</th>
-                          <th style={{ padding: '12px' }}>Offline Sales</th>
-                          <th style={{ padding: '12px' }}>Offline Revenue</th>
-                          <th style={{ padding: '12px' }}>Total Revenue</th>
+                          <th style={{ padding: '12px' }}>Total Orders</th>
+                          <th style={{ padding: '12px' }}>Paid Orders</th>
+                          <th style={{ padding: '12px' }}>COD Orders</th>
+                          <th style={{ padding: '12px' }}>Pending Orders</th>
+                          <th style={{ padding: '12px' }}>Online Rev</th>
+                          <th style={{ padding: '12px' }}>COD Collected</th>
+                          <th style={{ padding: '12px' }}>Pending Pay</th>
+                          <th style={{ padding: '12px' }}>Total Rev</th>
                           <th style={{ padding: '12px' }}>Avg Order Value</th>
                         </tr>
                       </thead>
@@ -3269,17 +3867,20 @@ export const SuperadminDashboard: React.FC = () => {
                             .map((row, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
                                 <td style={{ padding: '12px', fontWeight: 600 }}>{row.date}</td>
-                                <td style={{ padding: '12px' }}>{row.online_orders}</td>
+                                <td style={{ padding: '12px' }}>{row.total_orders}</td>
+                                <td style={{ padding: '12px', color: '#2ecc71', fontWeight: 600 }}>{row.paid_orders}</td>
+                                <td style={{ padding: '12px', color: '#9b59b6' }}>{row.cod_orders}</td>
+                                <td style={{ padding: '12px', color: '#f39c12' }}>{row.pending_orders}</td>
                                 <td style={{ padding: '12px' }}>₹{row.online_revenue.toLocaleString('en-IN')}</td>
-                                <td style={{ padding: '12px' }}>{row.offline_sales}</td>
-                                <td style={{ padding: '12px' }}>₹{row.offline_revenue.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px', color: '#e67e22' }}>₹{row.cod_collected.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '12px', color: '#e74c3c' }}>₹{row.pending_payment.toLocaleString('en-IN')}</td>
                                 <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{row.total_revenue.toLocaleString('en-IN')}</td>
                                 <td style={{ padding: '12px' }}>₹{row.avg_order_value.toLocaleString('en-IN')}</td>
                               </tr>
                             ))
                         ) : (
                           <tr>
-                            <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                            <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
                               No revenue entries found for selected range.
                             </td>
                           </tr>
@@ -3306,37 +3907,190 @@ export const SuperadminDashboard: React.FC = () => {
         )}
 
         {/* SALES ANALYTICS & LEDGER TAB */}
+        {/* SALES ANALYTICS & LEDGER TAB */}
         {activeTab === 'sales-comparison' && (
           <div>
-            {/* Header Title & Export Button */}
+            {/* Header Title, Range Badge & Export Button */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
-                  Sales Analytics & Ledger
-                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
+                    Sales & Stock Analytics
+                  </h1>
+                  <span
+                    style={{
+                      background: 'rgba(201, 168, 76, 0.12)',
+                      border: '1px solid rgba(201, 168, 76, 0.3)',
+                      color: 'var(--gold)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Calendar size={13} />
+                    {displaySalesProducts.display_range || 'This Month'}
+                  </span>
+                </div>
                 <p style={{ color: 'var(--beige)', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
-                  Detailed sales and stock performance
+                  Live tracking of sales volume, order placements, channel distribution and catalog stock
                 </p>
               </div>
-              <Button
-                variant="gold"
-                glow
-                onClick={handleExportSalesCsv}
-                disabled={salesExporting}
-              >
-                <Download size={16} style={{ marginRight: '8px' }} />
-                {salesExporting ? 'Exporting...' : 'Export Sales (CSV)'}
-              </Button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <Button
+                  variant="gold"
+                  glow
+                  onClick={handleExportSalesCsv}
+                  disabled={salesExporting}
+                >
+                  <Download size={16} style={{ marginRight: '8px' }} />
+                  {salesExporting ? 'Exporting...' : 'Export Sales (CSV)'}
+                </Button>
+              </div>
             </div>
 
-            {/* Sub-tab Navigation (Matching mockup design) */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px' }}>
+            {/* Date Preset Filter Bar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                background: 'rgba(20, 16, 13, 0.85)',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+              }}
+            >
+              {/* Presets Pills - scrollable horizontally on mobile */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  paddingBottom: '4px',
+                  maxWidth: '100%',
+                }}
+              >
+                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase', marginRight: '4px', whiteSpace: 'nowrap' }}>
+                  Period:
+                </span>
+                {[
+                  { id: 'today', label: 'Today' },
+                  { id: 'yesterday', label: 'Yesterday' },
+                  { id: 'last_7_days', label: 'Last 7 Days' },
+                  { id: 'last_30_days', label: 'Last 30 Days' },
+                  { id: 'this_month', label: 'This Month' },
+                  { id: 'last_month', label: 'Last Month' },
+                  { id: 'all_time', label: 'All Time' },
+                  { id: 'custom', label: 'Custom Range' },
+                ].map((p) => {
+                  const isActive = salesPreset === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSalesPreset(p.id as any);
+                        setSalesProductsPage(1);
+                        setOnlineLedgerPage(1);
+                        setOfflineLedgerPage(1);
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        fontSize: '0.82rem',
+                        fontWeight: isActive ? 700 : 500,
+                        color: isActive ? '#14100d' : '#f5efe6',
+                        background: isActive ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                        border: isActive ? '1px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Date Pickers when custom is selected */}
+              {salesPreset === 'custom' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="date"
+                    value={salesDateFrom}
+                    onChange={(e) => setSalesDateFrom(e.target.value)}
+                    style={{
+                      background: '#14100d',
+                      color: '#f5efe6',
+                      colorScheme: 'dark',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
+                  <input
+                    type="date"
+                    value={salesDateTo}
+                    onChange={(e) => setSalesDateTo(e.target.value)}
+                    style={{
+                      background: '#14100d',
+                      color: '#f5efe6',
+                      colorScheme: 'dark',
+                      border: '1px solid rgba(201, 168, 76, 0.4)',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="gold"
+                    onClick={() => {
+                      setSalesProductsPage(1);
+                      setOnlineLedgerPage(1);
+                      setOfflineLedgerPage(1);
+                      fetchSalesData();
+                    }}
+                  >
+                    Apply Filter
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Sub-tab Navigation - Plain human language without corporate jargon */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                marginBottom: '24px',
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                borderBottom: '1px solid rgba(201, 168, 76, 0.2)',
+                paddingBottom: '12px',
+              }}
+            >
               {[
-                { id: 'products' as const, label: 'Total Sales & Stock' },
-                { id: 'online' as const, label: 'Online Sales Ledger' },
-                { id: 'offline' as const, label: 'Offline Sales Ledger' },
+                { id: 'products' as const, label: 'Overview', icon: BarChart3 },
+                { id: 'online' as const, label: 'Online Orders', icon: Globe },
+                { id: 'offline' as const, label: 'Store Sales', icon: Store },
               ].map((sub) => {
                 const isSubActive = salesSubTab === sub.id;
+                const IconComp = sub.icon;
                 return (
                   <button
                     key={sub.id}
@@ -3347,297 +4101,28 @@ export const SuperadminDashboard: React.FC = () => {
                       setOfflineLedgerPage(1);
                     }}
                     style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
                       padding: '10px 20px',
-                      fontSize: '0.9rem',
+                      fontSize: '0.88rem',
                       fontWeight: 600,
-                      color: isSubActive ? '#c9a84c' : '#f5efe6',
-                      background: isSubActive ? 'rgba(201, 168, 76, 0.12)' : 'rgba(20, 16, 13, 0.6)',
-                      border: isSubActive ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)',
+                      color: isSubActive ? '#14100d' : '#f5efe6',
+                      background: isSubActive ? 'linear-gradient(135deg, #c9a84c 0%, #e0c878 100%)' : 'rgba(20, 16, 13, 0.7)',
+                      border: isSubActive ? '1px solid #e0c878' : '1px solid rgba(255,255,255,0.1)',
                       borderRadius: '8px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       outline: 'none',
+                      whiteSpace: 'nowrap',
+                      boxShadow: isSubActive ? '0 4px 14px rgba(201, 168, 76, 0.3)' : 'none',
                     }}
                   >
-                    {sub.label}
+                    <IconComp size={16} color={isSubActive ? '#14100d' : '#c9a84c'} />
+                    <span>{sub.label}</span>
                   </button>
                 );
               })}
-            </div>
-
-            {/* Top 4 KPI Cards (Matching mockup values & styling) */}
-            <div className="stats-grid-dashboard" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {/* Card 1: TOTAL UNITS SOLD */}
-              <div
-                className="dashboard-stat-card glass-panel"
-                onClick={() => { setSalesSubTab('products'); setSalesProductsPage(1); }}
-                style={{
-                  padding: '20px',
-                  border: `1px solid ${salesSubTab === 'products' ? '#c9a84c' : 'rgba(201, 168, 76, 0.25)'}`,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.22s ease',
-                  background: salesSubTab === 'products' ? 'rgba(201,168,76,0.07)' : undefined,
-                  boxShadow: salesSubTab === 'products' ? '0 0 18px rgba(201,168,76,0.18)' : undefined,
-                }}
-                title="Click to view Products"
-              >
-                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'products' ? '#c9a84c' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                  TOTAL UNITS SOLD
-                </span>
-                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                  {displaySalesProducts.kpis.total_units_sold.toLocaleString()}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.units_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                  <span>{displaySalesProducts.kpis.units_pct_change >= 0 ? `+${displaySalesProducts.kpis.units_pct_change}%` : `${displaySalesProducts.kpis.units_pct_change}%`}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#c9a84c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
-                  <span>View Products →</span>
-                </div>
-              </div>
-
-              {/* Card 2: TOTAL REVENUE */}
-              <div
-                className="dashboard-stat-card glass-panel"
-                onClick={() => { setSalesSubTab('products'); setSalesProductsPage(1); }}
-                style={{
-                  padding: '20px',
-                  border: `1px solid ${salesSubTab === 'products' ? '#c9a84c' : 'rgba(201, 168, 76, 0.25)'}`,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.22s ease',
-                  background: salesSubTab === 'products' ? 'rgba(201,168,76,0.07)' : undefined,
-                  boxShadow: salesSubTab === 'products' ? '0 0 18px rgba(201,168,76,0.18)' : undefined,
-                }}
-                title="Click to view Total Sales Breakdown"
-              >
-                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'products' ? '#c9a84c' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                  TOTAL REVENUE
-                </span>
-                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                  ₹{displaySalesProducts.kpis.total_revenue.toLocaleString('en-IN')}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.revenue_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                  <span>{displaySalesProducts.kpis.revenue_pct_change >= 0 ? `+${displaySalesProducts.kpis.revenue_pct_change}%` : `${displaySalesProducts.kpis.revenue_pct_change}%`}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#c9a84c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
-                  <span>View All Products →</span>
-                </div>
-              </div>
-
-              {/* Card 3: ONLINE REVENUE */}
-              <div
-                className="dashboard-stat-card glass-panel"
-                onClick={() => { setSalesSubTab('online'); setOnlineLedgerPage(1); }}
-                style={{
-                  padding: '20px',
-                  border: `1px solid ${salesSubTab === 'online' ? '#5dade2' : 'rgba(201, 168, 76, 0.25)'}`,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.22s ease',
-                  background: salesSubTab === 'online' ? 'rgba(93,173,226,0.06)' : undefined,
-                  boxShadow: salesSubTab === 'online' ? '0 0 18px rgba(93,173,226,0.15)' : undefined,
-                }}
-                title="Click to view Online Sales Ledger"
-              >
-                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'online' ? '#5dade2' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                  ONLINE REVENUE
-                </span>
-                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                  ₹{displaySalesProducts.kpis.online_revenue.toLocaleString('en-IN')}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.online_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                  <span>{displaySalesProducts.kpis.online_pct_change >= 0 ? `+${displaySalesProducts.kpis.online_pct_change}%` : `${displaySalesProducts.kpis.online_pct_change}%`}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#5dade2', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
-                  <span>View Online Ledger →</span>
-                </div>
-              </div>
-
-              {/* Card 4: OFFLINE REVENUE */}
-              <div
-                className="dashboard-stat-card glass-panel"
-                onClick={() => { setSalesSubTab('offline'); setOfflineLedgerPage(1); }}
-                style={{
-                  padding: '20px',
-                  border: `1px solid ${salesSubTab === 'offline' ? '#e67e22' : 'rgba(201, 168, 76, 0.25)'}`,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.22s ease',
-                  background: salesSubTab === 'offline' ? 'rgba(230,126,34,0.06)' : undefined,
-                  boxShadow: salesSubTab === 'offline' ? '0 0 18px rgba(230,126,34,0.15)' : undefined,
-                }}
-                title="Click to view Offline Boutique Sales Ledger"
-              >
-                <span style={{ fontSize: '0.72rem', color: salesSubTab === 'offline' ? '#e67e22' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                  OFFLINE REVENUE
-                </span>
-                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', fontFamily: 'var(--font-display)' }}>
-                  ₹{displaySalesProducts.kpis.offline_revenue.toLocaleString('en-IN')}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.75rem', fontWeight: 600, color: displaySalesProducts.kpis.offline_pct_change >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                  <span>{displaySalesProducts.kpis.offline_pct_change >= 0 ? `+${displaySalesProducts.kpis.offline_pct_change}%` : `${displaySalesProducts.kpis.offline_pct_change}%`}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis.comparison_label}</span>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#e67e22', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.85 }}>
-                  <span>View Offline Ledger</span>
-                  <ArrowRight size={11} />
-                </div>
-              </div>
-            </div>
-
-            {/* Toolbar: Search & Filters */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '16px',
-                marginBottom: '24px',
-                flexWrap: 'wrap',
-                background: 'rgba(20, 16, 13, 0.85)',
-                padding: '12px 18px',
-                borderRadius: '10px',
-                border: '1px solid rgba(201, 168, 76, 0.25)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
-                {/* Search Bar */}
-                <div style={{ position: 'relative', minWidth: '220px', flex: 1 }}>
-                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
-                  <input
-                    type="text"
-                    placeholder={
-                      salesSubTab === 'products'
-                        ? 'Search product name...'
-                        : salesSubTab === 'online'
-                        ? 'Search order ID, customer name or email...'
-                        : 'Search receipt ID or product name...'
-                    }
-                    value={salesSearch}
-                    onChange={(e) => {
-                      setSalesSearch(e.target.value);
-                      setSalesProductsPage(1);
-                      setOnlineLedgerPage(1);
-                      setOfflineLedgerPage(1);
-                    }}
-                    style={{
-                      width: '100%',
-                      background: '#14100d',
-                      color: '#f5efe6',
-                      border: '1px solid rgba(201, 168, 76, 0.4)',
-                      borderRadius: '8px',
-                      padding: '8px 12px 8px 36px',
-                      fontSize: '0.85rem',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-
-                {/* Sub-tab 2 Filters (Online Status & Payment Method) */}
-                {salesSubTab === 'online' && (
-                  <>
-                    <select
-                      value={salesOnlineStatus}
-                      onChange={(e) => setSalesOnlineStatus(e.target.value)}
-                      style={{
-                        background: '#14100d',
-                        color: '#f5efe6',
-                        border: '1px solid rgba(201, 168, 76, 0.4)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                      }}
-                    >
-                      <option value="ALL">All Statuses</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="Delivered">Delivered</option>
-                      <option value="Processing">Processing</option>
-                    </select>
-
-                    <select
-                      value={salesPaymentMethod}
-                      onChange={(e) => setSalesPaymentMethod(e.target.value)}
-                      style={{
-                        background: '#14100d',
-                        color: '#f5efe6',
-                        border: '1px solid rgba(201, 168, 76, 0.4)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                      }}
-                    >
-                      <option value="ALL">All Payment Methods</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Card">Card</option>
-                      <option value="COD">Cash on Delivery</option>
-                    </select>
-                  </>
-                )}
-
-                {/* Sub-tab 3 Filter (Offline Payment Method) */}
-                {salesSubTab === 'offline' && (
-                  <select
-                    value={salesPaymentMethod}
-                    onChange={(e) => setSalesPaymentMethod(e.target.value)}
-                    style={{
-                      background: '#14100d',
-                      color: '#f5efe6',
-                      border: '1px solid rgba(201, 168, 76, 0.4)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      fontSize: '0.85rem',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="ALL">All Payment Methods</option>
-                    <option value="Cash">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Card">Card</option>
-                  </select>
-                )}
-              </div>
-
-              {/* Date Filters */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="date"
-                  value={salesDateFrom}
-                  onChange={(e) => setSalesDateFrom(e.target.value)}
-                  style={{
-                    background: '#14100d',
-                    color: '#f5efe6',
-                    colorScheme: 'dark',
-                    border: '1px solid rgba(201, 168, 76, 0.4)',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                  }}
-                />
-                <span style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>to</span>
-                <input
-                  type="date"
-                  value={salesDateTo}
-                  onChange={(e) => setSalesDateTo(e.target.value)}
-                  style={{
-                    background: '#14100d',
-                    color: '#f5efe6',
-                    colorScheme: 'dark',
-                    border: '1px solid rgba(201, 168, 76, 0.4)',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
             </div>
 
             {/* Error Alert State */}
@@ -3665,7 +4150,7 @@ export const SuperadminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Content Loading Skeleton vs Tables */}
+            {/* Content Loading Skeleton vs Panels */}
             {salesLoading ? (
               <div>
                 <DashboardKpiSkeleton />
@@ -3673,141 +4158,940 @@ export const SuperadminDashboard: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* SUB-TAB 1: PRODUCT PERFORMANCE TABLE */}
+                {/* ====================================================== */}
+                {/* SUB-TAB 1: PRODUCT SALES & INVENTORY PERFORMANCE       */}
+                {/* ====================================================== */}
                 {salesSubTab === 'products' && (
-                  <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                        PRODUCT PERFORMANCE
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    
+                    {/* 10 SALES, ORDERS & STOCK KPI CARDS (STRICTLY NO REVENUE) */}
+                    <div>
+                      <h3 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, margin: '0 0 12px 0' }}>
+                        Core Sales & Orders KPIs
                       </h3>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+                        {/* 1. Total Orders */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(201, 168, 76, 0.3)',
+                            borderRadius: '12px',
+                            background: 'rgba(20, 16, 13, 0.7)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              TOTAL ORDERS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600 }}>
+                              All Placed
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.total_orders?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.total_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.total_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.total_orders?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.total_orders?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 2. Total Units Sold */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(201, 168, 76, 0.3)',
+                            borderRadius: '12px',
+                            background: 'rgba(20, 16, 13, 0.7)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              TOTAL UNITS SOLD
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', fontWeight: 600 }}>
+                              Total Items
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.total_units_sold?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.total_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.total_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.total_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.total_units_sold?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.total_units_sold?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 3. Online Orders */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(93, 173, 226, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(93, 173, 226, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#5dade2', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              ONLINE ORDERS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600 }}>
+                              Web/App
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.online_orders?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.online_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.online_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.online_orders?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.online_orders?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 4. Online Units Sold */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(93, 173, 226, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(93, 173, 226, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#5dade2', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              ONLINE UNITS SOLD
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(93, 173, 226, 0.15)', color: '#5dade2', fontWeight: 600 }}>
+                              Digital Store
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.online_units_sold?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.online_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.online_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.online_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.online_units_sold?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.online_units_sold?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 5. Offline Orders */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(230, 126, 34, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(230, 126, 34, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              OFFLINE ORDERS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600 }}>
+                              POS Receipts
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.offline_orders?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_orders?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.offline_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.offline_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.offline_orders?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.offline_orders?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 6. Offline Units Sold */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(230, 126, 34, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(230, 126, 34, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              OFFLINE UNITS SOLD
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.15)', color: '#e67e22', fontWeight: 600 }}>
+                              Store POS
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.offline_units_sold?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.offline_units_sold?.percentage_change ?? 0) >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.offline_units_sold?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.offline_units_sold?.percentage_change}%` : `${displaySalesProducts.kpis?.offline_units_sold?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.offline_units_sold?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 7. Pending Orders */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(241, 196, 15, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(241, 196, 15, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#f1c40f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              PENDING ORDERS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(241, 196, 15, 0.15)', color: '#f1c40f', fontWeight: 600 }}>
+                              Processing
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.pending_orders?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.pending_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.pending_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.pending_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.pending_orders?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.pending_orders?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 8. Cancelled Orders */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(231, 76, 60, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(231, 76, 60, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              CANCELLED ORDERS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600 }}>
+                              Returned/Void
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.cancelled_orders?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: (displaySalesProducts.kpis?.cancelled_orders?.percentage_change ?? 0) <= 0 ? '#2ecc71' : '#e74c3c' }}>
+                            <span>{(displaySalesProducts.kpis?.cancelled_orders?.percentage_change ?? 0) >= 0 ? `+${displaySalesProducts.kpis?.cancelled_orders?.percentage_change}%` : `${displaySalesProducts.kpis?.cancelled_orders?.percentage_change}%`}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>{displaySalesProducts.kpis?.cancelled_orders?.comparison_label}</span>
+                          </div>
+                        </div>
+
+                        {/* 9. Current Stock */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(46, 204, 113, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(46, 204, 113, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#2ecc71', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              CURRENT STOCK
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', fontWeight: 600 }}>
+                              Live Inventory
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.current_stock?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: '#2ecc71' }}>
+                            <Package size={12} />
+                            <span>{displaySalesProducts.inventory_summary?.total_catalog_products || 0} active products in catalog</span>
+                          </div>
+                        </div>
+
+                        {/* 10. Low Stock Products */}
+                        <div
+                          className="dashboard-stat-card glass-panel"
+                          style={{
+                            padding: '18px',
+                            border: '1px solid rgba(231, 76, 60, 0.35)',
+                            borderRadius: '12px',
+                            background: 'rgba(231, 76, 60, 0.05)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
+                              LOW STOCK PRODUCTS
+                            </span>
+                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', fontWeight: 600 }}>
+                              ≤ 10 Units
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f5efe6', display: 'block', margin: '6px 0 2px 0', fontFamily: 'var(--font-display)' }}>
+                            {Math.round(displaySalesProducts.kpis?.low_stock_products?.current_value ?? 0).toLocaleString()}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 600, color: '#e74c3c' }}>
+                            <AlertTriangle size={12} />
+                            <span>{displaySalesProducts.inventory_summary?.out_of_stock_count || 0} out of stock</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                            <th style={{ padding: '12px' }}>PRODUCT NAME</th>
-                            <th style={{ padding: '12px' }}>ONLINE UNITS</th>
-                            <th style={{ padding: '12px' }}>OFFLINE UNITS</th>
-                            <th style={{ padding: '12px' }}>TOTAL UNITS</th>
-                            <th style={{ padding: '12px' }}>TOTAL REVENUE</th>
-                            <th style={{ padding: '12px' }}>STOCK AVAILABLE</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {displaySalesProducts.products.length > 0 ? (
-                            displaySalesProducts.products.map((prod, i) => (
-                              <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                                <td style={{ padding: '12px', fontWeight: 600 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    {prod.image_url ? (
-                                      <img
-                                        src={getImageUrl(prod.image_url)}
-                                        alt={prod.name}
-                                        style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)' }}
-                                      />
-                                    ) : (
-                                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c' }}>
-                                        <ShoppingBag size={18} />
-                                      </div>
-                                    )}
-                                    <div>
-                                      <div style={{ color: '#f5efe6', fontWeight: 600 }}>{prod.name}</div>
-                                      <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{prod.category_name}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td style={{ padding: '12px' }}>{prod.online_units}</td>
-                                <td style={{ padding: '12px' }}>{prod.offline_units}</td>
-                                <td style={{ padding: '12px', fontWeight: 700 }}>{prod.total_units}</td>
-                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>
-                                  ₹{prod.total_revenue.toLocaleString('en-IN')}
-                                </td>
-                                <td style={{ padding: '12px' }}>
-                                  <span style={{ fontWeight: 600, color: prod.stock_available < 10 ? '#e74c3c' : '#2ecc71' }}>
-                                    {prod.stock_available}
+                    {/* SALES TREND CHART */}
+                    <div
+                      className="glass-panel"
+                      style={{
+                        padding: '24px',
+                        border: '1px solid rgba(201, 168, 76, 0.25)',
+                        borderRadius: '12px',
+                        background: 'rgba(15, 12, 10, 0.85)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+                        <div>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                            Sales & Order Placement Trend
+                          </h3>
+                          <p style={{ color: 'var(--beige)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                            Daily volume curve for {salesChartMetric === 'orders' ? 'Orders Placed' : 'Units Sold'} across sales channels
+                          </p>
+                        </div>
+
+                        {/* Chart View Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          {/* Metric Toggle: Orders vs Units */}
+                          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '3px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <button
+                              onClick={() => setSalesChartMetric('orders')}
+                              style={{
+                                padding: '5px 12px',
+                                fontSize: '0.78rem',
+                                fontWeight: salesChartMetric === 'orders' ? 700 : 500,
+                                color: salesChartMetric === 'orders' ? '#14100d' : '#f5efe6',
+                                background: salesChartMetric === 'orders' ? 'var(--gold)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              📦 Orders
+                            </button>
+                            <button
+                              onClick={() => setSalesChartMetric('units')}
+                              style={{
+                                padding: '5px 12px',
+                                fontSize: '0.78rem',
+                                fontWeight: salesChartMetric === 'units' ? 700 : 500,
+                                color: salesChartMetric === 'units' ? '#14100d' : '#f5efe6',
+                                background: salesChartMetric === 'units' ? 'var(--gold)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              🍫 Units Sold
+                            </button>
+                          </div>
+
+                          {/* Channel Selector */}
+                          <select
+                            value={salesChartChannel}
+                            onChange={(e) => setSalesChartChannel(e.target.value as any)}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.4)',
+                              borderRadius: '8px',
+                              padding: '6px 12px',
+                              fontSize: '0.8rem',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="all">Combined Channels</option>
+                            <option value="online">Online Store Only</option>
+                            <option value="offline">Boutique POS Only</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Render Visual Trend Chart */}
+                      {displaySalesProducts.sales_trend && displaySalesProducts.sales_trend.length > 0 ? (
+                        <div style={{ height: '260px', width: '100%', display: 'flex', alignItems: 'flex-end', gap: '8px', padding: '20px 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          {(() => {
+                            const points = displaySalesProducts.sales_trend;
+                            const getVal = (p: SalesTrendPoint) => {
+                              if (salesChartMetric === 'orders') {
+                                return salesChartChannel === 'online' ? p.online_orders : salesChartChannel === 'offline' ? p.offline_orders : p.total_orders;
+                              } else {
+                                return salesChartChannel === 'online' ? p.online_units : salesChartChannel === 'offline' ? p.offline_units : p.total_units;
+                              }
+                            };
+                            const maxVal = Math.max(...points.map(getVal), 10);
+
+                            return points.map((p, idx) => {
+                              const val = getVal(p);
+                              const heightPct = Math.max(8, Math.round((val / maxVal) * 100));
+
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    height: '100%',
+                                    justifyContent: 'flex-end',
+                                    position: 'relative',
+                                  }}
+                                  title={`${p.date}: ${val} ${salesChartMetric === 'orders' ? 'orders' : 'units'}`}
+                                >
+                                  {/* Value label on top */}
+                                  <span style={{ fontSize: '0.68rem', color: '#c9a84c', fontWeight: 700, marginBottom: '6px' }}>
+                                    {val > 0 ? val : ''}
                                   </span>
+
+                                  {/* Bar Element */}
+                                  <div
+                                    style={{
+                                      width: '70%',
+                                      maxWidth: '38px',
+                                      minWidth: '12px',
+                                      height: `${heightPct}%`,
+                                      background:
+                                        salesChartChannel === 'online'
+                                          ? 'linear-gradient(180deg, #5dade2 0%, rgba(93, 173, 226, 0.4) 100%)'
+                                          : salesChartChannel === 'offline'
+                                          ? 'linear-gradient(180deg, #e67e22 0%, rgba(230, 126, 34, 0.4) 100%)'
+                                          : 'linear-gradient(180deg, #c9a84c 0%, rgba(201, 168, 76, 0.4) 100%)',
+                                      borderRadius: '4px 4px 0 0',
+                                      transition: 'height 0.4s ease',
+                                    }}
+                                  />
+
+                                  {/* Date label at bottom */}
+                                  <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', marginTop: '8px', whiteSpace: 'nowrap' }}>
+                                    {p.date}
+                                  </span>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.5)' }}>
+                          No trend points recorded for this date period.
+                        </div>
+                      )}
+
+                      {/* Legend */}
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '16px', fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '10px', height: '10px', background: '#c9a84c', borderRadius: '2px', display: 'inline-block' }} />
+                          <span>Combined</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '10px', height: '10px', background: '#5dade2', borderRadius: '2px', display: 'inline-block' }} />
+                          <span>Online Channel</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '10px', height: '10px', background: '#e67e22', borderRadius: '2px', display: 'inline-block' }} />
+                          <span>Offline Boutique</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* INVENTORY SNAPSHOT OVERVIEW */}
+                    <div>
+                      <h3 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, margin: '0 0 12px 0' }}>
+                        Inventory & Fulfillment Overview
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                        <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(201, 168, 76, 0.25)', background: 'rgba(20, 16, 13, 0.7)' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Total Current Stock</span>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f5efe6', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
+                            {(displaySalesProducts.inventory_summary?.current_stock ?? 0).toLocaleString()}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#2ecc71' }}>Available in warehouse catalog</span>
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(201, 168, 76, 0.25)', background: 'rgba(20, 16, 13, 0.7)' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Sold Quantity (Period)</span>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#c9a84c', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
+                            {(displaySalesProducts.inventory_summary?.sold_quantity ?? 0).toLocaleString()}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Units dispatched & sold</span>
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(230, 126, 34, 0.3)', background: 'rgba(230, 126, 34, 0.05)' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Low-Stock Products</span>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#e67e22', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
+                            {(displaySalesProducts.inventory_summary?.low_stock_count ?? 0).toLocaleString()}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#e67e22' }}>Stock is ≤ 10 units</span>
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(231, 76, 60, 0.3)', background: 'rgba(231, 76, 60, 0.05)' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Out of Stock Products</span>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#e74c3c', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
+                            {(displaySalesProducts.inventory_summary?.out_of_stock_count ?? 0).toLocaleString()}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#e74c3c' }}>Requires immediate restocking</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PRODUCT-WISE SALES TABLE */}
+                    <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '14px' }}>
+                        <div>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                            Product-Wise Sales & Stock Breakdown
+                          </h3>
+                          <p style={{ color: 'var(--beige)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                            Item-level units sold by sales channel and current warehouse stock
+                          </p>
+                        </div>
+
+                        {/* Search & Category Filter Toolbar */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', minWidth: '220px' }}>
+                            <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                            <input
+                              type="text"
+                              placeholder="Search product or category..."
+                              value={salesSearch}
+                              onChange={(e) => {
+                                setSalesSearch(e.target.value);
+                                setSalesProductsPage(1);
+                              }}
+                              style={{
+                                width: '100%',
+                                background: '#14100d',
+                                color: '#f5efe6',
+                                border: '1px solid rgba(201, 168, 76, 0.4)',
+                                borderRadius: '8px',
+                                padding: '7px 10px 7px 32px',
+                                fontSize: '0.82rem',
+                                outline: 'none',
+                              }}
+                            />
+                          </div>
+
+                          <select
+                            value={salesCategory}
+                            onChange={(e) => {
+                              setSalesCategory(e.target.value);
+                              setSalesProductsPage(1);
+                            }}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.4)',
+                              borderRadius: '8px',
+                              padding: '7px 12px',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="ALL">All Categories</option>
+                            <option value="Dark Chocolate">Dark Chocolate</option>
+                            <option value="Milk Chocolate">Milk Chocolate</option>
+                            <option value="Ruby Chocolate">Ruby Chocolate</option>
+                            <option value="Bonbons">Bonbons</option>
+                            <option value="Luxury Boxes">Luxury Boxes</option>
+                            <option value="Bars">Bars</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Product Table */}
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
+                              <th style={{ padding: '12px' }}>PRODUCT</th>
+                              <th style={{ padding: '12px' }}>CATEGORY</th>
+                              <th style={{ padding: '12px' }}>UNITS SOLD</th>
+                              <th style={{ padding: '12px' }}>ONLINE UNITS</th>
+                              <th style={{ padding: '12px' }}>OFFLINE UNITS</th>
+                              <th style={{ padding: '12px' }}>CURRENT STOCK</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displaySalesProducts.products && displaySalesProducts.products.length > 0 ? (
+                              displaySalesProducts.products.map((prod, i) => (
+                                <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                  <td style={{ padding: '12px', fontWeight: 600 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      {prod.image_url ? (
+                                        <img
+                                          src={getImageUrl(prod.image_url)}
+                                          alt={prod.name}
+                                          style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)' }}
+                                        />
+                                      ) : (
+                                        <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c' }}>
+                                          <ShoppingBag size={18} />
+                                        </div>
+                                      )}
+                                      <div>
+                                        <div style={{ color: '#f5efe6', fontWeight: 600 }}>{prod.name}</div>
+                                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>₹{prod.price.toLocaleString('en-IN')}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(201,168,76,0.1)', color: 'var(--beige)', fontSize: '0.78rem' }}>
+                                      {prod.category_name}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c', fontSize: '0.92rem' }}>
+                                    {prod.units_sold.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding: '12px', color: '#5dade2', fontWeight: 600 }}>
+                                    {prod.online_units.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding: '12px', color: '#e67e22', fontWeight: 600 }}>
+                                    {prod.offline_units.toLocaleString()}
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span
+                                      style={{
+                                        fontWeight: 700,
+                                        padding: '4px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '0.75rem',
+                                        background:
+                                          prod.current_stock <= 0
+                                            ? 'rgba(231, 76, 60, 0.15)'
+                                            : prod.current_stock <= 10
+                                            ? 'rgba(241, 196, 15, 0.15)'
+                                            : 'rgba(46, 204, 113, 0.15)',
+                                        color:
+                                          prod.current_stock <= 0
+                                            ? '#e74c3c'
+                                            : prod.current_stock <= 10
+                                            ? '#f1c40f'
+                                            : '#2ecc71',
+                                      }}
+                                    >
+                                      {prod.current_stock <= 0 ? 'Out of Stock (0)' : prod.current_stock <= 10 ? `Low (${prod.current_stock})` : `${prod.current_stock} In Stock`}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
+                                  No product sales performance records found for this period.
                                 </td>
                               </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
-                                No product sales performance records found.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
 
-                    <div style={{ marginTop: '16px' }}>
-                      <Pagination
-                        currentPage={salesProductsPage}
-                        totalPages={Math.ceil(displaySalesProducts.total / salesPageLimit) || 1}
-                        totalItems={displaySalesProducts.total}
-                        itemsPerPage={salesPageLimit}
-                        onPageChange={setSalesProductsPage}
-                      />
+                      {/* Pagination */}
+                      <div style={{ marginTop: '16px' }}>
+                        <Pagination
+                          currentPage={salesProductsPage}
+                          totalPages={Math.ceil((displaySalesProducts.total_products || displaySalesProducts.products?.length || 1) / salesPageLimit) || 1}
+                          totalItems={displaySalesProducts.total_products || displaySalesProducts.products?.length || 0}
+                          itemsPerPage={salesPageLimit}
+                          onPageChange={setSalesProductsPage}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* SUB-TAB 2: ONLINE SALES LEDGER */}
+                {/* ====================================================== */}
+                {/* SUB-TAB 2: ONLINE ORDERS                               */}
+                {/* ====================================================== */}
                 {salesSubTab === 'online' && (
                   <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                        ONLINE SALES LEDGER
-                      </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '14px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                            Online Orders
+                          </h3>
+                        </div>
+                        <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+                          Customer orders placed online, payment types, item breakdown, and delivery status
+                        </p>
+                      </div>
+
+                      {/* Search & Filters */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '10px', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} />
+                          <input
+                            type="text"
+                            placeholder="Search order ID, customer..."
+                            value={salesSearch}
+                            onChange={(e) => {
+                              setSalesSearch(e.target.value);
+                              setOnlineLedgerPage(1);
+                            }}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.35)',
+                              borderRadius: '8px',
+                              padding: '8px 30px 8px 32px',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              width: '220px',
+                            }}
+                          />
+                          {salesSearch && (
+                            <button
+                              onClick={() => {
+                                setSalesSearch('');
+                                setOnlineLedgerPage(1);
+                              }}
+                              style={{
+                                position: 'absolute',
+                                right: '8px',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.5)',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        <select
+                          value={salesOnlineStatus}
+                          onChange={(e) => {
+                            setSalesOnlineStatus(e.target.value);
+                            setOnlineLedgerPage(1);
+                          }}
+                          style={{
+                            background: '#14100d',
+                            color: '#f5efe6',
+                            border: '1px solid rgba(201, 168, 76, 0.35)',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="ALL">All Statuses</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Processing">Processing</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+
+                        <select
+                          value={salesPaymentMethod}
+                          onChange={(e) => {
+                            setSalesPaymentMethod(e.target.value);
+                            setOnlineLedgerPage(1);
+                          }}
+                          style={{
+                            background: '#14100d',
+                            color: '#f5efe6',
+                            border: '1px solid rgba(201, 168, 76, 0.35)',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="ALL">All Payments</option>
+                          <option value="COD">Cash on Delivery</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Card">Card</option>
+                        </select>
+
+                        {(salesSearch || salesOnlineStatus !== 'ALL' || salesPaymentMethod !== 'ALL') && (
+                          <button
+                            onClick={() => {
+                              setSalesSearch('');
+                              setSalesOnlineStatus('ALL');
+                              setSalesPaymentMethod('ALL');
+                              setOnlineLedgerPage(1);
+                            }}
+                            style={{
+                              background: 'rgba(231, 76, 60, 0.12)',
+                              border: '1px solid rgba(231, 76, 60, 0.3)',
+                              color: '#e74c3c',
+                              borderRadius: '8px',
+                              padding: '7px 12px',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                          >
+                            <RotateCcw size={12} />
+                            <span>Reset Filters</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6', minWidth: '920px' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                            <th style={{ padding: '12px' }}>ORDER ID</th>
-                            <th style={{ padding: '12px' }}>DATE</th>
-                            <th style={{ padding: '12px' }}>CUSTOMER</th>
-                            <th style={{ padding: '12px' }}>PRODUCT</th>
-                            <th style={{ padding: '12px' }}>QTY</th>
-                            <th style={{ padding: '12px' }}>PAYMENT</th>
-                            <th style={{ padding: '12px' }}>AMOUNT</th>
-                            <th style={{ padding: '12px' }}>STATUS</th>
+                            <th style={{ padding: '12px 14px', minWidth: '170px' }}>ORDER ID</th>
+                            <th style={{ padding: '12px 14px', minWidth: '140px' }}>DATE</th>
+                            <th style={{ padding: '12px 14px', minWidth: '170px' }}>CUSTOMER</th>
+                            <th style={{ padding: '12px 14px', minWidth: '220px' }}>PRODUCTS</th>
+                            <th style={{ padding: '12px 14px', minWidth: '70px', textAlign: 'center' }}>QTY</th>
+                            <th style={{ padding: '12px 14px', minWidth: '170px' }}>PAYMENT METHOD</th>
+                            <th style={{ padding: '12px 14px', minWidth: '120px' }}>STATUS</th>
+                            <th style={{ padding: '12px 14px', minWidth: '90px', textAlign: 'center' }}>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {displayOnlineLedger.items.length > 0 ? (
+                          {displayOnlineLedger.items && displayOnlineLedger.items.length > 0 ? (
                             displayOnlineLedger.items.map((item, i) => (
-                              <tr key={item.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>{item.order_id}</td>
-                                <td style={{ padding: '12px' }}>{item.created_at}</td>
-                                <td style={{ padding: '12px' }}>
-                                  <div style={{ fontWeight: 600, color: '#f5efe6' }}>{item.customer_name}</div>
-                                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{item.customer_email}</div>
+                              <tr
+                                key={item.id || i}
+                                onClick={() => setSelectedOrderForModal(item)}
+                                style={{
+                                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                  background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(201, 168, 76, 0.06)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent')}
+                              >
+                                {/* Order ID with Copy Button */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span
+                                      style={{
+                                        fontWeight: 700,
+                                        color: '#c9a84c',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.85rem',
+                                        letterSpacing: '0.5px',
+                                      }}
+                                    >
+                                      {item.order_id}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(item.order_id);
+                                        setCopiedOrderId(item.order_id);
+                                        setTimeout(() => setCopiedOrderId(null), 2000);
+                                      }}
+                                      title="Copy Order ID"
+                                      style={{
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                                        borderRadius: '5px',
+                                        color: copiedOrderId === item.order_id ? '#2ecc71' : 'rgba(255, 255, 255, 0.7)',
+                                        cursor: 'pointer',
+                                        padding: '3px 6px',
+                                        fontSize: '0.7rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      {copiedOrderId === item.order_id ? <Check size={11} color="#2ecc71" /> : <Copy size={11} />}
+                                      {copiedOrderId === item.order_id && <span style={{ fontSize: '0.65rem', color: '#2ecc71' }}>Copied</span>}
+                                    </button>
+                                  </div>
                                 </td>
-                                <td style={{ padding: '12px', maxWidth: '200px' }}>{item.product_summary}</td>
-                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.quantity}</td>
-                                <td style={{ padding: '12px' }}>{item.payment_method}</td>
-                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{item.amount.toLocaleString('en-IN')}</td>
-                                <td style={{ padding: '12px' }}>
-                                  <span style={{
-                                    padding: '4px 10px',
-                                    borderRadius: '12px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    background: item.order_status === 'Delivered' ? 'rgba(46, 204, 113, 0.15)' : item.order_status === 'Paid' ? 'rgba(52, 152, 219, 0.15)' : 'rgba(201, 168, 76, 0.15)',
-                                    color: item.order_status === 'Delivered' ? '#2ecc71' : item.order_status === 'Paid' ? '#3498db' : '#c9a84c',
-                                  }}>
-                                    {item.order_status}
+
+                                {/* Date */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem' }}>
+                                  {item.created_at}
+                                </td>
+
+                                {/* Customer Name & Email */}
+                                <td style={{ padding: '12px 14px' }}>
+                                  <div style={{ fontWeight: 600, color: '#f5efe6' }}>{item.customer_name}</div>
+                                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{item.customer_email}</div>
+                                </td>
+
+                                {/* Products Summary */}
+                                <td style={{ padding: '12px 14px', maxWidth: '240px' }}>
+                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.product_summary}>
+                                    {item.product_summary}
+                                  </div>
+                                </td>
+
+                                {/* Quantity */}
+                                <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: '#f5efe6' }}>
+                                  <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '6px' }}>
+                                    {item.quantity}
                                   </span>
+                                </td>
+
+                                {/* Payment Method - Strict Single Line Badge */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                  {renderPaymentBadge(item.payment_method)}
+                                </td>
+
+                                {/* Order Status */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                  {renderOrderStatusBadge(item.order_status)}
+                                </td>
+
+                                {/* View Action Button */}
+                                <td style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedOrderForModal(item);
+                                    }}
+                                    style={{
+                                      padding: '5px 12px',
+                                      background: 'rgba(201, 168, 76, 0.12)',
+                                      border: '1px solid rgba(201, 168, 76, 0.3)',
+                                      borderRadius: '6px',
+                                      color: '#e0c878',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      transition: 'all 0.2s ease',
+                                    }}
+                                  >
+                                    <Eye size={12} />
+                                    <span>View</span>
+                                  </button>
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
-                                No online sales ledger records found.
+                              <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'rgba(255,255,255,0.5)' }}>
+                                No online orders found for this period.
                               </td>
                             </tr>
                           )}
@@ -3818,8 +5102,8 @@ export const SuperadminDashboard: React.FC = () => {
                     <div style={{ marginTop: '16px' }}>
                       <Pagination
                         currentPage={onlineLedgerPage}
-                        totalPages={Math.ceil(displayOnlineLedger.total / salesPageLimit) || 1}
-                        totalItems={displayOnlineLedger.total}
+                        totalPages={Math.ceil((displayOnlineLedger.total || 1) / salesPageLimit) || 1}
+                        totalItems={displayOnlineLedger.total || 0}
                         itemsPerPage={salesPageLimit}
                         onPageChange={setOnlineLedgerPage}
                       />
@@ -3827,43 +5111,226 @@ export const SuperadminDashboard: React.FC = () => {
                   </div>
                 )}
 
-                {/* SUB-TAB 3: OFFLINE SALES LEDGER */}
+                {/* ====================================================== */}
+                {/* SUB-TAB 3: STORE SALES (IN-STORE / OFFLINE)            */}
+                {/* ====================================================== */}
                 {salesSubTab === 'offline' && (
                   <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                        OFFLINE SALES LEDGER
-                      </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '14px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                            Store Sales
+                          </h3>
+                        </div>
+                        <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+                          In-store point of sale purchases, payment types, and item quantities sold
+                        </p>
+                      </div>
+
+                      {/* Search & Filters */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '10px', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} />
+                          <input
+                            type="text"
+                            placeholder="Search receipt ID or product..."
+                            value={salesSearch}
+                            onChange={(e) => {
+                              setSalesSearch(e.target.value);
+                              setOfflineLedgerPage(1);
+                            }}
+                            style={{
+                              background: '#14100d',
+                              color: '#f5efe6',
+                              border: '1px solid rgba(201, 168, 76, 0.35)',
+                              borderRadius: '8px',
+                              padding: '8px 30px 8px 32px',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              width: '230px',
+                            }}
+                          />
+                          {salesSearch && (
+                            <button
+                              onClick={() => {
+                                setSalesSearch('');
+                                setOfflineLedgerPage(1);
+                              }}
+                              style={{
+                                position: 'absolute',
+                                right: '8px',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.5)',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        <select
+                          value={salesPaymentMethod}
+                          onChange={(e) => {
+                            setSalesPaymentMethod(e.target.value);
+                            setOfflineLedgerPage(1);
+                          }}
+                          style={{
+                            background: '#14100d',
+                            color: '#f5efe6',
+                            border: '1px solid rgba(201, 168, 76, 0.35)',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="ALL">All Payments</option>
+                          <option value="Cash">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Card">Card</option>
+                        </select>
+
+                        {(salesSearch || salesPaymentMethod !== 'ALL') && (
+                          <button
+                            onClick={() => {
+                              setSalesSearch('');
+                              setSalesPaymentMethod('ALL');
+                              setOfflineLedgerPage(1);
+                            }}
+                            style={{
+                              background: 'rgba(231, 76, 60, 0.12)',
+                              border: '1px solid rgba(231, 76, 60, 0.3)',
+                              color: '#e74c3c',
+                              borderRadius: '8px',
+                              padding: '7px 12px',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                          >
+                            <RotateCcw size={12} />
+                            <span>Reset Filters</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6', minWidth: '850px' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                            <th style={{ padding: '12px' }}>RECEIPT ID</th>
-                            <th style={{ padding: '12px' }}>DATE</th>
-                            <th style={{ padding: '12px' }}>PRODUCT NAME</th>
-                            <th style={{ padding: '12px' }}>QTY</th>
-                            <th style={{ padding: '12px' }}>PAYMENT METHOD</th>
-                            <th style={{ padding: '12px' }}>AMOUNT</th>
+                            <th style={{ padding: '12px 14px', minWidth: '150px' }}>RECEIPT ID</th>
+                            <th style={{ padding: '12px 14px', minWidth: '140px' }}>DATE</th>
+                            <th style={{ padding: '12px 14px', minWidth: '170px' }}>CUSTOMER / COMPANY</th>
+                            <th style={{ padding: '12px 14px', minWidth: '220px' }}>PRODUCT NAME</th>
+                            <th style={{ padding: '12px 14px', minWidth: '70px', textAlign: 'center' }}>QTY</th>
+                            <th style={{ padding: '12px 14px', minWidth: '160px' }}>PAYMENT METHOD</th>
+                            <th style={{ padding: '12px 14px', minWidth: '110px', textAlign: 'right' }}>AMOUNT</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {displayOfflineLedger.items.length > 0 ? (
+                          {displayOfflineLedger.items && displayOfflineLedger.items.length > 0 ? (
                             displayOfflineLedger.items.map((item: any, i: number) => (
-                              <tr key={item.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>{item.receipt_id}</td>
-                                <td style={{ padding: '12px' }}>{item.created_at}</td>
-                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.product_name}</td>
-                                <td style={{ padding: '12px', fontWeight: 600 }}>{item.quantity}</td>
-                                <td style={{ padding: '12px' }}>{item.payment_method}</td>
-                                <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c' }}>₹{item.amount.toLocaleString('en-IN')}</td>
+                              <tr
+                                key={item.id || i}
+                                style={{
+                                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                  background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+                                  transition: 'background 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(201, 168, 76, 0.06)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent')}
+                              >
+                                {/* Receipt ID with Copy Button */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span
+                                      style={{
+                                        fontWeight: 700,
+                                        color: '#c9a84c',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.85rem',
+                                      }}
+                                    >
+                                      {item.receipt_id}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(item.receipt_id);
+                                        setCopiedOrderId(item.receipt_id);
+                                        setTimeout(() => setCopiedOrderId(null), 2000);
+                                      }}
+                                      title="Copy Receipt ID"
+                                      style={{
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                                        borderRadius: '5px',
+                                        color: copiedOrderId === item.receipt_id ? '#2ecc71' : 'rgba(255, 255, 255, 0.7)',
+                                        cursor: 'pointer',
+                                        padding: '3px 6px',
+                                        fontSize: '0.7rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      {copiedOrderId === item.receipt_id ? <Check size={11} color="#2ecc71" /> : <Copy size={11} />}
+                                    </button>
+                                  </div>
+                                </td>
+
+                                {/* Date */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem' }}>
+                                  {item.created_at}
+                                </td>
+
+                                {/* Customer / Contact */}
+                                <td style={{ padding: '12px 14px' }}>
+                                  <div style={{ fontWeight: 600, color: '#f5efe6' }}>{item.customer_name || 'Walk-in Customer'}</div>
+                                  {item.phone && item.phone !== 'N/A' && (
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{item.phone}</div>
+                                  )}
+                                </td>
+
+                                {/* Product Name */}
+                                <td style={{ padding: '12px 14px', fontWeight: 600, color: '#f5efe6' }}>
+                                  {item.product_name}
+                                </td>
+
+                                {/* Quantity */}
+                                <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700 }}>
+                                  <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '6px' }}>
+                                    {item.quantity}
+                                  </span>
+                                </td>
+
+                                {/* Payment Method - Strict Single Line Badge */}
+                                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                  {renderPaymentBadge(item.payment_method)}
+                                </td>
+
+                                {/* Total Price */}
+                                <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#c9a84c', fontSize: '0.92rem' }}>
+                                  ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
-                                No offline sales ledger records found.
+                              <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'rgba(255,255,255,0.5)' }}>
+                                No in-store sales records found for this period.
                               </td>
                             </tr>
                           )}
@@ -3874,11 +5341,171 @@ export const SuperadminDashboard: React.FC = () => {
                     <div style={{ marginTop: '16px' }}>
                       <Pagination
                         currentPage={offlineLedgerPage}
-                        totalPages={Math.ceil(displayOfflineLedger.total / salesPageLimit) || 1}
-                        totalItems={displayOfflineLedger.total}
+                        totalPages={Math.ceil((displayOfflineLedger.total || 1) / salesPageLimit) || 1}
+                        totalItems={displayOfflineLedger.total || 0}
                         itemsPerPage={salesPageLimit}
                         onPageChange={setOfflineLedgerPage}
                       />
+                    </div>
+                  </div>
+                )}
+
+                {/* ====================================================== */}
+                {/* INTERACTIVE ORDER DETAILS MODAL                        */}
+                {/* ====================================================== */}
+                {selectedOrderForModal && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      inset: 0,
+                      background: 'rgba(0, 0, 0, 0.78)',
+                      backdropFilter: 'blur(6px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 9999,
+                      padding: '16px',
+                    }}
+                    onClick={() => setSelectedOrderForModal(null)}
+                  >
+                    <div
+                      style={{
+                        background: '#16120f',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
+                        borderRadius: '16px',
+                        maxWidth: '560px',
+                        width: '100%',
+                        maxHeight: '88vh',
+                        overflowY: 'auto',
+                        padding: '24px',
+                        boxShadow: '0 24px 60px rgba(0, 0, 0, 0.85)',
+                        position: 'relative',
+                        color: '#f5efe6',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Modal Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(201, 168, 76, 0.25)', paddingBottom: '16px', marginBottom: '20px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+                            Order Details
+                          </span>
+                          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: '4px 0 0 0', color: '#f5efe6' }}>
+                            {selectedOrderForModal.order_id}
+                          </h2>
+                          <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>
+                            Placed on {selectedOrderForModal.created_at}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedOrderForModal(null)}
+                          style={{
+                            background: 'rgba(255,255,255,0.08)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#f5efe6',
+                          }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      {/* Customer & Status Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.025)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer</span>
+                          <div style={{ fontWeight: 600, marginTop: '3px', color: '#f5efe6' }}>{selectedOrderForModal.customer_name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#c9a84c', marginTop: '2px' }}>{selectedOrderForModal.customer_email}</div>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.025)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fulfillment & Payment</span>
+                          <div style={{ marginTop: '6px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {renderOrderStatusBadge(selectedOrderForModal.order_status)}
+                            <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '10px', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', fontWeight: 600 }}>
+                              {selectedOrderForModal.payment_status || 'PAID'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment & Amount Card */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(201, 168, 76, 0.08)', border: '1px solid rgba(201, 168, 76, 0.25)', padding: '14px 16px', borderRadius: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Payment Method</span>
+                          <div style={{ marginTop: '6px' }}>
+                            {renderPaymentBadge(selectedOrderForModal.payment_method)}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Amount</span>
+                          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#c9a84c', marginTop: '2px' }}>
+                            ₹{Number(selectedOrderForModal.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Purchased Items */}
+                      <div style={{ marginBottom: '20px' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Items Summary</span>
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '14px', marginTop: '6px' }}>
+                          <div style={{ fontWeight: 600, color: '#f5efe6', fontSize: '0.9rem', lineHeight: 1.4 }}>
+                            {selectedOrderForModal.product_summary}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', marginTop: '6px', display: 'flex', gap: '12px' }}>
+                            <span>Total Units: <strong>{selectedOrderForModal.quantity}</strong></span>
+                            <span>•</span>
+                            <span>Delivery: <strong>{selectedOrderForModal.delivery_option || 'Standard Delivery'}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Shipping Address if available */}
+                      {selectedOrderForModal.shipping_address && (
+                        <div style={{ marginBottom: '20px' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Shipping Address</span>
+                          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '12px', marginTop: '6px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
+                            <div>{selectedOrderForModal.shipping_address.street || selectedOrderForModal.shipping_address.address_line1 || selectedOrderForModal.shipping_address.full_address || 'Address on file'}</div>
+                            <div>
+                              {[selectedOrderForModal.shipping_address.city, selectedOrderForModal.shipping_address.state, selectedOrderForModal.shipping_address.postal_code || selectedOrderForModal.shipping_address.pincode].filter(Boolean).join(', ')}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Modal Footer Actions */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid rgba(201, 168, 76, 0.2)', paddingTop: '16px' }}>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedOrderForModal.order_id);
+                            setCopiedOrderId(selectedOrderForModal.order_id);
+                            setTimeout(() => setCopiedOrderId(null), 2000);
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: '8px',
+                            color: copiedOrderId === selectedOrderForModal.order_id ? '#2ecc71' : '#f5efe6',
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          {copiedOrderId === selectedOrderForModal.order_id ? <Check size={13} color="#2ecc71" /> : <Copy size={13} />}
+                          <span>{copiedOrderId === selectedOrderForModal.order_id ? 'Copied ID' : 'Copy Order ID'}</span>
+                        </button>
+                        <Button variant="secondary" size="sm" onClick={() => setSelectedOrderForModal(null)}>
+                          Close
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -5507,7 +7134,7 @@ export const SuperadminDashboard: React.FC = () => {
               />
             ) : (
               <div className="glass-panel" style={{ borderRadius: '12px', border: '1px solid rgba(201,168,76,0.2)', overflow: 'hidden', background: 'rgba(15, 12, 10, 0.85)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ background: 'rgba(201, 168, 76, 0.08)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.5px' }}>
                       <th style={{ padding: '14px 18px' }}>Notification</th>
@@ -5754,7 +7381,7 @@ export const SuperadminDashboard: React.FC = () => {
         )}
 
         {/* AUDIT LOG TAB FALLBACK */}
-        {!['enterprise', 'revenue', 'sales-comparison', 'reports', 'admin-mgmt', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications', 'profile', 'change-password'].includes(activeTab) && (
+        {!['enterprise', 'revenue', 'sales-comparison', 'reports', 'admin-mgmt', 'customers', 'audit-logs', 'theme-builder', 'home-mgmt', 'platform-settings', 'notifications', 'profile', 'change-password'].includes(activeTab) && (
           <div
             className="glass-panel"
             style={{

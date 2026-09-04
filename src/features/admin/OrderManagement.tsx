@@ -9,6 +9,11 @@ import {
   AlertTriangle,
   Package,
   Calendar,
+  MapPin,
+  User,
+  Phone,
+  Mail,
+  Truck,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { Pagination } from '../../components/ui/Pagination';
@@ -124,10 +129,20 @@ export const OrderDetailModal: React.FC<{
   const [confirmMsg, setConfirmMsg] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const isCod = order.paymentMethod === 'Cash on Delivery' || order.paymentMethod === 'COD';
+  const isCod = order.paymentMethod === 'Cash on Delivery' || order.paymentMethod === 'COD' || order.payment_method === 'Cash on Delivery' || order.payment_method === 'COD';
   const currentSt = order.status || 'Processing';
-  const currentPs = order.payment_status || 'PENDING';
+  const currentPs = order.payment_status || order.paymentStatus || 'PENDING';
   const allowedNext = ALLOWED_TRANSITIONS[currentSt] || [];
+
+  const shipAddr = order.shipping_address || order.shippingAddress || {};
+  const customerName = shipAddr.name || shipAddr.full_name || order.customer_name || order.user_name || order.name || 'Customer';
+  const customerPhone = shipAddr.phone || shipAddr.phoneNumber || order.customer_phone || order.phone || '';
+  const customerEmail = shipAddr.email || order.user_email || order.customer_email || order.email || '';
+
+  const street = shipAddr.street || shipAddr.address || shipAddr.address_line1 || shipAddr.street_address || '';
+  const city = shipAddr.city || '';
+  const state = shipAddr.state || '';
+  const pincode = shipAddr.zip || shipAddr.pincode || shipAddr.postalCode || shipAddr.zip_code || '';
 
   const initiateStatusChange = (newSt: string) => {
     if (!allowedNext.includes(newSt)) {
@@ -166,129 +181,165 @@ export const OrderDetailModal: React.FC<{
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '12px', border: '1px solid var(--gold)', background: 'rgba(18,10,5,0.96)', padding: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflowY: 'auto' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '580px', borderRadius: '12px', border: '1px solid var(--gold)', background: 'rgba(18,10,5,0.97)', padding: '20px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
           <div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Order Details</span>
-            <h2 style={{ fontFamily: 'monospace', fontSize: '1.4rem', color: 'var(--cream)', margin: 0 }}>{order.id}</h2>
+            <span style={{ fontSize: '0.68rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Order Details</span>
+            <h2 style={{ fontFamily: 'monospace', fontSize: '1.1rem', color: 'var(--cream)', margin: '2px 0 0 0' }}>{order.id}</h2>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--beige)', cursor: 'pointer' }}><X size={20} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--beige)', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Customer Info</div>
-            <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.9rem' }}>{order.shippingAddress?.name || 'Customer'}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{order.shippingAddress?.phone}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{order.shippingAddress?.email || order.user_email}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Shipping Address</div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--cream)' }}>
-              {order.shippingAddress?.address}, {order.shippingAddress?.city}, {order.shippingAddress?.state} - {order.shippingAddress?.postalCode || order.shippingAddress?.pincode}
+        {/* Customer & Shipping Address Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+          {/* Customer Details */}
+          <div style={{ background: 'rgba(255,255,255,0.025)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.66rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+              <User size={12} /> Customer Information
             </div>
+            <div style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.88rem' }}>{customerName}</div>
+            {customerPhone && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--beige)' }}>
+                <Phone size={11} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+                <a href={`tel:${customerPhone}`} style={{ color: 'var(--beige)', textDecoration: 'none' }}>{customerPhone}</a>
+              </div>
+            )}
+            {customerEmail && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'var(--grey-light)', wordBreak: 'break-all' }}>
+                <Mail size={11} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+                <span>{customerEmail}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Delivery & Shipping Address */}
+          <div style={{ background: 'rgba(255,255,255,0.025)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.66rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+              <MapPin size={12} /> Shipping Destination
+            </div>
+            {street ? (
+              <div style={{ fontSize: '0.82rem', color: 'var(--cream)', fontWeight: 500, lineHeight: 1.45 }}>
+                {street}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Address line not specified</div>
+            )}
+            
+            {(city || state || pincode) && (
+              <div style={{ fontSize: '0.78rem', color: 'var(--beige)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                <span>{[city, state].filter(Boolean).join(', ')}</span>
+                {pincode && (
+                  <span style={{ background: 'rgba(201,168,76,0.12)', color: 'var(--gold)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid rgba(201,168,76,0.25)' }}>
+                    PIN: {pincode}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {order.delivery_option && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--grey-light)', marginTop: '2px', borderTop: '1px dashed rgba(255,255,255,0.06)', paddingTop: '6px' }}>
+                <Truck size={11} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+                <span>Option: <strong style={{ color: 'var(--cream)' }}>{order.delivery_option}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '10px' }}>Order Items</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* Statuses row */}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '14px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Order Status</div>
+            <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Payment</div>
+            <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
+          </div>
+          <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+            <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Method</div>
+            <span style={{ fontSize: '0.78rem', color: 'var(--cream)', fontWeight: 600 }}>{order.paymentMethod || '—'}</span>
+          </div>
+        </div>
+
+        {/* Order Items */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '8px' }}>Items</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {order.items?.map((it: any, idx: number) => (
-              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
                 <div>
-                  <div style={{ fontSize: '0.88rem', color: 'var(--cream)', fontWeight: 600 }}>{it.product?.name || 'Product'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Qty: {it.quantity} × ₹{it.price}</div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--cream)', fontWeight: 600 }}>{it.product?.name || 'Product'}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)' }}>Qty: {it.quantity} × ₹{it.price}</div>
                 </div>
-                <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.9rem' }}>₹{(it.quantity * it.price).toLocaleString()}</div>
+                <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.85rem' }}>₹{(it.quantity * it.price).toLocaleString()}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Order Summary Breakdown */}
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '14px' }}>Order Summary</div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+        {/* Summary */}
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '12px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
-              <span>Items Subtotal</span>
-              <span style={{ fontWeight: 600 }}>₹{(order.subtotal || 0).toLocaleString()}</span>
+              <span>Subtotal</span><span style={{ fontWeight: 600 }}>₹{(order.subtotal || 0).toLocaleString()}</span>
             </div>
-            
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
-              <span>Delivery Charges</span>
-              <span style={{ fontWeight: 600 }}>{order.shipping > 0 ? `₹${order.shipping.toLocaleString()}` : 'Free'}</span>
+              <span>Delivery</span><span style={{ fontWeight: 600 }}>{order.shipping > 0 ? `₹${order.shipping.toLocaleString()}` : 'Free'}</span>
             </div>
-
             {(order.tax || 0) > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--cream)' }}>
-                <span>Tax (GST)</span>
-                <span style={{ fontWeight: 600 }}>₹{order.tax.toLocaleString()}</span>
+                <span>Tax (GST)</span><span style={{ fontWeight: 600 }}>₹{order.tax.toLocaleString()}</span>
               </div>
             )}
-
             {(order.coupon_discount || order.discount || 0) > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
-                <span>Coupon Discount {order.coupon_code ? `(${order.coupon_code})` : ''}</span>
-                <span style={{ fontWeight: 600 }}>- ₹{(order.coupon_discount || order.discount || 0).toLocaleString()}</span>
+                <span>Coupon {order.coupon_code ? `(${order.coupon_code})` : ''}</span>
+                <span style={{ fontWeight: 600 }}>−₹{(order.coupon_discount || order.discount || 0).toLocaleString()}</span>
               </div>
             )}
-
             {(order.coin_discount || 0) > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2ecc71' }}>
-                <span>Reward Coins Used ({order.coins_used} coins)</span>
-                <span style={{ fontWeight: 600 }}>- ₹{(order.coin_discount || 0).toLocaleString()}</span>
+                <span>Reward Coins ({order.coins_used})</span>
+                <span style={{ fontWeight: 600 }}>−₹{(order.coin_discount || 0).toLocaleString()}</span>
               </div>
             )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '12px', marginTop: '4px' }}>
-              <span style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '0.95rem' }}>Total Amount</span>
-              <span style={{ color: 'var(--gold)', fontWeight: 800, fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}>
-                ₹{(order.total || 0).toLocaleString()}
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px', marginTop: '2px' }}>
+              <span style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '0.88rem' }}>Total</span>
+              <span style={{ color: 'var(--gold)', fontWeight: 800, fontSize: '1.1rem', fontFamily: 'var(--font-display)' }}>₹{(order.total || 0).toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-              Order Status
+        {(allowedNext.length > 0 || (isCod && currentPs === 'PENDING')) && (
+          <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '8px' }}>
+              Update Status & Payment
             </div>
-            <StatusBadge status={currentSt} map={FULFILLMENT_COLORS} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--grey-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-              Payment Status
-            </div>
-            <StatusBadge status={currentPs} map={PAYMENT_COLORS} />
-          </div>
-        </div>
-
-        {allowedNext.length > 0 && (
-          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '10px' }}>
-              Update Order Status:
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {allowedNext.map((st) => (
                 <button
                   key={st}
                   disabled={isUpdating}
                   onClick={() => initiateStatusChange(st)}
                   style={{
-                    padding: '8px 16px',
+                    flex: '1 1 0',
+                    minWidth: '85px',
+                    padding: '7px 8px',
                     borderRadius: '6px',
-                    fontSize: '0.8rem',
+                    fontSize: '0.74rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
                     background: st === 'Cancelled' ? 'rgba(231,76,60,0.15)' : 'rgba(201,168,76,0.15)',
                     color: st === 'Cancelled' ? '#e74c3c' : 'var(--gold)',
                     border: st === 'Cancelled' ? '1px solid rgba(231,76,60,0.4)' : '1px solid var(--gold)',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  Mark as {STATUS_LABELS[st] || st}
+                  → {STATUS_LABELS[st] || st}
                 </button>
               ))}
               {isCod && currentPs === 'PENDING' && (
@@ -296,14 +347,19 @@ export const OrderDetailModal: React.FC<{
                   disabled={isUpdating}
                   onClick={initiateCodPaid}
                   style={{
-                    padding: '8px 16px',
+                    flex: '1 1 0',
+                    minWidth: '95px',
+                    padding: '7px 8px',
                     borderRadius: '6px',
-                    fontSize: '0.8rem',
+                    fontSize: '0.74rem',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
                     background: 'rgba(46,204,113,0.15)',
                     color: '#2ecc71',
                     border: '1px solid rgba(46,204,113,0.4)',
+                    transition: 'all 0.2s ease',
                   }}
                 >
                   Mark COD Paid
@@ -400,6 +456,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<{ order: any; newStatus: string } | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchDbOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -475,6 +538,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
       fetchDbOrders();
     } catch (err: any) {
       console.error('Failed to update order status:', err);
+      addToast('error', err?.detail || err?.message || 'Failed to update order status.', 'Error');
     } finally {
       setIsConfirming(false);
       setPendingConfirm(null);
@@ -514,68 +578,138 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         ))}
       </div>
 
-      <div className="glass-panel" style={{ padding: '18px 22px', marginBottom: '18px', border: '1px solid var(--glass-border)' }}>
-        <div style={{ marginBottom: '14px' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Order Status</span>
-          <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
-            {FULFILLMENT_STATUSES.map((st) => {
-              const isActive = fulfillmentFilter === st;
-              const badge = FULFILLMENT_COLORS[st];
-              return (
-                <button key={st} type="button"
-                  onClick={() => { setFulfillmentFilter(st); setPage(1); }}
-                  style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.2)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
-                  {STATUS_LABELS[st] || st}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <div className="glass-panel" style={{ padding: isMobile ? '12px 12px' : '18px 22px', marginBottom: '18px', border: '1px solid var(--glass-border)', boxSizing: 'border-box', overflow: 'hidden' }}>
+        {isMobile ? (
+          /* Mobile View: Two side-by-side dropdowns */
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                Order Status
+              </label>
+              <select
+                value={fulfillmentFilter}
+                onChange={(e) => { setFulfillmentFilter(e.target.value); setPage(1); }}
+                style={{
+                  width: '100%',
+                  padding: '7px 8px',
+                  borderRadius: '6px',
+                  background: 'rgba(0,0,0,0.5)',
+                  border: '1px solid rgba(201,168,76,0.3)',
+                  color: '#f5efe6',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'auto',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {FULFILLMENT_STATUSES.map((st) => (
+                  <option key={st} value={st} style={{ background: '#1a120b', color: '#f5efe6' }}>
+                    {st === 'ALL' ? 'All Statuses' : STATUS_LABELS[st] || st}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div style={{ marginBottom: '14px' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Payment Status</span>
-          <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
-            {PAYMENT_STATUSES.map((ps) => {
-              const isActive = paymentFilter === ps;
-              const badge = PAYMENT_COLORS[ps];
-              return (
-                <button key={ps} type="button"
-                  onClick={() => { setPaymentFilter(ps); setPage(1); }}
-                  style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.15)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
-                  {ps}
-                </button>
-              );
-            })}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, display: 'block', marginBottom: '5px' }}>
+                Payment Status
+              </label>
+              <select
+                value={paymentFilter}
+                onChange={(e) => { setPaymentFilter(e.target.value); setPage(1); }}
+                style={{
+                  width: '100%',
+                  padding: '7px 8px',
+                  borderRadius: '6px',
+                  background: 'rgba(0,0,0,0.5)',
+                  border: '1px solid rgba(201,168,76,0.3)',
+                  color: '#f5efe6',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'auto',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {PAYMENT_STATUSES.map((ps) => (
+                  <option key={ps} value={ps} style={{ background: '#1a120b', color: '#f5efe6' }}>
+                    {ps === 'ALL' ? 'All Payments' : ps}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Desktop View: Pill buttons */
+          <>
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Order Status</span>
+              <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
+                {FULFILLMENT_STATUSES.map((st) => {
+                  const isActive = fulfillmentFilter === st;
+                  const badge = FULFILLMENT_COLORS[st];
+                  return (
+                    <button key={st} type="button"
+                      onClick={() => { setFulfillmentFilter(st); setPage(1); }}
+                      style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.2)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
+                      {STATUS_LABELS[st] || st}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--grey-light)', pointerEvents: 'none' }} />
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '9px' }}>Payment Status</span>
+              <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
+                {PAYMENT_STATUSES.map((ps) => {
+                  const isActive = paymentFilter === ps;
+                  const badge = PAYMENT_COLORS[ps];
+                  return (
+                    <button key={ps} type="button"
+                      onClick={() => { setPaymentFilter(ps); setPage(1); }}
+                      style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', background: isActive ? (badge?.bg || 'rgba(201,168,76,0.15)') : 'rgba(255,255,255,0.04)', color: isActive ? (badge?.color || 'var(--gold)') : 'var(--beige)', border: isActive ? `1px solid ${badge?.color || 'var(--gold)'}60` : '1px solid rgba(255,255,255,0.1)' }}>
+                      {ps}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', alignItems: isMobile ? 'stretch' : 'center' }}>
+          <div style={{ flex: isMobile ? 'none' : '1 1 200px', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? '0' : '180px', position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--grey-light)', pointerEvents: 'none', zIndex: 2 }} />
             <input type="text" placeholder="Search by Order ID, customer name or phone..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              style={{ width: '100%', paddingLeft: '34px', paddingRight: searchQuery ? '32px' : '10px', paddingTop: '8px', paddingBottom: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.83rem', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', paddingLeft: '34px', paddingRight: searchQuery ? '32px' : '10px', paddingTop: '8px', paddingBottom: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }} />
             {searchQuery && (
-              <button onClick={() => { setSearchQuery(''); setPage(1); }} style={{ position: 'absolute', right: '9px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer' }}>
+              <button onClick={() => { setSearchQuery(''); setPage(1); }} style={{ position: 'absolute', right: '9px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--grey-light)', cursor: 'pointer', zIndex: 2 }}>
                 <X size={13} />
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>From:</span>
-            <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              style={{ padding: '8px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.8rem', outline: 'none', colorScheme: 'dark' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>From:</span>
+              <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                style={{ width: '100%', minWidth: 0, padding: '6px 4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.72rem', outline: 'none', colorScheme: 'dark', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>To:</span>
+              <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                style={{ width: '100%', minWidth: 0, padding: '6px 4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.72rem', outline: 'none', colorScheme: 'dark', boxSizing: 'border-box' }} />
+            </div>
+            {(dateFrom || dateTo || searchQuery || fulfillmentFilter !== 'ALL' || paymentFilter !== 'ALL') && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); setSearchQuery(''); setFulfillmentFilter('ALL'); setPaymentFilter('ALL'); setPage(1); }}
+                style={{ padding: '6px 8px', background: 'rgba(231,76,60,0.12)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '6px', color: '#e74c3c', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Reset
+              </button>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', whiteSpace: 'nowrap' }}>To:</span>
-            <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              style={{ padding: '8px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: 'var(--cream)', fontSize: '0.8rem', outline: 'none', colorScheme: 'dark' }} />
-          </div>
-          {(dateFrom || dateTo || searchQuery || fulfillmentFilter !== 'ALL' || paymentFilter !== 'ALL') && (
-            <button onClick={() => { setDateFrom(''); setDateTo(''); setSearchQuery(''); setFulfillmentFilter('ALL'); setPaymentFilter('ALL'); setPage(1); }}
-              style={{ padding: '8px 11px', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '6px', color: '#e74c3c', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}>
-              Reset Filters
-            </button>
-          )}
         </div>
       </div>
 
@@ -595,97 +729,190 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             </p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                {['Order ID & Date', 'Customer', 'Items & Qty', 'Payment Method', 'Payment Status', 'Order Status', 'Total', 'Actions'].map((h) => (
-                  <th key={h} style={{ padding: '13px 15px', textAlign: 'left', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--gold)', background: 'rgba(201,168,76,0.05)', whiteSpace: 'nowrap' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ordersList.map((ord: any, idx: number) => {
-                const isCod = ord.paymentMethod === 'Cash on Delivery' || ord.paymentMethod === 'COD';
-                const currentPs = ord.payment_status || 'PENDING';
-                const currentSt = ord.status || 'Processing';
-                const allowedNext = ALLOWED_TRANSITIONS[currentSt] || [];
-                const fBadge = FULFILLMENT_COLORS[currentSt] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
-                const pBadge = PAYMENT_COLORS[currentPs] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
-                const isFinal = currentSt === 'Delivered' || currentSt === 'Cancelled';
-                const ordDate = ord.created_at || ord.date || 'Today';
+          <>
+            {isMobile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px' }}>
+                {ordersList.map((ord: any, idx: number) => {
+                  const isCod = ord.paymentMethod === 'Cash on Delivery' || ord.paymentMethod === 'COD';
+                  const currentPs = ord.payment_status || 'PENDING';
+                  const currentSt = ord.status || 'Processing';
+                  const allowedNext = ALLOWED_TRANSITIONS[currentSt] || [];
+                  const fBadge = FULFILLMENT_COLORS[currentSt] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
+                  const pBadge = PAYMENT_COLORS[currentPs] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
+                  const isFinal = currentSt === 'Delivered' || currentSt === 'Cancelled';
+                  const ordDate = ord.created_at || ord.date || 'Today';
 
-                return (
-                  <tr key={ord.id}
-                    style={{ borderBottom: idx < ordersList.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.2s' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.022)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: '0.78rem' }}>{ord.id}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--grey-light)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <Calendar size={10} />{ordDate}
+                  return (
+                    <div key={ord.id} className="glass-panel" style={{ padding: '16px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: '0.85rem' }}>{ord.id}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{ordDate?.slice(0, 10)}</div>
+                        </div>
+                        <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '1rem' }}>
+                          ₹{ord.total?.toLocaleString('en-IN')}
+                        </div>
                       </div>
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{ord.shippingAddress?.name || ord.name || '—'}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--beige)', marginTop: '2px' }}>{ord.shippingAddress?.phone}</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--grey-light)' }}>{ord.shippingAddress?.city}{ord.shippingAddress?.state ? `, ${ord.shippingAddress?.state}` : ''}</div>
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '175px' }}>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.9rem' }}>
+                          {ord.shipping_address?.name || ord.shippingAddress?.name || ord.customer_name || ord.name || '—'}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>
+                          {ord.shipping_address?.phone || ord.shippingAddress?.phone || ord.customer_phone || ord.phone || ''}
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '6px', marginBottom: '12px' }}>
                         {ord.items?.slice(0, 2).map((it: any, i: number) => (
-                          <div key={i} style={{ fontSize: '0.77rem', color: 'var(--cream)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--gold)', display: 'inline-block', flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.product?.name || 'Product'}</span>
-                            <span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>×{it.quantity}</span>
+                          <div key={i} style={{ fontSize: '0.8rem', color: 'var(--cream)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.product?.name || 'Product'}</span>
+                            <span style={{ color: 'var(--gold)', fontWeight: 700, marginLeft: '8px' }}>×{it.quantity}</span>
                           </div>
                         ))}
+                        {(ord.items?.length || 0) > 2 && <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', textAlign: 'right' }}>+{ord.items.length - 2} more</div>}
                       </div>
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.8rem' }}>{ord.paymentMethod || '—'}</span>
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700, background: pBadge.bg, color: pBadge.color, border: `1px solid ${pBadge.color}50` }}>
-                        {currentPs}
-                      </span>
-                      {isCod && currentPs === 'PENDING' && (
-                        <button type="button" onClick={() => handleMarkCodPaid(ord)}
-                          style={{ display: 'block', marginTop: '5px', padding: '2px 9px', fontSize: '0.67rem', background: 'rgba(46,204,113,0.12)', border: '1px solid #2ecc7155', color: '#2ecc71', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          Mark Paid (COD)
-                        </button>
-                      )}
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700, background: fBadge.bg, color: fBadge.color, border: `1px solid ${fBadge.color}50`, marginBottom: isFinal ? 0 : '5px' }}>
-                        {STATUS_LABELS[currentSt] || currentSt}
-                      </span>
-                      {!isFinal && allowedNext.length > 0 && (
-                        <select value="" onChange={(e) => { if (e.target.value) handleQuickChange(ord, e.target.value); }}
-                          style={{ display: 'block', width: '100%', padding: '4px 7px', background: 'rgba(0,0,0,0.35)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '4px', fontSize: '0.73rem', cursor: 'pointer', outline: 'none' }}>
-                          <option value="">→ Change to...</option>
-                          {allowedNext.map((st) => (
-                            <option key={st} value={st}>{STATUS_LABELS[st] || st}</option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
-                      <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.92rem' }}>₹{ord.total?.toLocaleString('en-IN')}</div>
-                    </td>
-                    <td style={{ padding: '13px 15px', verticalAlign: 'middle' }}>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Payment: {ord.paymentMethod || '—'}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, background: pBadge.bg, color: pBadge.color, border: `1px solid ${pBadge.color}50` }}>
+                            {currentPs}
+                          </span>
+                          {isCod && currentPs === 'PENDING' && (
+                            <button type="button" onClick={() => handleMarkCodPaid(ord)}
+                              style={{ padding: '3px 8px', fontSize: '0.75rem', background: 'rgba(46,204,113,0.12)', border: '1px solid #2ecc7155', color: '#2ecc71', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>
+                              Mark Paid
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, background: fBadge.bg, color: fBadge.color, border: `1px solid ${fBadge.color}50` }}>
+                          {STATUS_LABELS[currentSt] || currentSt}
+                        </span>
+                        {!isFinal && allowedNext.length > 0 && (
+                          <select value="" onChange={(e) => { if (e.target.value) handleQuickChange(ord, e.target.value); }}
+                            style={{ padding: '4px 8px', background: 'rgba(0,0,0,0.35)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', outline: 'none' }}>
+                            <option value="">→ Change Status</option>
+                            {allowedNext.map((st) => (
+                              <option key={st} value={st}>{STATUS_LABELS[st] || st}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
                       <button onClick={() => setViewingOrder(ord)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 11px', borderRadius: '5px', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', whiteSpace: 'nowrap' }}>
-                        <Eye size={12} /> View
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                        <Eye size={16} /> View Order Details
                       </button>
-                    </td>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    {['Order ID & Date', 'Customer', 'Items & Qty', 'Payment Method', 'Payment Status', 'Order Status', 'Total', 'Actions'].map((h) => (
+                      <th key={h} style={{ padding: '13px 15px', textAlign: 'left', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--gold)', background: 'rgba(201,168,76,0.05)', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {ordersList.map((ord: any, idx: number) => {
+                    const isCod = ord.paymentMethod === 'Cash on Delivery' || ord.paymentMethod === 'COD';
+                    const currentPs = ord.payment_status || 'PENDING';
+                    const currentSt = ord.status || 'Processing';
+                    const allowedNext = ALLOWED_TRANSITIONS[currentSt] || [];
+                    const fBadge = FULFILLMENT_COLORS[currentSt] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
+                    const pBadge = PAYMENT_COLORS[currentPs] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--cream)' };
+                    const isFinal = currentSt === 'Delivered' || currentSt === 'Cancelled';
+                    const ordDate = ord.created_at || ord.date || 'Today';
+
+                    return (
+                      <tr key={ord.id}
+                        style={{ borderBottom: idx < ordersList.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.2s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.022)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        {/* Order ID & Date */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: '0.75rem' }}>{ord.id}</div>
+                          <div style={{ fontSize: '0.67rem', color: 'var(--grey-light)', marginTop: '2px' }}>{ordDate?.slice(0, 10)}</div>
+                        </td>
+                        {/* Customer */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                            {ord.shipping_address?.name || ord.shippingAddress?.name || ord.customer_name || ord.name || '—'}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--beige)' }}>
+                            {ord.shipping_address?.phone || ord.shippingAddress?.phone || ord.customer_phone || ord.phone || ''}
+                          </div>
+                        </td>
+                        {/* Items */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle', maxWidth: '160px' }}>
+                          {ord.items?.slice(0, 2).map((it: any, i: number) => (
+                            <div key={i} style={{ fontSize: '0.74rem', color: 'var(--cream)', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--gold)', flexShrink: 0, display: 'inline-block' }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.product?.name || 'Product'}</span>
+                              <span style={{ color: 'var(--gold)', fontWeight: 700, flexShrink: 0 }}>×{it.quantity}</span>
+                            </div>
+                          ))}
+                          {(ord.items?.length || 0) > 2 && <div style={{ fontSize: '0.65rem', color: 'var(--grey-light)' }}>+{ord.items.length - 2} more</div>}
+                        </td>
+                        {/* Payment Method */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--cream)' }}>{ord.paymentMethod || '—'}</span>
+                        </td>
+                        {/* Payment Status */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '20px', fontSize: '0.68rem', fontWeight: 700, background: pBadge.bg, color: pBadge.color, border: `1px solid ${pBadge.color}50`, whiteSpace: 'nowrap' }}>
+                            {currentPs}
+                          </span>
+                          {isCod && currentPs === 'PENDING' && (
+                            <button type="button" onClick={() => handleMarkCodPaid(ord)}
+                              style={{ display: 'block', marginTop: '4px', padding: '2px 7px', fontSize: '0.63rem', background: 'rgba(46,204,113,0.12)', border: '1px solid #2ecc7155', color: '#2ecc71', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              Mark Paid
+                            </button>
+                          )}
+                        </td>
+                        {/* Order Status */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '20px', fontSize: '0.68rem', fontWeight: 700, background: fBadge.bg, color: fBadge.color, border: `1px solid ${fBadge.color}50`, whiteSpace: 'nowrap' }}>
+                            {STATUS_LABELS[currentSt] || currentSt}
+                          </span>
+                          {!isFinal && allowedNext.length > 0 && (
+                            <select value="" onChange={(e) => { if (e.target.value) handleQuickChange(ord, e.target.value); }}
+                              style={{ display: 'block', width: '100%', marginTop: '4px', padding: '3px 6px', background: 'rgba(0,0,0,0.35)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '4px', fontSize: '0.68rem', cursor: 'pointer', outline: 'none' }}>
+                              <option value="">→ Change</option>
+                              {allowedNext.map((st) => (
+                                <option key={st} value={st}>{STATUS_LABELS[st] || st}</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        {/* Total */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '0.88rem' }}>₹{ord.total?.toLocaleString('en-IN')}</div>
+                        </td>
+                        {/* Actions */}
+                        <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                          <button onClick={() => setViewingOrder(ord)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '5px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                            <Eye size={11} /> View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </div>
 

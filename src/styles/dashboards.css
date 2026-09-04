@@ -145,6 +145,8 @@
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 10px 0 35px rgba(0, 0, 0, 0.95);
+    padding-top: calc(24px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
 
   .customer-sidebar.open {
@@ -226,7 +228,11 @@
 
 @media (max-width: 600px) {
   .dashboard-grid-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .dashboard-grid-stats > *:first-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -338,7 +344,10 @@
   border-color: #c9a84c;
 }
 
-/* Admin Dashboard Specifics */
+/* ══════════════════════════════════════════════════════════════ */
+/* ADMIN DASHBOARD SPECIFICS                                      */
+/* ══════════════════════════════════════════════════════════════ */
+
 .admin-workspace {
   margin-left: 260px;
   padding: 40px;
@@ -398,27 +407,512 @@
   pointer-events: auto;
 }
 
-.dashboard-mobile-trigger {
+/* ══════════════════════════════════════════════════════════════ */
+/* CUSTOMER DASHBOARD MOBILE HORIZONTAL TABS BAR                  */
+/* ══════════════════════════════════════════════════════════════ */
+
+/* Hidden on desktop (> 1024px) — desktop uses stationary left sidebar */
+.customer-mobile-tabs-bar {
   display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 20px;
-  background: rgba(var(--dark-chocolate-rgb), 0.5);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  color: var(--gold);
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.9rem;
-  letter-spacing: 1px;
-  margin-bottom: 20px;
-  cursor: pointer;
 }
 
 @media (max-width: 1024px) {
-  .dashboard-mobile-trigger {
+
+  /* Hide the duplicate sidebar on mobile so no second drawer conflicts */
+  .customer-sidebar {
+    display: none !important;
+  }
+
+  .customer-mobile-tabs-bar {
     display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 2px 14px 2px;
+    margin-bottom: 22px;
+    scrollbar-width: none;
+  }
+
+  .customer-mobile-tabs-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .customer-mobile-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 30px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid rgba(201, 168, 76, 0.25);
+    background: rgba(25, 20, 16, 0.85);
+    color: #e5ded3;
+    flex-shrink: 0;
+  }
+
+  .customer-mobile-tab-btn:hover {
+    border-color: #c9a84c;
+    color: #c9a84c;
+    background: rgba(201, 168, 76, 0.12);
+  }
+
+  .customer-mobile-tab-btn.active {
+    background: linear-gradient(135deg, #c9a84c 0%, #e5c875 100%);
+    color: #0f0c0a;
+    font-weight: 700;
+    border-color: #c9a84c;
+    box-shadow: 0 3px 12px rgba(201, 168, 76, 0.35);
+  }
+}
+
+/* Admin Top Header Actions (View Home & Profile on same line on mobile) */
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .desktop-only-header-notification {
+    display: none !important;
+  }
+
+  .admin-header-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+    width: 100% !important;
+  }
+
+  .admin-header-actions .view-home-btn {
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 0.78rem !important;
+    gap: 5px !important;
+  }
+}
+
+/* Revenue Analytics Mobile Enhancements */
+@media (max-width: 768px) {
+  .revenue-title-heading {
+    font-size: 1.5rem !important;
+  }
+
+  .revenue-filter-bar {
+    padding: 12px 14px !important;
+    gap: 12px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .revenue-filter-timeframe-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .revenue-filter-basis-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .revenue-filter-basis-buttons {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  .revenue-filter-basis-buttons button {
+    flex: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 7px 8px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .revenue-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .revenue-kpi-card {
+    padding: 12px 10px !important;
+  }
+
+  .revenue-kpi-val {
+    font-size: 1.35rem !important;
+  }
+
+  .revenue-chart-metric-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    max-width: 100% !important;
+    padding-bottom: 4px !important;
+  }
+
+  .revenue-chart-container {
+    height: 270px !important;
+  }
+}
+
+/* ── ENTERPRISE OVERVIEW: RESPONSIVE GRID LAYOUTS ─────────────── */
+
+.enterprise-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.enterprise-payment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.enterprise-charts-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.enterprise-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Pagination controls for Top Selling & Recent Activity */
+.enterprise-panel-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(201, 168, 76, 0.12);
+}
+
+.enterprise-pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(201, 168, 76, 0.08);
+  border: 1px solid rgba(201, 168, 76, 0.25);
+  color: #c9a84c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.enterprise-pagination-btn:hover:not(:disabled) {
+  background: rgba(201, 168, 76, 0.18);
+  border-color: rgba(201, 168, 76, 0.5);
+}
+
+.enterprise-pagination-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.enterprise-pagination-label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .enterprise-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .enterprise-payment-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .enterprise-charts-row {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .enterprise-bottom-row {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════ */
+/* ADMIN / SUPERADMIN DASHBOARD — COMPREHENSIVE MOBILE POLISH     */
+/* ══════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar list items: better touch targets on mobile ──────── */
+@media (max-width: 1024px) {
+  .dashboard-menu-btn {
+    padding: 13px 14px !important;
+    font-size: 0.92rem !important;
+    min-height: 44px;
+  }
+
+  .sidebar-group-title {
+    margin: 20px 0 8px 12px !important;
+    font-size: 0.7rem !important;
+  }
+
+  /* Tables: horizontally scrollable */
+  .admin-workspace table,
+  .customer-workspace-main table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+
+  .admin-workspace td,
+  .admin-workspace th,
+  .customer-workspace-main td,
+  .customer-workspace-main th {
+    padding: 8px 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  /* Filter bars wrap on mobile */
+  .admin-workspace [style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Notifications Table -> Cards on mobile */
+  .admin-workspace table.notifications-table,
+  .customer-workspace-main table.notifications-table {
+    display: block;
+    width: 100%;
+    white-space: normal !important;
+    overflow-x: hidden;
+  }
+  
+  .admin-workspace table.notifications-table thead,
+  .customer-workspace-main table.notifications-table thead {
+    display: none;
+  }
+
+  .admin-workspace table.notifications-table tbody,
+  .customer-workspace-main table.notifications-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-workspace table.notifications-table tr,
+  .customer-workspace-main table.notifications-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "message message"
+      "type actions"
+      "date actions"
+      "status actions";
+    padding: 12px 0;
+    row-gap: 4px;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .admin-workspace table.notifications-table td,
+  .customer-workspace-main table.notifications-table td {
+    display: block;
+    width: 100%;
+    padding: 0 16px !important;
+    text-align: left !important;
+    white-space: normal !important;
+    border-bottom: none !important;
+  }
+
+  .admin-workspace table.notifications-table td:nth-child(1),
+  .customer-workspace-main table.notifications-table td:nth-child(1) {
+    grid-area: message;
+    padding-bottom: 8px !important;
+  }
+
+  .admin-workspace table.notifications-table td:nth-child(2),
+  .customer-workspace-main table.notifications-table td:nth-child(2) {
+    grid-area: type;
+    white-space: nowrap !important;
+  }
+
+  .admin-workspace table.notifications-table td:nth-child(3),
+  .customer-workspace-main table.notifications-table td:nth-child(3) {
+    grid-area: date;
+    white-space: nowrap !important;
+  }
+
+  .admin-workspace table.notifications-table td:nth-child(4),
+  .customer-workspace-main table.notifications-table td:nth-child(4) {
+    grid-area: status;
+    white-space: nowrap !important;
+  }
+  
+  .admin-workspace table.notifications-table td:last-child,
+  .customer-workspace-main table.notifications-table td:last-child {
+    grid-area: actions;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+    align-items: flex-end;
+    padding-top: 0 !important;
+  }
+}
+
+/* ── Admin workspace padding on phones ───────────────────────── */
+@media (max-width: 768px) {
+  .admin-workspace {
+    padding: 80px 12px 40px 12px !important;
+  }
+
+  /* Bump touch targets for all admin buttons */
+  .admin-workspace button {
+    min-height: 36px;
+  }
+
+  /* Headings scale down */
+  .admin-workspace h1 {
+    font-size: 1.5rem !important;
+  }
+
+  .admin-workspace h2 {
+    font-size: 1.2rem !important;
+  }
+
+  .admin-workspace h3 {
+    font-size: 1rem !important;
+  }
+
+  /* KPI card grids: 2-col on phones */
+  .admin-kpi-grid,
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  
+  .admin-kpi-grid > div:first-child {
+    grid-column: span 2;
+  }
+
+  /* Action rows: stack vertically */
+  .admin-action-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .admin-action-row button,
+  .admin-action-row a {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Filter / search bars: stack vertically */
+  .admin-filter-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .admin-filter-bar input,
+  .admin-filter-bar select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Modal dialogs: full-width */
+  .admin-modal-box {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    padding: 20px 14px !important;
+  }
+
+  /* Detail & form grids: single column */
+  .admin-detail-grid,
+  .admin-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Pill / tab rows: horizontally scrollable */
+  .admin-tab-row,
+  .admin-pill-row {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    padding-bottom: 4px !important;
+  }
+
+  /* Inline flex rows: wrap */
+  .admin-inline-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Sales Ledger table wrapper */
+  .sales-ledger-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Customer overview stat cards: 2-col on small phones */
+  .dashboard-grid-stats {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+  .dashboard-grid-stats > *:first-child {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* ── Extra-small screens (< 480px) ───────────────────────────── */
+@media (max-width: 480px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .enterprise-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .enterprise-payment-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .revenue-chart-container {
+    height: 220px !important;
+  }
+
+  /* Sidebar drawer: full-width on tiny phones */
+  .customer-sidebar {
+    width: 100vw !important;
+    max-width: 100vw !important;
   }
 }

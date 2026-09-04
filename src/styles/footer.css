@@ -60,6 +60,15 @@
   filter: drop-shadow(0 4px 15px rgba(212, 175, 55, 0.4));
 }
 
+.footer-main-logo {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
 .footer-brand-titles {
   display: flex;
   flex-direction: column;
@@ -425,6 +434,15 @@
 }
 
 @media (max-width: 768px) {
+  .footer-brand-header {
+    justify-content: center;
+  }
+
+  .footer-social-row {
+    justify-content: center;
+    margin: 0 auto 20px auto;
+  }
+
   .chovique-footer-container {
     padding: 0 20px;
   }
@@ -433,6 +451,11 @@
     grid-template-columns: 1fr 1fr;
     gap: 24px;
     padding: 36px 0 30px 0;
+  }
+
+  .footer-concierge-card {
+    grid-column: auto;
+    margin: 0;
   }
 
   .footer-benefits-strip {
@@ -462,13 +485,10 @@
 
 @media (max-width: 480px) {
   .footer-main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
-  .footer-benefit-box {
-    flex: 0 1 100%;
-    width: 100%;
-  }
+
 
   .footer-bottom-center {
     flex-wrap: wrap;

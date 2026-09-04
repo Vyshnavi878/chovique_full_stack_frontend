@@ -35,55 +35,11 @@ export const Footer: React.FC = () => {
           {/* BRAND COLUMN */}
           <div className="footer-brand-col">
             <Link to="/" className="footer-brand-header">
-              <div className="footer-logo-wrapper">
-                <svg
-                  width="54"
-                  height="54"
-                  viewBox="0 0 100 100"
-                  fill="none"
-                  stroke="#d4af37"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  {/* Concentric gold rings */}
-                  <circle cx="50" cy="50" r="47" stroke="#d4af37" strokeWidth="1.2" opacity="0.6" />
-                  <circle cx="50" cy="50" r="44" stroke="#e5c875" strokeWidth="1.8" />
-                  <circle cx="50" cy="50" r="41" stroke="#d4af37" strokeWidth="1" opacity="0.4" />
-
-                  {/* Outer Head Contour */}
-                  <path d="M50 14 L68 28 L80 18 L73 42 L85 55 L65 62 L50 84 L35 62 L15 55 L27 42 L20 18 L32 28 Z" />
-
-                  {/* Inner Ears Detail */}
-                  <path d="M32 28 L40 18 L46 29" />
-                  <path d="M68 28 L60 18 L54 29" />
-
-                  {/* Forehead Star/Cross Mark */}
-                  <path d="M50 20 L50 26 M47 23 L53 23" strokeWidth="1.5" />
-
-                  {/* Eye Contours & Muzzle Lines */}
-                  <path d="M32 42 L43 42 L50 48 L57 42 L68 42" />
-                  <polygon points="36,41 42,39 42,43" fill="#d4af37" stroke="none" />
-                  <polygon points="64,41 58,39 58,43" fill="#d4af37" stroke="none" />
-
-                  {/* Nose & Snout */}
-                  <path d="M44 48 L56 48 L50 56 Z" fill="#d4af37" stroke="#d4af37" strokeWidth="1" />
-                  <path d="M50 56 L50 63" />
-                  <path d="M43 60 L50 63 L57 60" />
-
-                  {/* Cheek Facets */}
-                  <path d="M27 42 L43 42 M73 42 L57 42" />
-                  <path d="M15 55 L35 62 M85 55 L65 62" />
-
-                  {/* Chest Chevrons */}
-                  <path d="M40 68 L50 76 L60 68" strokeWidth="1.8" />
-                  <path d="M43 74 L50 80 L57 74" strokeWidth="1.8" />
-                </svg>
-              </div>
-              <div className="footer-brand-titles">
-                <h2 className="footer-brand-title">CHOVIQUE</h2>
-                <span className="footer-brand-subtitle">The Art of Fine Chocolate</span>
-              </div>
+              <img 
+                src="/assets/popular-bg.jpg" 
+                alt="Chovique Logo" 
+                className="footer-main-logo" 
+              />
             </Link>
 
             <p className="footer-brand-description">

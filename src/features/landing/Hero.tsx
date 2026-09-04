@@ -21,7 +21,8 @@ export const Hero: React.FC = () => {
 
   if (!banners || banners.length === 0) return null;
 
-  const activeBanner = banners[currentSlide];
+  const activeBanner = banners[currentSlide] || banners[0];
+  if (!activeBanner) return null;
 
   /**
    * Smart navigation handler for hero banner buttons.

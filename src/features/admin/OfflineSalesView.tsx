@@ -425,13 +425,13 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '28px' }}>
         <div>
           <span style={{ color: 'rgba(201, 168, 76, 0.85)', fontSize: '0.78rem', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-            — BOUTIQUE POS &amp; B2B SALES
+            — POINT OF SALE &amp; DIRECT ORDERS
           </span>
           <h1 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '2.4rem', color: '#f5efe6', fontWeight: 700, margin: 0 }}>
-            Offline Sales &amp; Ledger
+            In-Store Sales
           </h1>
           <p style={{ fontSize: '0.9rem', color: 'var(--beige)', marginTop: '4px', margin: 0 }}>
-            Log in-store purchases, corporate B2B sales, and manage sales ledger entries
+            Record in-store purchases and direct customer orders easily.
           </p>
         </div>
 
@@ -466,7 +466,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
           >
             <Plus size={18} />
-            {showRecordForm ? 'VIEW LEDGER' : 'ADD OFFLINE SALE'}
+            {showRecordForm ? 'VIEW SALES' : 'RECORD SALE'}
           </Button>
         </div>
       </div>
@@ -511,10 +511,10 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.5rem', color: '#f5efe6', margin: 0 }}>
-                  Record Offline Sale
+                  Record Sale
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'rgba(201, 168, 76, 0.85)', background: 'rgba(201, 168, 76, 0.1)', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(201, 168, 76, 0.3)' }}>
-                  Boutique POS &amp; Corporate Sales
+                  In-Store POS
                 </span>
               </div>
 
@@ -1335,7 +1335,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                       </>
                     ) : (
                       <>
-                        <Receipt size={18} /> Complete Offline Sale &amp; Record Ledger
+                        <Receipt size={18} /> Complete Sale
                       </>
                     )}
                   </button>
@@ -1355,44 +1355,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
       ) : (
         /* VIEW 2: MAIN LEDGER ENTRIES LISTING VIEW */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Summary Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 16, 13, 0.85)', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(201, 168, 76, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c' }}>
-                <Receipt size={24} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Total Transactions</span>
-                <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#f5efe6', fontFamily: 'var(--font-display, serif)', marginTop: '2px' }}>
-                  {ledgerMetrics.totalCount}
-                </div>
-              </div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 16, 13, 0.85)', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(46, 204, 113, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2ecc71' }}>
-                <DollarSign size={24} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Total Offline Revenue</span>
-                <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#2ecc71', fontFamily: 'var(--font-display, serif)', marginTop: '2px' }}>
-                  ₹{ledgerMetrics.totalRevenue.toLocaleString('en-IN')}
-                </div>
-              </div>
-            </div>
-
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 16, 13, 0.85)', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(52, 152, 219, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3498db' }}>
-                <TrendingUp size={24} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Avg Transaction Value</span>
-                <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#f5efe6', fontFamily: 'var(--font-display, serif)', marginTop: '2px' }}>
-                  ₹{ledgerMetrics.avgSale.toLocaleString('en-IN')}
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Ledger Entries List Panel */}
           <div

@@ -29,6 +29,8 @@ import {
   AlertTriangle as AlertIcon,
   RefreshCw,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Home,
   ExternalLink,
@@ -410,6 +412,13 @@ export const AdminDashboard: React.FC = () => {
   const [editingProductImageFiles, setEditingProductImageFiles] = useState<File[]>([]);
   const [editingProductImagePreviews, setEditingProductImagePreviews] = useState<string[]>([]);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [editingBannerImageFile, setEditingBannerImageFile] = useState<File | null>(null);
+  const editingBannerFileRef = useRef<HTMLInputElement>(null);
+
+  // --- Edit Reel State ---
+  const [editingReel, setEditingReel] = useState<any | null>(null);
+  const [editingReelVideoFile, setEditingReelVideoFile] = useState<File | null>(null);
+  const [isUpdatingReel, setIsUpdatingReel] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -1040,11 +1049,43 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     if (!editingBanner) return;
     try {
+      // 1. Update text fields via PATCH
       await updateBanner(editingBanner.id, editingBanner);
+      // 2. If a new image was selected, upload it to Cloudinary via the image endpoint
+      if (editingBannerImageFile) {
+        const fd = new FormData();
+        fd.append('image', editingBannerImageFile);
+        await adminService.uploadBannerImage(editingBanner.id, fd);
+        if (refreshBanners) await refreshBanners();
+      }
       setEditingBanner(null);
+      setEditingBannerImageFile(null);
     } catch (error) {
       console.error('Failed to update banner:', error);
       alert('Failed to update banner.');
+    }
+  };
+
+  const handleEditReelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReel) return;
+    setIsUpdatingReel(true);
+    try {
+      const fd = new FormData();
+      fd.append('title', editingReel.title || '');
+      fd.append('likes', editingReel.likes || '14.2K');
+      fd.append('comments', editingReel.comments || '348');
+      fd.append('views', editingReel.views || '124K views');
+      if (editingReel.video_url) fd.append('video_url', editingReel.video_url);
+      if (editingReelVideoFile) fd.append('video', editingReelVideoFile);
+      const updated = await adminService.updateReel(editingReel.id, fd);
+      setCmsReels((prev: any[]) => prev.map((r) => (r.id === editingReel.id ? { ...r, ...updated } : r)));
+      setEditingReel(null);
+      setEditingReelVideoFile(null);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update reel');
+    } finally {
+      setIsUpdatingReel(false);
     }
   };
 
@@ -1842,29 +1883,33 @@ export const AdminDashboard: React.FC = () => {
       {/* Main Admin Content box */}
       <div className="admin-workspace">
         {/* Top-Right Admin Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-          {/* Notification Bell Dropdown */}
-          <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={false} />
+        <div className="admin-header-actions">
+          {/* Notification Bell Dropdown - Desktop only; on mobile it sits inside the top navbar beside Admin */}
+          <div className="desktop-only-header-notification">
+            <NotificationHeaderDropdown onNavigateTab={handleTabNavigation} isSuperadmin={false} />
+          </div>
 
           {/* View Home Button */}
           <button
+            className="view-home-btn"
             onClick={() => navigate('/')}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               height: '42px',
-              padding: '0 16px',
+              padding: '0 14px',
               borderRadius: '10px',
               background: 'rgba(20, 16, 13, 0.9)',
               border: '1px solid rgba(201, 168, 76, 0.3)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
               cursor: 'pointer',
               color: '#f5efe6',
-              fontSize: '0.85rem',
+              fontSize: '0.84rem',
               fontWeight: 600,
               transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.6)';
@@ -1877,12 +1922,14 @@ export const AdminDashboard: React.FC = () => {
             title="View Public Site Homepage"
             aria-label="View Home"
           >
-            <Home size={18} color="#c9a84c" />
+            <Home size={16} color="#c9a84c" />
             <span>View Home</span>
           </button>
 
           {/* Admin User Profile Dropdown Menu */}
-          <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+          <div style={{ flexShrink: 0 }}>
+            <AdminUserDropdown onNavigateTab={handleTabNavigation} />
+          </div>
         </div>
 
         {/* PROFILE TAB */}
@@ -2019,14 +2066,7 @@ export const AdminDashboard: React.FC = () => {
             {dashboardLoading ? (
               <DashboardKpiSkeleton />
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '20px',
-                  marginBottom: '30px',
-                }}
-              >
+              <div className="admin-kpi-grid" style={{ display: 'grid', gap: '20px', marginBottom: '30px' }}>
                 {/* Total Orders Card */}
                 <div
                   className="glass-panel"
@@ -2195,6 +2235,57 @@ export const AdminDashboard: React.FC = () => {
 
                   {recentOrders.length === 0 ? (
                     <EmptyState title="No Recent Orders" description="No orders available yet." />
+                  ) : isMobileGrid ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                      {recentOrders.slice(0, 5).map((ord: any) => {
+                        const orderId = ord.id || ord.order_id || 'ORD-00000';
+                        const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
+                        const totalAmt = ord.amount ?? ord.total ?? 0;
+                        const ordStatus = ord.status || 'Processing';
+                        const ordDate = ord.created_at || (ord.date || 'Today');
+
+                        let badgeBg = '#f39c12';
+                        if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
+                        if (ordStatus === 'Shipped') badgeBg = '#3498db';
+                        if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
+                        if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
+
+                        return (
+                          <div 
+                            key={orderId} 
+                            style={{ 
+                              padding: '16px', 
+                              borderRadius: '8px', 
+                              background: 'rgba(255,255,255,0.03)', 
+                              border: '1px solid rgba(255,255,255,0.06)' 
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                              <span onClick={() => setActiveTab('orders')} style={{ color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{orderId}</span>
+                              <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600, background: `${badgeBg}22`, border: `1px solid ${badgeBg}`, color: badgeBg }}>{ordStatus}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                              <div>
+                                <div 
+                                  style={{ color: 'var(--cream)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginBottom: '4px' }} 
+                                  onClick={() => {
+                                    setActiveTab('customers');
+                                    const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
+                                    if (matchingUser) handleSelectCustomer(matchingUser);
+                                  }}
+                                >
+                                  {custName}
+                                </div>
+                                <div style={{ color: 'var(--beige)', fontSize: '0.75rem' }}>{ordDate}</div>
+                              </div>
+                              <div style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '1rem' }}>
+                                ₹{Number(totalAmt).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
                       <table className="admin-table" style={{ fontSize: '0.85rem' }}>
@@ -2605,236 +2696,360 @@ export const AdminDashboard: React.FC = () => {
                       </div>
 
                       {/* Products Table */}
-                      <div className="glass-panel" style={{ padding: '0', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'rgba(10,5,0,0.4)', borderRadius: '8px', marginBottom: '20px' }}>
-                        <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--glass-border)' }}>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>IMAGE</th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRODUCT NAME</th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>CATEGORY</th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>WEIGHT</th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRICE</th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>STOCK (QTY)<br/><span style={{ fontSize: '0.65rem', textTransform: 'none', color: 'var(--beige)', fontWeight: 400 }}>Actual Stock</span></th>
-                              <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>AVAILABILITY<br/><span style={{ fontSize: '0.65rem', textTransform: 'none', color: 'var(--beige)', fontWeight: 400 }}>Visible to customers</span></th>
-                              <th style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>ACTIONS</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {paginated.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
-                                  No products found matching your search and filter criteria.
-                                </td>
-                              </tr>
-                            ) : (
-                              paginated.map((prod) => {
-                                const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
-                                const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
-                                const isAvailable = isAdminAvailable && displayStock > 0;
-                                const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
+                      {isMobileGrid ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                          {paginated.length === 0 ? (
+                            <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)', borderRadius: '8px' }}>
+                              No products found matching your search and filter criteria.
+                            </div>
+                          ) : (
+                            paginated.map((prod) => {
+                              const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
+                              const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
+                              const isAvailable = isAdminAvailable && displayStock > 0;
+                              const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
 
-                                return (
-                                  <tr key={prod.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <td style={{ padding: '14px 18px' }}>
-                                      <img
-                                        src={getImageUrl(prod.image)}
-                                        alt={prod.name}
-                                        onError={(e) => {
-                                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=600&q=80';
-                                        }}
-                                        style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--glass-border)' }}
-                                      />
-                                    </td>
-                                    <td style={{ padding: '14px 18px' }}>
-                                      <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>{prod.name}</div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--beige)', marginTop: '2px' }}>SKU: {skuText}</div>
-                                    </td>
-                                    <td style={{ padding: '14px 18px', color: 'var(--beige)', fontSize: '0.88rem' }}>
-                                      {categoriesList.find(c => c.slug === prod.category || c.id === prod.category || c.name.toLowerCase() === (prod.category || '').toLowerCase())?.name ||
-                                       (prod.category === 'dark' ? 'Dark Chocolate' :
-                                        prod.category === 'milk' ? 'Milk Chocolate' :
-                                        prod.category === 'white' ? 'White Chocolate' :
-                                        prod.category === 'gift' ? 'Gift Hamper' :
-                                        prod.category === 'beverage' ? 'Beverage' : prod.category)}
-                                    </td>
-                                    <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.88rem' }}>{prod.weight}</td>
-                                    <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>₹{prod.price}</td>
-                                    <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.88rem', fontWeight: 600 }}>
-                                      {displayStock} units
-                                    </td>
-                                    <td style={{ padding: '14px 18px' }}>
-                                      {isAvailable ? (
-                                        <span style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
-                                          padding: '4px 10px',
-                                          borderRadius: '12px',
-                                          background: 'rgba(46, 204, 113, 0.12)',
-                                          border: '1px solid rgba(46, 204, 113, 0.3)',
-                                          color: '#2ecc71',
-                                          fontSize: '0.78rem',
-                                          fontWeight: 600
-                                        }}>
-                                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2ecc71' }}></span>
-                                          In Stock
-                                        </span>
-                                      ) : (
-                                        <span style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
-                                          padding: '4px 10px',
-                                          borderRadius: '12px',
-                                          background: 'rgba(231, 76, 60, 0.12)',
-                                          border: '1px solid rgba(231, 76, 60, 0.3)',
-                                          color: '#e74c3c',
-                                          fontSize: '0.78rem',
-                                          fontWeight: 600
-                                        }}>
-                                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
-                                          Stock Out
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                        {/* Stock Out / Stock In Quick Toggle */}
-                                        {isAdminAvailable ? (
-                                          <button
-                                            type="button"
-                                            disabled={updatingStockProductId === prod.id}
-                                            onClick={async (e) => {
-                                              e.stopPropagation();
-                                              if (updatingStockProductId === prod.id) return;
-                                              setUpdatingStockProductId(prod.id);
-                                              try {
-                                                const updated = await productService.updateProduct(prod.id, { is_available: false, isAvailable: false });
-                                                setProducts((prev) =>
-                                                  prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
-                                                );
-                                                addToast('info', `Marked "${prod.name}" as Stock Out (unavailable to customers). Physical stock remains ${displayStock} units.`, 'Availability Updated');
-                                              } catch (err: any) {
-                                                console.error('Stock Out failed:', err);
-                                                addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
-                                              } finally {
-                                                setUpdatingStockProductId(null);
-                                              }
-                                            }}
-                                            style={{
-                                              padding: '5px 10px',
-                                              borderRadius: '4px',
-                                              background: 'rgba(231, 76, 60, 0.15)',
-                                              border: '1px solid rgba(231, 76, 60, 0.4)',
-                                              color: '#e74c3c',
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
-                                              opacity: updatingStockProductId === prod.id ? 0.6 : 1,
-                                            }}
-                                          >
-                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Stock Out'}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            disabled={updatingStockProductId === prod.id}
-                                            onClick={async (e) => {
-                                              e.stopPropagation();
-                                              if (updatingStockProductId === prod.id) return;
-                                              setUpdatingStockProductId(prod.id);
-                                              try {
-                                                const updated = await productService.updateProduct(prod.id, { is_available: true, isAvailable: true });
-                                                setProducts((prev) =>
-                                                  prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
-                                                );
-                                                addToast('success', `Marked "${prod.name}" as Enabled / Available. Physical stock: ${displayStock} units.`, 'Availability Updated');
-                                              } catch (err: any) {
-                                                console.error('Stock In failed:', err);
-                                                addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
-                                              } finally {
-                                                setUpdatingStockProductId(null);
-                                              }
-                                            }}
-                                            style={{
-                                              padding: '5px 10px',
-                                              borderRadius: '4px',
-                                              background: 'rgba(46, 204, 113, 0.15)',
-                                              border: '1px solid rgba(46, 204, 113, 0.4)',
-                                              color: '#2ecc71',
-                                              fontSize: '0.75rem',
-                                              fontWeight: 600,
-                                              cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
-                                              opacity: updatingStockProductId === prod.id ? 0.6 : 1,
-                                            }}
-                                          >
-                                            {updatingStockProductId === prod.id ? 'Updating...' : 'Enable'}
-                                          </button>
-                                        )}
-
-                                        {/* Edit Button */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditingProduct(prod);
-                                            setEditingProductImageFiles([]);
-                                            setEditingProductImagePreviews([]);
-                                          }}
-                                          style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '5px 10px',
-                                            borderRadius: '4px',
-                                            background: 'rgba(255, 215, 0, 0.08)',
-                                            border: '1px solid rgba(255, 215, 0, 0.3)',
-                                            color: 'var(--gold)',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          <Edit2 size={13} />
-                                          Edit
-                                        </button>
-
-                                        {/* Delete Button */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            openConfirmation(
-                                              `Delete Product`,
-                                              `Are you sure you want to delete "${prod.name}"? This action cannot be undone.`,
-                                              () => deleteProduct(prod.id),
-                                              'Delete Product'
-                                            );
-                                          }}
-                                          style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '5px 10px',
-                                            borderRadius: '4px',
-                                            background: 'rgba(183, 110, 121, 0.12)',
-                                            border: '1px solid rgba(183, 110, 121, 0.35)',
-                                            color: 'var(--rose-gold)',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          <Trash2 size={13} />
-                                          Delete
-                                        </button>
+                              return (
+                                <div key={prod.id} className="glass-panel" style={{ padding: '16px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
+                                  <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                                    <img
+                                      src={getImageUrl(prod.image)}
+                                      alt={prod.name}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=600&q=80';
+                                      }}
+                                      style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--glass-border)' }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
+                                        <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '1rem', marginLeft: '8px' }}>₹{prod.price}</div>
                                       </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                                      <div style={{ fontSize: '0.8rem', color: 'var(--beige)', marginBottom: '8px' }}>
+                                        SKU: {skuText} | {prod.weight}
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ color: 'var(--cream)', fontSize: '0.85rem', fontWeight: 600 }}>{displayStock} units</div>
+                                        {isAvailable ? (
+                                          <span style={{ padding: '2px 8px', borderRadius: '12px', background: 'rgba(46, 204, 113, 0.12)', border: '1px solid rgba(46, 204, 113, 0.3)', color: '#2ecc71', fontSize: '0.75rem', fontWeight: 600 }}>
+                                            In Stock
+                                          </span>
+                                        ) : (
+                                          <span style={{ padding: '2px 8px', borderRadius: '12px', background: 'rgba(231, 76, 60, 0.12)', border: '1px solid rgba(231, 76, 60, 0.3)', color: '#e74c3c', fontSize: '0.75rem', fontWeight: 600 }}>
+                                            Stock Out
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                                    {isAdminAvailable ? (
+                                      <button
+                                        type="button"
+                                        disabled={updatingStockProductId === prod.id}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (updatingStockProductId === prod.id) return;
+                                          setUpdatingStockProductId(prod.id);
+                                          try {
+                                            const updated = await productService.updateProduct(prod.id, { is_available: false, isAvailable: false });
+                                            setProducts((prev) =>
+                                              prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
+                                            );
+                                            addToast('info', `Marked "${prod.name}" as Stock Out.`, 'Availability Updated');
+                                          } catch (err: any) {
+                                            addToast('error', err?.detail || err?.message || 'Failed to update stock.', 'Error');
+                                          } finally {
+                                            setUpdatingStockProductId(null);
+                                          }
+                                        }}
+                                        style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(231, 76, 60, 0.15)', border: '1px solid rgba(231, 76, 60, 0.4)', color: '#e74c3c', fontSize: '0.8rem', fontWeight: 600, cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer', opacity: updatingStockProductId === prod.id ? 0.6 : 1 }}
+                                      >
+                                        {updatingStockProductId === prod.id ? '...' : 'Stock Out'}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={updatingStockProductId === prod.id}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (updatingStockProductId === prod.id) return;
+                                          setUpdatingStockProductId(prod.id);
+                                          try {
+                                            const updated = await productService.updateProduct(prod.id, { is_available: true, isAvailable: true });
+                                            setProducts((prev) =>
+                                              prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
+                                            );
+                                            addToast('success', `Marked "${prod.name}" as Available.`, 'Updated');
+                                          } catch (err: any) {
+                                            addToast('error', err?.detail || err?.message || 'Failed to update stock.', 'Error');
+                                          } finally {
+                                            setUpdatingStockProductId(null);
+                                          }
+                                        }}
+                                        style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(46, 204, 113, 0.15)', border: '1px solid rgba(46, 204, 113, 0.4)', color: '#2ecc71', fontSize: '0.8rem', fontWeight: 600, cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer', opacity: updatingStockProductId === prod.id ? 0.6 : 1 }}
+                                      >
+                                        {updatingStockProductId === prod.id ? '...' : 'Enable'}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingProduct(prod);
+                                        setEditingProductImageFiles([]);
+                                        setEditingProductImagePreviews([]);
+                                      }}
+                                      style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(255, 215, 0, 0.08)', border: '1px solid rgba(255, 215, 0, 0.3)', color: 'var(--gold)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                    >
+                                      <Edit2 size={13} /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        openConfirmation('Delete Product', `Are you sure you want to delete "${prod.name}"?`, () => deleteProduct(prod.id), 'Delete Product');
+                                      }}
+                                      style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(183, 110, 121, 0.12)', border: '1px solid rgba(183, 110, 121, 0.35)', color: 'var(--rose-gold)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                    >
+                                      <Trash2 size={13} /> Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      ) : (
+                        <div className="glass-panel" style={{ padding: '0', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'rgba(10,5,0,0.4)', borderRadius: '8px', marginBottom: '20px' }}>
+                          <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--glass-border)' }}>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>IMAGE</th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRODUCT NAME</th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>CATEGORY</th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>WEIGHT</th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRICE</th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>STOCK (QTY)<br/><span style={{ fontSize: '0.65rem', textTransform: 'none', color: 'var(--beige)', fontWeight: 400 }}>Actual Stock</span></th>
+                                <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>AVAILABILITY<br/><span style={{ fontSize: '0.65rem', textTransform: 'none', color: 'var(--beige)', fontWeight: 400 }}>Visible to customers</span></th>
+                                <th style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>ACTIONS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {paginated.length === 0 ? (
+                                <tr>
+                                  <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
+                                    No products found matching your search and filter criteria.
+                                  </td>
+                                </tr>
+                              ) : (
+                                paginated.map((prod) => {
+                                  const displayStock = prod.stock !== undefined ? prod.stock : (productMetrics[prod.id]?.stock ?? 0);
+                                  const isAdminAvailable = (prod.isAvailable ?? prod.is_available ?? true);
+                                  const isAvailable = isAdminAvailable && displayStock > 0;
+                                  const skuText = prod.sku || `CHO${prod.id.slice(0, 4).toUpperCase()}`;
+
+                                  return (
+                                    <tr key={prod.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <td style={{ padding: '14px 18px' }}>
+                                        <img
+                                          src={getImageUrl(prod.image)}
+                                          alt={prod.name}
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=600&q=80';
+                                          }}
+                                          style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--glass-border)' }}
+                                        />
+                                      </td>
+                                      <td style={{ padding: '14px 18px' }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>{prod.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--beige)', marginTop: '2px' }}>SKU: {skuText}</div>
+                                      </td>
+                                      <td style={{ padding: '14px 18px', color: 'var(--beige)', fontSize: '0.88rem' }}>
+                                        {categoriesList.find(c => c.slug === prod.category || c.id === prod.category || c.name.toLowerCase() === (prod.category || '').toLowerCase())?.name ||
+                                         (prod.category === 'dark' ? 'Dark Chocolate' :
+                                          prod.category === 'milk' ? 'Milk Chocolate' :
+                                          prod.category === 'white' ? 'White Chocolate' :
+                                          prod.category === 'gift' ? 'Gift Hamper' :
+                                          prod.category === 'beverage' ? 'Beverage' : prod.category)}
+                                      </td>
+                                      <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.88rem' }}>{prod.weight}</td>
+                                      <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>₹{prod.price}</td>
+                                      <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.88rem', fontWeight: 600 }}>
+                                        {displayStock} units
+                                      </td>
+                                      <td style={{ padding: '14px 18px' }}>
+                                        {isAvailable ? (
+                                          <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '4px 10px',
+                                            borderRadius: '12px',
+                                            background: 'rgba(46, 204, 113, 0.12)',
+                                            border: '1px solid rgba(46, 204, 113, 0.3)',
+                                            color: '#2ecc71',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600
+                                          }}>
+                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2ecc71' }}></span>
+                                            In Stock
+                                          </span>
+                                        ) : (
+                                          <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '4px 10px',
+                                            borderRadius: '12px',
+                                            background: 'rgba(231, 76, 60, 0.12)',
+                                            border: '1px solid rgba(231, 76, 60, 0.3)',
+                                            color: '#e74c3c',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600
+                                          }}>
+                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
+                                            Stock Out
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                          {/* Stock Out / Stock In Quick Toggle */}
+                                          {isAdminAvailable ? (
+                                            <button
+                                              type="button"
+                                              disabled={updatingStockProductId === prod.id}
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (updatingStockProductId === prod.id) return;
+                                                setUpdatingStockProductId(prod.id);
+                                                try {
+                                                  const updated = await productService.updateProduct(prod.id, { is_available: false, isAvailable: false });
+                                                  setProducts((prev) =>
+                                                    prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: false, isAvailable: false } : p))
+                                                  );
+                                                  addToast('info', `Marked "${prod.name}" as Stock Out (unavailable to customers). Physical stock remains ${displayStock} units.`, 'Availability Updated');
+                                                } catch (err: any) {
+                                                  console.error('Stock Out failed:', err);
+                                                  addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
+                                                } finally {
+                                                  setUpdatingStockProductId(null);
+                                                }
+                                              }}
+                                              style={{
+                                                padding: '5px 10px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(231, 76, 60, 0.15)',
+                                                border: '1px solid rgba(231, 76, 60, 0.4)',
+                                                color: '#e74c3c',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
+                                                opacity: updatingStockProductId === prod.id ? 0.6 : 1,
+                                              }}
+                                            >
+                                              {updatingStockProductId === prod.id ? 'Updating...' : 'Stock Out'}
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              disabled={updatingStockProductId === prod.id}
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (updatingStockProductId === prod.id) return;
+                                                setUpdatingStockProductId(prod.id);
+                                                try {
+                                                  const updated = await productService.updateProduct(prod.id, { is_available: true, isAvailable: true });
+                                                  setProducts((prev) =>
+                                                    prev.map((p) => (p.id === prod.id ? { ...p, ...(updated || {}), is_available: true, isAvailable: true } : p))
+                                                  );
+                                                  addToast('success', `Marked "${prod.name}" as Enabled / Available. Physical stock: ${displayStock} units.`, 'Availability Updated');
+                                                } catch (err: any) {
+                                                  console.error('Stock In failed:', err);
+                                                  addToast('error', err?.detail || err?.message || 'Failed to update stock availability.', 'Update Error');
+                                                } finally {
+                                                  setUpdatingStockProductId(null);
+                                                }
+                                              }}
+                                              style={{
+                                                padding: '5px 10px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(46, 204, 113, 0.15)',
+                                                border: '1px solid rgba(46, 204, 113, 0.4)',
+                                                color: '#2ecc71',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                cursor: updatingStockProductId === prod.id ? 'not-allowed' : 'pointer',
+                                                opacity: updatingStockProductId === prod.id ? 0.6 : 1,
+                                              }}
+                                            >
+                                              {updatingStockProductId === prod.id ? 'Updating...' : 'Enable'}
+                                            </button>
+                                          )}
+  
+                                          {/* Edit Button */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingProduct(prod);
+                                              setEditingProductImageFiles([]);
+                                              setEditingProductImagePreviews([]);
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '5px 10px',
+                                              borderRadius: '4px',
+                                              background: 'rgba(255, 215, 0, 0.08)',
+                                              border: '1px solid rgba(255, 215, 0, 0.3)',
+                                              color: 'var(--gold)',
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <Edit2 size={13} />
+                                            Edit
+                                          </button>
+  
+                                          {/* Delete Button */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              openConfirmation(
+                                                `Delete Product`,
+                                                `Are you sure you want to delete "${prod.name}"? This action cannot be undone.`,
+                                                () => deleteProduct(prod.id),
+                                                'Delete Product'
+                                              );
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              padding: '5px 10px',
+                                              borderRadius: '4px',
+                                              background: 'rgba(183, 110, 121, 0.12)',
+                                              border: '1px solid rgba(183, 110, 121, 0.35)',
+                                              color: 'var(--rose-gold)',
+                                              fontSize: '0.75rem',
+                                              fontWeight: 600,
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <Trash2 size={13} />
+                                            Delete
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
 
                       {/* Pagination Component */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
@@ -3562,274 +3777,367 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   {/* Categories Table */}
-                  <div className="glass-panel" style={{ padding: '0', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'rgba(10,5,0,0.4)', borderRadius: '8px', marginBottom: '20px' }}>
-                    <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--glass-border)' }}>
-                          <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>NAME</th>
-                          <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRODUCTS</th>
-                          <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>SORT ORDER</th>
-                          <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>STATUS</th>
-                          <th style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>ACTIONS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginated.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
-                              No categories found matching your search and filter criteria.
-                            </td>
-                          </tr>
-                        ) : (
-                          paginated.map((cat) => {
-                            const liveMatchingProducts = products.filter((p) => {
-                              if (!p.category) return false;
-                              const pCat = p.category.toLowerCase().trim();
-                              const cSlug = (cat.slug || '').toLowerCase().trim();
-                              const cName = cat.name.toLowerCase().trim();
-                              return (
-                                pCat === cSlug ||
-                                pCat === cName ||
-                                pCat.includes(cSlug) ||
-                                (cSlug.length > 2 && cSlug.includes(pCat)) ||
-                                pCat.includes(cName) ||
-                                (cName.length > 2 && cName.includes(pCat))
-                              );
-                            });
-                            const prodCount = liveMatchingProducts.length > 0 ? liveMatchingProducts.length : (cat.product_count ?? 0);
-
+                  {isMobileGrid ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                      {paginated.length === 0 ? (
+                        <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)', borderRadius: '8px' }}>
+                          No categories found matching your search and filter criteria.
+                        </div>
+                      ) : (
+                        paginated.map((cat) => {
+                          const liveMatchingProducts = products.filter((p) => {
+                            if (!p.category) return false;
+                            const pCat = p.category.toLowerCase().trim();
+                            const cSlug = (cat.slug || '').toLowerCase().trim();
+                            const cName = cat.name.toLowerCase().trim();
                             return (
-                              <tr key={cat.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                {/* Category Name with Circle Avatar */}
-                                <td style={{ padding: '14px 18px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                    <div
-                                      style={{
-                                        width: '42px',
-                                        height: '42px',
-                                        borderRadius: '50%',
-                                        background: 'rgba(255, 215, 0, 0.08)',
-                                        border: '1px solid var(--glass-border)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        overflow: 'hidden',
-                                      }}
-                                    >
-                                      {cat.image_url ? (
-                                        <img src={getImageUrl(cat.image_url)} alt={cat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      ) : (
-                                        <FolderTree size={20} style={{ color: 'var(--gold)' }} />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.95rem' }}>{cat.name}</div>
-                                    </div>
-                                  </div>
-                                </td>
+                              pCat === cSlug || pCat === cName || pCat.includes(cSlug) ||
+                              (cSlug.length > 2 && cSlug.includes(pCat)) || pCat.includes(cName) ||
+                              (cName.length > 2 && cName.includes(pCat))
+                            );
+                          });
+                          const prodCount = liveMatchingProducts.length > 0 ? liveMatchingProducts.length : (cat.product_count ?? 0);
 
-                                {/* Product Count */}
-                                <td style={{ padding: '14px 18px' }}>
-                                  <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>{prodCount}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--beige)' }}>products</div>
-                                </td>
-
-                                {/* Sort Order */}
-                                <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>
-                                  {cat.sort_order}
-                                </td>
-
-                                {/* Active Status */}
-                                <td style={{ padding: '14px 18px' }}>
-                                  {cat.is_active ? (
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '4px 12px',
-                                      borderRadius: '12px',
-                                      background: 'rgba(46, 204, 113, 0.12)',
-                                      border: '1px solid rgba(46, 204, 113, 0.3)',
-                                      color: '#2ecc71',
-                                      fontSize: '0.78rem',
-                                      fontWeight: 600
-                                    }}>
-                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2ecc71' }}></span>
-                                      Active
-                                    </span>
+                          return (
+                            <div key={cat.id} className="glass-panel" style={{ padding: '16px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
+                              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(255, 215, 0, 0.08)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                  {cat.image_url ? (
+                                    <img src={getImageUrl(cat.image_url)} alt={cat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                   ) : (
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '4px 12px',
-                                      borderRadius: '12px',
-                                      background: 'rgba(231, 76, 60, 0.12)',
-                                      border: '1px solid rgba(231, 76, 60, 0.3)',
-                                      color: '#e74c3c',
-                                      fontSize: '0.78rem',
-                                      fontWeight: 600
-                                    }}>
-                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
-                                      Inactive
-                                    </span>
+                                    <FolderTree size={24} style={{ color: 'var(--gold)' }} />
                                   )}
-                                </td>
-
-                                {/* Actions Column (Edit button + Context Dropdown matching screenshot) */}
-                                <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', position: 'relative' }}>
-                                    {/* Edit Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingCategory({ ...cat });
-                                        setEditCategoryImageFile(null);
-                                        setEditCategoryImagePreview('');
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        padding: '5px 12px',
-                                        borderRadius: '4px',
-                                        background: 'rgba(255, 215, 0, 0.08)',
-                                        border: '1px solid rgba(255, 215, 0, 0.3)',
-                                        color: 'var(--gold)',
-                                        fontSize: '0.78rem',
-                                        fontWeight: 600,
-                                        cursor: 'pointer',
-                                      }}
-                                    >
-                                      <Edit2 size={13} />
-                                      Edit
-                                    </button>
-
-                                    {/* Context Menu 3-dots Button & Dropdown Container */}
-                                    <div className="category-menu-container" style={{ position: 'relative', display: 'inline-block' }}>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setOpenCategoryMenuId(openCategoryMenuId === cat.id ? null : cat.id);
-                                        }}
-                                        style={{
-                                          padding: '5px 9px',
-                                          borderRadius: '4px',
-                                          background: 'rgba(255, 255, 255, 0.05)',
-                                          border: '1px solid var(--glass-border)',
-                                          color: 'var(--beige)',
-                                          fontSize: '0.78rem',
-                                          cursor: 'pointer',
-                                        }}
-                                      >
-                                        ⋮
-                                      </button>
-
-                                      {/* Context Menu Dropdown matching reference screenshot */}
-                                      {openCategoryMenuId === cat.id && (
-                                        <div
-                                          style={{
-                                            position: 'absolute',
-                                            top: '35px',
-                                            right: '0',
-                                            background: 'rgba(20, 10, 5, 0.98)',
-                                            border: '1px solid var(--glass-border)',
-                                            borderRadius: '6px',
-                                            padding: '6px 0',
-                                            minWidth: '150px',
-                                            zIndex: 100,
-                                            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                                            textAlign: 'left',
-                                          }}
-                                        >
-                                        {/* View Products */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setOpenCategoryMenuId(null);
-                                            setProductCategoryFilter(cat.slug || cat.name);
-                                            setProductSearch('');
-                                            setProductAvailabilityFilter('all');
-                                            setProductCurrentPage(1);
-                                            setActiveTab('products');
-                                          }}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            width: '100%',
-                                            padding: '8px 14px',
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--cream)',
-                                            fontSize: '0.82rem',
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          <span>👁</span>
-                                          View Products
-                                        </button>
-
-                                        {/* Activate / Deactivate Toggle */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setOpenCategoryMenuId(null);
-                                            handleToggleCategoryStatus(cat);
-                                          }}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            width: '100%',
-                                            padding: '8px 14px',
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--cream)',
-                                            fontSize: '0.82rem',
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          <span>{cat.is_active ? '⏸' : '▶'}</span>
-                                          {cat.is_active ? 'Deactivate' : 'Activate'}
-                                        </button>
-
-                                        {/* Delete */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setOpenCategoryMenuId(null);
-                                            handleDeleteCategory(cat.id, cat.name);
-                                          }}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            width: '100%',
-                                            padding: '8px 14px',
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--rose-gold)',
-                                            fontSize: '0.82rem',
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          <Trash2 size={13} />
-                                          Delete
-                                        </button>
-                                      </div>
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--beige)', marginLeft: '8px' }}>Sort: <span style={{ color: 'var(--cream)' }}>{cat.sort_order}</span></div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div style={{ color: 'var(--cream)', fontSize: '0.85rem' }}>{prodCount} <span style={{ color: 'var(--beige)' }}>products</span></div>
+                                    {cat.is_active ? (
+                                      <span style={{ padding: '2px 8px', borderRadius: '12px', background: 'rgba(46, 204, 113, 0.12)', border: '1px solid rgba(46, 204, 113, 0.3)', color: '#2ecc71', fontSize: '0.75rem', fontWeight: 600 }}>Active</span>
+                                    ) : (
+                                      <span style={{ padding: '2px 8px', borderRadius: '12px', background: 'rgba(231, 76, 60, 0.12)', border: '1px solid rgba(231, 76, 60, 0.3)', color: '#e74c3c', fontSize: '0.75rem', fontWeight: 600 }}>Inactive</span>
                                     )}
                                   </div>
                                 </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProductCategoryFilter(cat.slug || cat.name);
+                                    setProductSearch('');
+                                    setProductAvailabilityFilter('all');
+                                    setProductCurrentPage(1);
+                                    setActiveTab('products');
+                                  }}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--glass-border)', color: 'var(--cream)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                >
+                                  <span>👁</span> Products
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCategory({ ...cat });
+                                    setEditCategoryImageFile(null);
+                                    setEditCategoryImagePreview('');
+                                  }}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(255, 215, 0, 0.08)', border: '1px solid rgba(255, 215, 0, 0.3)', color: 'var(--gold)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                >
+                                  <Edit2 size={13} /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCategoryStatus(cat)}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--glass-border)', color: 'var(--cream)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                >
+                                  <span>{cat.is_active ? '⏸' : '▶'}</span> {cat.is_active ? 'Pause' : 'Play'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'rgba(183, 110, 121, 0.12)', border: '1px solid rgba(183, 110, 121, 0.35)', color: 'var(--rose-gold)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                >
+                                  <Trash2 size={13} /> Del
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <div className="glass-panel" style={{ padding: '0', border: '1px solid var(--glass-border)', overflowX: 'auto', background: 'rgba(10,5,0,0.4)', borderRadius: '8px', marginBottom: '20px' }}>
+                      <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--glass-border)' }}>
+                            <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>NAME</th>
+                            <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>PRODUCTS</th>
+                            <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>SORT ORDER</th>
+                            <th style={{ padding: '14px 18px', textAlign: 'left', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>STATUS</th>
+                            <th style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>ACTIONS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginated.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
+                                No categories found matching your search and filter criteria.
                               </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                            </tr>
+                          ) : (
+                            paginated.map((cat) => {
+                              const liveMatchingProducts = products.filter((p) => {
+                                if (!p.category) return false;
+                                const pCat = p.category.toLowerCase().trim();
+                                const cSlug = (cat.slug || '').toLowerCase().trim();
+                                const cName = cat.name.toLowerCase().trim();
+                                return (
+                                  pCat === cSlug ||
+                                  pCat === cName ||
+                                  pCat.includes(cSlug) ||
+                                  (cSlug.length > 2 && cSlug.includes(pCat)) ||
+                                  pCat.includes(cName) ||
+                                  (cName.length > 2 && cName.includes(pCat))
+                                );
+                              });
+                              const prodCount = liveMatchingProducts.length > 0 ? liveMatchingProducts.length : (cat.product_count ?? 0);
+
+                              return (
+                                <tr key={cat.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  {/* Category Name with Circle Avatar */}
+                                  <td style={{ padding: '14px 18px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                      <div
+                                        style={{
+                                          width: '42px',
+                                          height: '42px',
+                                          borderRadius: '50%',
+                                          background: 'rgba(255, 215, 0, 0.08)',
+                                          border: '1px solid var(--glass-border)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          overflow: 'hidden',
+                                        }}
+                                      >
+                                        {cat.image_url ? (
+                                          <img src={getImageUrl(cat.image_url)} alt={cat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                          <FolderTree size={20} style={{ color: 'var(--gold)' }} />
+                                        )}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.95rem' }}>{cat.name}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Product Count */}
+                                  <td style={{ padding: '14px 18px' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.92rem' }}>{prodCount}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--beige)' }}>products</div>
+                                  </td>
+
+                                  {/* Sort Order */}
+                                  <td style={{ padding: '14px 18px', color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>
+                                    {cat.sort_order}
+                                  </td>
+
+                                  {/* Active Status */}
+                                  <td style={{ padding: '14px 18px' }}>
+                                    {cat.is_active ? (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '4px 12px',
+                                        borderRadius: '12px',
+                                        background: 'rgba(46, 204, 113, 0.12)',
+                                        border: '1px solid rgba(46, 204, 113, 0.3)',
+                                        color: '#2ecc71',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600
+                                      }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2ecc71' }}></span>
+                                        Active
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '4px 12px',
+                                        borderRadius: '12px',
+                                        background: 'rgba(231, 76, 60, 0.12)',
+                                        border: '1px solid rgba(231, 76, 60, 0.3)',
+                                        color: '#e74c3c',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600
+                                      }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e74c3c' }}></span>
+                                        Inactive
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions Column (Edit button + Context Dropdown matching screenshot) */}
+                                  <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', position: 'relative' }}>
+                                      {/* Edit Button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingCategory({ ...cat });
+                                          setEditCategoryImageFile(null);
+                                          setEditCategoryImagePreview('');
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          padding: '5px 12px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(255, 215, 0, 0.08)',
+                                          border: '1px solid rgba(255, 215, 0, 0.3)',
+                                          color: 'var(--gold)',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        <Edit2 size={13} />
+                                        Edit
+                                      </button>
+
+                                      {/* Context Menu 3-dots Button & Dropdown Container */}
+                                      <div className="category-menu-container" style={{ position: 'relative', display: 'inline-block' }}>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenCategoryMenuId(openCategoryMenuId === cat.id ? null : cat.id);
+                                          }}
+                                          style={{
+                                            padding: '5px 9px',
+                                            borderRadius: '4px',
+                                            background: 'rgba(255, 255, 255, 0.05)',
+                                            border: '1px solid var(--glass-border)',
+                                            color: 'var(--beige)',
+                                            fontSize: '0.78rem',
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          ⋮
+                                        </button>
+
+                                        {/* Context Menu Dropdown matching reference screenshot */}
+                                        {openCategoryMenuId === cat.id && (
+                                          <div
+                                            style={{
+                                              position: 'absolute',
+                                              top: '35px',
+                                              right: '0',
+                                              background: 'rgba(20, 10, 5, 0.98)',
+                                              border: '1px solid var(--glass-border)',
+                                              borderRadius: '6px',
+                                              padding: '6px 0',
+                                              minWidth: '150px',
+                                              zIndex: 100,
+                                              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                              textAlign: 'left',
+                                            }}
+                                          >
+                                          {/* View Products */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOpenCategoryMenuId(null);
+                                              setProductCategoryFilter(cat.slug || cat.name);
+                                              setProductSearch('');
+                                              setProductAvailabilityFilter('all');
+                                              setProductCurrentPage(1);
+                                              setActiveTab('products');
+                                            }}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px',
+                                              width: '100%',
+                                              padding: '8px 14px',
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--cream)',
+                                              fontSize: '0.82rem',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <span>👁</span>
+                                            View Products
+                                          </button>
+
+                                          {/* Activate / Deactivate Toggle */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOpenCategoryMenuId(null);
+                                              handleToggleCategoryStatus(cat);
+                                            }}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px',
+                                              width: '100%',
+                                              padding: '8px 14px',
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--cream)',
+                                              fontSize: '0.82rem',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <span>{cat.is_active ? '⏸' : '▶'}</span>
+                                            {cat.is_active ? 'Deactivate' : 'Activate'}
+                                          </button>
+
+                                          {/* Delete */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOpenCategoryMenuId(null);
+                                              handleDeleteCategory(cat.id, cat.name);
+                                            }}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px',
+                                              width: '100%',
+                                              padding: '8px 14px',
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--rose-gold)',
+                                              fontSize: '0.82rem',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <Trash2 size={13} />
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
                   {/* Pagination Bar */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
@@ -4534,16 +4842,16 @@ export const AdminDashboard: React.FC = () => {
         {/* HOMEPAGE CMS & BANNER MANAGEMENT TAB */}
         {activeTab === 'home-mgmt' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', marginBottom: '30px', gap: '12px' }}>
               <div>
-                <span className="section-label">Homepage CMS</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
-                  Hero Banners &amp; Homepage Management
+                <span className="section-label">Website Settings</span>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, lineHeight: 1.2 }}>
+                  Homepage Banners &amp; Setup
                 </h1>
               </div>
-              <Button variant="gold" glow onClick={() => setShowAddBannerModal(!showAddBannerModal)}>
+              <Button variant="gold" glow onClick={() => setShowAddBannerModal(!showAddBannerModal)} style={{ width: isMobileGrid ? '100%' : 'auto', display: 'flex', justifyContent: 'center' }}>
                 {showAddBannerModal ? <X size={16} /> : <Plus size={16} />}
-                {showAddBannerModal ? 'Close Form' : 'Add Hero Slide'}
+                <span style={{ marginLeft: '8px' }}>{showAddBannerModal ? 'Close Form' : 'Add Banner'}</span>
               </Button>
             </div>
 
@@ -4553,7 +4861,7 @@ export const AdminDashboard: React.FC = () => {
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginBottom: '30px' }}>
                   <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--gold)', background: 'rgba(26,13,0,0.85)', borderRadius: '12px' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.3rem' }}>
-                      Add New Hero Banner Slide
+                      Add New Banner
                     </h3>
                     <form onSubmit={handleCreateNewBanner} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '16px' }}>
                       <Input label="Main Heading / Title" required placeholder="Handcrafted Chocolate Masterpieces" value={newBannerData.title} onChange={(e) => setNewBannerData({ ...newBannerData, title: e.target.value })} />
@@ -4569,7 +4877,7 @@ export const AdminDashboard: React.FC = () => {
                         <p style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', color: 'var(--rose-gold)', fontSize: '0.85rem', margin: 0 }}>{bannerCreateError}</p>
                       )}
                       <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '12px', marginTop: '10px' }}>
-                        <Button variant="gold" type="submit" glow disabled={isCreatingBanner}>{isCreatingBanner ? 'Creating Slide...' : 'Create Hero Slide'}</Button>
+                        <Button variant="gold" type="submit" glow disabled={isCreatingBanner}>{isCreatingBanner ? 'Creating Banner...' : 'Create Banner'}</Button>
                         <Button variant="glass" type="button" onClick={() => setShowAddBannerModal(false)}>Cancel</Button>
                       </div>
                     </form>
@@ -4582,42 +4890,47 @@ export const AdminDashboard: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 2fr', gap: '24px', marginBottom: '40px' }}>
               {/* Slide selector list */}
               <div className="glass-panel" style={{ padding: '20px', border: '1px solid var(--glass-border)' }}>
-                <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.1rem' }}>Active Hero Slides ({banners?.length || 0})</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', marginBottom: '16px', fontSize: '1.1rem' }}>Current Banners ({banners?.length || 0})</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr 1fr' : '1fr', gap: '10px' }}>
                   {banners?.map((b, idx) => (
                     <div
                       key={b.id || idx}
                       onClick={() => setSelectedSlideIdx(idx)}
                       style={{
-                        padding: '12px 16px',
-                        borderRadius: '8px',
+                        padding: '12px',
+                        borderRadius: '10px',
                         background: selectedSlideIdx === idx ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.03)',
                         border: selectedSlideIdx === idx ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
                         cursor: 'pointer',
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        transition: 'all 0.2s ease',
                       }}
                     >
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 600 }}>Slide {idx + 1}</span>
-                        <p style={{ margin: '2px 0 0 0', color: 'var(--cream)', fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{b.title}</p>
+                      {/* Slide label + title */}
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Slide {idx + 1}</span>
+                        <p style={{ margin: '3px 0 0 0', color: 'var(--cream)', fontWeight: 600, fontSize: '0.82rem', wordBreak: 'break-word', lineHeight: 1.3 }}>{b.title}</p>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingBanner(b); }}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '0.8rem' }}
-                      >
-                        <Edit2 size={14} />
-                        Edit
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteBanner(b.id); }}
-                        style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingBanner(b); }}
+                          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: 'var(--gold)', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '6px', cursor: 'pointer', padding: '5px 8px', fontSize: '0.75rem', transition: 'all 0.2s' }}
+                        >
+                          <Edit2 size={12} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteBanner(b.id); }}
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rose-gold)', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '6px', cursor: 'pointer', padding: '5px 8px', transition: 'all 0.2s' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -4625,12 +4938,35 @@ export const AdminDashboard: React.FC = () => {
 
               {/* Slide Details & Image Upload */}
               {selectedBanner ? (
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', margin: 0 }}>Slide {selectedSlideIdx + 1}: {selectedBanner.title}</h4>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>{selectedBanner.tag}</span>
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column' }}>
+                  {/* Slide Title Row with Inline Nav Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.1rem', margin: 0, wordBreak: 'break-word', lineHeight: 1.3 }}>
+                        Slide {selectedSlideIdx + 1}: {selectedBanner.title}
+                      </h4>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--beige)', marginTop: '2px', display: 'block' }}>{selectedBanner.tag}</span>
+                    </div>
+                    {/* Left / Right nav buttons — inline side by side */}
+                    <div style={{ display: 'flex', flexDirection: 'row', gap: '6px', flexShrink: 0, marginTop: '2px' }}>
+                      <button
+                        onClick={() => setSelectedSlideIdx(Math.max(0, selectedSlideIdx - 1))}
+                        disabled={selectedSlideIdx === 0}
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '8px 10px', color: selectedSlideIdx === 0 ? 'rgba(255,255,255,0.2)' : 'var(--gold)', cursor: selectedSlideIdx === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        onClick={() => setSelectedSlideIdx(Math.min((banners?.length || 1) - 1, selectedSlideIdx + 1))}
+                        disabled={selectedSlideIdx === (banners?.length || 1) - 1}
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '8px 10px', color: selectedSlideIdx === (banners?.length || 1) - 1 ? 'rgba(255,255,255,0.2)' : 'var(--gold)', cursor: selectedSlideIdx === (banners?.length || 1) - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
                   </div>
-                  <p style={{ color: 'var(--cream)', fontSize: '0.9rem', marginBottom: '16px' }}>{selectedBanner.subtitle}</p>
+
+                  <p style={{ color: 'var(--cream)', fontSize: '0.9rem', marginBottom: '16px', lineHeight: 1.5 }}>{selectedBanner.subtitle}</p>
                   
                   {selectedBanner.image && (
                     <div style={{ marginBottom: '20px', borderRadius: '8px', overflow: 'hidden', height: '200px', border: '1px solid var(--glass-border)' }}>
@@ -4638,15 +4974,17 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  <input ref={bannerFileRef} type="file" accept="image/*" onChange={handleBannerFileUpload} style={{ display: 'none' }} />
-                  <Button variant="gold" glow onClick={() => bannerFileRef.current?.click()} disabled={isReplacingBannerImage} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <UploadCloud size={16} className={isReplacingBannerImage ? 'animate-spin' : ''} />
-                    {isReplacingBannerImage ? 'Uploading & Replacing...' : 'Replace Slide Image'}
-                  </Button>
+                  <div style={{ marginTop: 'auto' }}>
+                    <input ref={bannerFileRef} type="file" accept="image/*" onChange={handleBannerFileUpload} style={{ display: 'none' }} />
+                    <Button variant="gold" glow onClick={() => bannerFileRef.current?.click()} disabled={isReplacingBannerImage} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center' }}>
+                      <UploadCloud size={16} className={isReplacingBannerImage ? 'animate-spin' : ''} />
+                      {isReplacingBannerImage ? 'Uploading & Replacing...' : 'Replace Slide Image'}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', color: 'var(--beige)' }}>
-                  No hero banners available. Click "Add Hero Slide" above to create one.
+                  No hero banners available. Click "Add Banner" above to create one.
                 </div>
               )}
             </div>
@@ -4654,19 +4992,20 @@ export const AdminDashboard: React.FC = () => {
             {/* Platform Counter Stats Manager */}
             <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '10px' }}>
-                Platform Counter Stats
+                Website Statistics Counters
               </h3>
               <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                Configure animated stats counters displayed on the homepage counter bar.
+                Manage the live statistics shown on your homepage.
               </p>
-              <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
+              <form onSubmit={handleSaveSiteStatsSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
                 <Input label="Happy Customers" type="number" value={siteStats.happy_customers} onChange={(e) => setSiteStats({ ...siteStats, happy_customers: parseInt(e.target.value) || 0 })} />
                 <Input label="Products Available" type="number" value={siteStats.products_available} onChange={(e) => setSiteStats({ ...siteStats, products_available: parseInt(e.target.value) || 0 })} />
                 <Input label="Orders Delivered" type="number" value={siteStats.orders_delivered} onChange={(e) => setSiteStats({ ...siteStats, orders_delivered: parseInt(e.target.value) || 0 })} />
                 <Input label="Customer Rating %" type="number" value={siteStats.customer_rating_percent} onChange={(e) => setSiteStats({ ...siteStats, customer_rating_percent: parseInt(e.target.value) || 0 })} />
-                <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                  <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px' }}>
-                    {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? '✓ Counter Stats Saved!' : 'Save Counter Stats'}
+                <div style={{ gridColumn: isMobileGrid ? 'span 2' : 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <Button variant="gold" type="submit" glow disabled={isSavingStats} style={{ height: '42px', width: isMobileGrid ? '100%' : 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                    {isSavingStats ? <Loader2 size={18} className="animate-spin" /> : statsSavedSuccess ? <CheckCircle size={18} /> : <TrendingUp size={18} />}
+                    {isSavingStats ? 'Saving Stats...' : statsSavedSuccess ? 'Counter Stats Saved!' : 'Save Counter Stats'}
                   </Button>
                 </div>
               </form>
@@ -4674,45 +5013,68 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Instagram Reels Showcase Manager */}
             <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', marginBottom: '20px', gap: '12px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                    Instagram Reels Showcase ({cmsReels.length})
+                    Instagram Video Showcase ({cmsReels.length})
                   </h3>
                   <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                    Manage video reels displayed in the homepage Instagram section.
+                    Manage the videos shown in the Instagram section of your homepage.
                   </p>
                 </div>
-                <Button variant="gold" size="sm" glow onClick={() => setShowAddReelModal(!showAddReelModal)}>
-                  {showAddReelModal ? 'Close Form' : 'Add Reel'}
+                <Button variant="gold" size="sm" glow onClick={() => setShowAddReelModal(!showAddReelModal)} style={{ width: isMobileGrid ? '100%' : 'auto', display: 'flex', justifyContent: 'center' }}>
+                  {showAddReelModal ? <X size={16} /> : <Video size={16} />}
+                  <span style={{ marginLeft: '8px' }}>{showAddReelModal ? 'Close Form' : 'Add Reel'}</span>
                 </Button>
               </div>
 
               {showAddReelModal && (
-                <form onSubmit={handleCreateReelSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid var(--gold)' }}>
+                <form onSubmit={handleCreateReelSubmit} style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1fr 1fr', gap: '12px', marginBottom: '20px', padding: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid var(--gold)' }}>
                   <Input label="Caption / Title" required placeholder="Pouring our signature glaze... #chovique" value={newReelData.title} onChange={(e) => setNewReelData({ ...newReelData, title: e.target.value })} />
                   <Input label="Likes Display" placeholder="14.2K" value={newReelData.likes} onChange={(e) => setNewReelData({ ...newReelData, likes: e.target.value })} />
                   <Input label="Views Display" placeholder="124K views" value={newReelData.views} onChange={(e) => setNewReelData({ ...newReelData, views: e.target.value })} />
                   <Input label="Video URL" placeholder="https://..." value={newReelData.video_url} onChange={(e) => setNewReelData({ ...newReelData, video_url: e.target.value })} />
-                  <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--beige)' }}>Or Upload Video File:</span>
                     <input type="file" accept="video/*" onChange={(e) => setNewReelVideoFile(e.target.files?.[0] || null)} style={{ marginTop: '4px', color: 'var(--cream)', fontSize: '0.8rem' }} />
                   </div>
-                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <div style={{ gridColumn: isMobileGrid ? 'span 1' : 'span 2', display: 'flex', gap: '10px', marginTop: '6px' }}>
                     <Button variant="gold" type="submit" size="sm" glow disabled={isCreatingReel}>{isCreatingReel ? 'Publishing...' : 'Publish Reel'}</Button>
                     <Button variant="secondary" type="button" size="sm" onClick={() => setShowAddReelModal(false)}>Cancel</Button>
                   </div>
                 </form>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+              {/* Reels Grid — 1 column on mobile for clarity, 2-3 col on desktop */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
                 {cmsReels.map((reel) => (
-                  <div key={reel.id} style={{ padding: '16px', position: 'relative', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <button onClick={() => handleDeleteReelSubmit(reel.id, reel.title || '')} style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 5, background: 'rgba(231,76,60,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Trash2 size={14} />
-                    </button>
-                    <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', margin: '0 0 6px 0', paddingRight: '28px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reel.title}</p>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--gold)' }}>{reel.likes} Likes • {reel.views}</span>
+                  <div key={reel.id} style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    {/* Video icon */}
+                    <div style={{ flexShrink: 0, width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Video size={16} style={{ color: 'var(--gold)' }} />
+                    </div>
+                    {/* Title + stats */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.85rem', margin: '0 0 3px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reel.title}</p>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--gold)' }}>♥ {reel.likes} &nbsp;·&nbsp; 👁 {reel.views}</span>
+                    </div>
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => { setEditingReel(reel); setEditingReelVideoFile(null); }}
+                        title="Edit reel"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold)', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteReelSubmit(reel.id, reel.title || '')}
+                        title="Delete reel"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', color: 'var(--rose-gold)', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -4723,17 +5085,15 @@ export const AdminDashboard: React.FC = () => {
         {/* HELP & COMPLAINTS PANEL */}
         {activeTab === 'complaints' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-              <div>
-                <span className="section-label">Support Helpdesk</span>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0 }}>
-                  Customer Support Ledger
-                </h1>
-              </div>
+            <div style={{ marginBottom: '24px' }}>
+              <span className="section-label">Support Helpdesk</span>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 0 0', lineHeight: 1.2 }}>
+                Customer Support Ledger
+              </h1>
             </div>
 
             {/* Support Ticket Summary Counters */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
               <div className="glass-panel" style={{ padding: '20px' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Complaints</span>
                 <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{tickets.length}</h3>
@@ -4780,23 +5140,26 @@ export const AdminDashboard: React.FC = () => {
                           borderBottom: '1px solid var(--glass-border)',
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
-                          <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'flex-start', gap: '8px', marginBottom: '12px' }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700, wordBreak: 'break-all' }}>
                               {t.id} · {t.category}
                             </span>
-                            <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: '1.1rem' }}>
-                              Customer: {t.customerName} ({t.customerId})
+                            <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: isMobileGrid ? '0.95rem' : '1.1rem', wordBreak: 'break-word' }}>
+                              {t.customerName} ({t.customerId})
                             </h4>
                           </div>
                           <span
                             style={{
-                              fontSize: '0.75rem',
-                              padding: '4px 10px',
-                              borderRadius: '4px',
-                              fontWeight: 600,
+                              fontSize: '0.72rem',
+                              padding: '3px 10px',
+                              borderRadius: '20px',
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              alignSelf: isMobileGrid ? 'flex-start' : 'flex-start',
                               background: isClosedOrResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
                               color: isClosedOrResolved ? '#2ecc71' : 'var(--gold)',
+                              border: `1px solid ${isClosedOrResolved ? '#2ecc71' : 'var(--gold)'}`,
                             }}
                           >
                             {t.status}
@@ -4903,65 +5266,68 @@ export const AdminDashboard: React.FC = () => {
                             }}
                             style={{ marginTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}
                           >
-                            <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
-                                  Update Status
-                                </label>
-                                <select
-                                  name="status"
-                                  value={currentSelectedStatus}
-                                  onChange={(e) => setTicketStatusMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px 12px',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    borderRadius: '4px',
-                                    color: 'var(--cream)',
-                                    fontSize: '0.85rem',
-                                    outline: 'none',
-                                  }}
-                                >
-                                  <option value="Pending">Pending</option>
-                                  <option value="Under Review">Under Review</option>
-                                  <option value="In Progress">In Progress</option>
-                                  <option value="Awaiting Customer Response">Awaiting Customer Response</option>
-                                  <option value="Investigating">Investigating</option>
-                                  <option value="Resolved">Resolved</option>
-                                  <option value="Closed">Closed</option>
-                                </select>
-                              </div>
-                            </div>
+                            {/* Status dropdown */}
                             <div style={{ marginBottom: '10px' }}>
-                              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--grey-light)', marginBottom: '5px' }}>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--beige)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Update Status
+                              </label>
+                              <select
+                                name="status"
+                                value={currentSelectedStatus}
+                                onChange={(e) => setTicketStatusMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 12px',
+                                  background: 'rgba(0,0,0,0.35)',
+                                  border: '1px solid var(--glass-border)',
+                                  borderRadius: '8px',
+                                  color: 'var(--cream)',
+                                  fontSize: '0.85rem',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <option value="Pending">Pending</option>
+                                <option value="Under Review">Under Review</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Awaiting Customer Response">Awaiting Response</option>
+                                <option value="Investigating">Investigating</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Closed">Closed</option>
+                              </select>
+                            </div>
+                            {/* Notes */}
+                            <div style={{ marginBottom: '12px' }}>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--beige)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 Admin Notes (Optional)
                               </label>
                               <textarea
                                 key={t.adminNotes || 'notes'}
                                 name="notes"
                                 defaultValue={t.adminNotes || ''}
-                                placeholder="Enter details of how the issue is being handled..."
+                                placeholder="How is this issue being handled..."
                                 rows={2}
                                 style={{
                                   width: '100%',
-                                  padding: '8px 12px',
-                                  background: 'rgba(255, 255, 255, 0.05)',
-                                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                                  borderRadius: '4px',
+                                  padding: '10px 12px',
+                                  background: 'rgba(0,0,0,0.35)',
+                                  border: '1px solid var(--glass-border)',
+                                  borderRadius: '8px',
                                   color: 'var(--cream)',
                                   fontSize: '0.85rem',
                                   outline: 'none',
                                   resize: 'none',
+                                  boxSizing: 'border-box',
                                 }}
                               />
                             </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                              <Button variant="secondary" size="sm" type="submit" name="update_status">
+                            {/* Action buttons — full width on mobile */}
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                              <Button variant="secondary" size="sm" type="submit" name="update_status" style={{ flex: '1 1 110px' }}>
                                 Update Status
                               </Button>
-                              <Button variant="gold" size="sm" type="submit" name="resolve" glow>
-                                Resolve & Notify Customer
+                              <Button variant="gold" size="sm" type="submit" name="resolve" glow style={{ flex: '2 1 160px', display: 'flex', justifyContent: 'center' }}>
+                                Resolve &amp; Notify
                               </Button>
                             </div>
                           </form>
@@ -4979,68 +5345,66 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'testimonials' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             {/* Header Section with Primary Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-              <div>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
-                  Atelier Testimonials &amp; Story Video
-                </h1>
-                <p style={{ fontSize: '0.9rem', color: 'var(--beige)', marginTop: '4px', margin: 0 }}>
-                  Manage customer testimonials, moderation status, and Our Story crafting process video
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ marginBottom: '16px', boxSizing: 'border-box', width: '100%' }}>
+              <span className="section-label">Content Management</span>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 6px 0', fontWeight: 700, lineHeight: 1.2 }}>
+                Testimonials &amp; Story Video
+              </h1>
+              <p style={{ fontSize: '0.85rem', color: 'var(--beige)', margin: '0 0 16px 0', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%', boxSizing: 'border-box' }}>
+                Manage customer reviews, moderation, and the Our Story crafting video.
+              </p>
+              {/* Action buttons — stack on mobile, side by side on desktop */}
+              <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
                 <Button
                   variant="gold"
                   glow
                   onClick={() => setShowAddTestimonialModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: isMobileGrid ? 'none' : '1', width: '100%', padding: '12px 16px', fontWeight: 600, fontSize: '0.85rem', boxSizing: 'border-box' }}
                 >
-                  <Plus size={18} />
-                  + ADD TESTIMONIAL
+                  <Plus size={16} />
+                  Add Testimonial
                 </Button>
 
                 <Button
                   variant="glass"
                   onClick={() => setShowUploadVideoModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, border: '1px solid var(--gold)', color: 'var(--gold)' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: isMobileGrid ? 'none' : '1', width: '100%', padding: '12px 16px', fontWeight: 600, fontSize: '0.85rem', border: '1px solid var(--gold)', color: 'var(--gold)', boxSizing: 'border-box' }}
                 >
-                  <Video size={18} />
-                  {storyVideoUrl ? 'EDIT / REPLACE VIDEO' : '+ ADD PROCESS VIDEO'}
+                  <Video size={16} />
+                  {storyVideoUrl ? 'Edit / Replace Video' : 'Add Story Video'}
                 </Button>
               </div>
             </div>
 
             {/* Section 1: Customer Testimonials List & Moderation */}
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                  Customer Testimonials ({testimonialsList.length})
-                </h3>
+            <div className="glass-panel" style={{ padding: isMobileGrid ? '16px' : '24px', border: '1px solid var(--glass-border)', boxSizing: 'border-box', width: '100%' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', margin: '0 0 14px 0' }}>
+                Customer Testimonials ({testimonialsList.length})
+              </h3>
 
-                {/* Testimonial Status Filter Tabs */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {['all', 'pending', 'approved', 'rejected'].map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => handleStatusFilterChange(st)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        textTransform: 'capitalize',
-                        background: testimonialStatusFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
-                        color: testimonialStatusFilter === st ? 'var(--dark-chocolate)' : 'var(--cream)',
-                        border: testimonialStatusFilter === st ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s',
-                      }}
-                    >
-                      {st} Testimonials
-                    </button>
-                  ))}
-                </div>
+              {/* Status Filter Tabs — wrap cleanly on mobile */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                {['all', 'pending', 'approved', 'rejected'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => handleStatusFilterChange(st)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      textTransform: 'capitalize',
+                      whiteSpace: 'nowrap',
+                      background: testimonialStatusFilter === st ? 'var(--gold)' : 'rgba(255,255,255,0.05)',
+                      color: testimonialStatusFilter === st ? 'var(--dark-chocolate)' : 'var(--cream)',
+                      border: testimonialStatusFilter === st ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {st === 'all' ? 'All' : st.charAt(0).toUpperCase() + st.slice(1)}
+                  </button>
+                ))}
               </div>
 
               {/* Testimonials Items */}
@@ -5089,23 +5453,24 @@ export const AdminDashboard: React.FC = () => {
                         <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
                           "{t.text}"
                         </p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600 }}>
-                            {t.author} {t.title ? `— ${t.title}` : ''}
+                        {/* Author name + action buttons — stacked on mobile */}
+                        <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.author}{t.title ? ` — ${t.title}` : ''}
                           </span>
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                             {st !== 'approved' && t.id && (
                               <button
                                 onClick={() => handleApproveTestimonial(t.id)}
-                                style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                                style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '8px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                               >
-                                Approve
+                                <CheckCircle size={13} /> Approve
                               </button>
                             )}
                             {st !== 'rejected' && t.id && (
                               <button
                                 onClick={() => handleRejectTestimonial(t.id)}
-                                style={{ background: 'rgba(240,160,60,0.2)', border: '1px solid #e09040', color: '#e09040', borderRadius: '4px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                                style={{ background: 'rgba(240,160,60,0.12)', border: '1px solid #e09040', color: '#e09040', borderRadius: '8px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
                               >
                                 Reject
                               </button>
@@ -5113,10 +5478,10 @@ export const AdminDashboard: React.FC = () => {
                             {t.id && (
                               <button
                                 onClick={() => handleDeleteTestimonial(t.id)}
-                                style={{ color: 'var(--rose-gold)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px' }}
-                                title="Delete Testimonial"
+                                style={{ color: 'var(--rose-gold)', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '8px', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }}
+                                title="Delete"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </div>
@@ -5129,50 +5494,48 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Section 2: Our Story Process Video Card */}
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                    Our Story Process Video
-                  </h3>
-                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginTop: '4px', margin: 0 }}>
-                    Upload, update, or replace the crafting process video displayed on Customer → Our Story page
-                  </p>
-                </div>
+            <div className="glass-panel" style={{ padding: isMobileGrid ? '16px' : '24px', border: '1px solid var(--glass-border)', boxSizing: 'border-box', width: '100%' }}>
+              <div style={{ marginBottom: '14px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', margin: '0 0 4px 0' }}>
+                  Our Story Process Video
+                </h3>
+                <p style={{ color: 'var(--beige)', fontSize: '0.82rem', margin: 0, lineHeight: 1.4, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }}>
+                  Upload or replace the crafting process video on the Our Story page.
+                </p>
+              </div>
+              {/* Video action buttons — full width on mobile */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', width: '100%', boxSizing: 'border-box' }}>
+                <Button
+                  variant="gold"
+                  glow
+                  onClick={() => setShowUploadVideoModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: isMobileGrid ? '1 1 100%' : '1 1 140px', padding: '9px 16px', fontSize: '0.85rem', fontWeight: 600, boxSizing: 'border-box' }}
+                >
+                  <Video size={15} />
+                  {storyVideoUrl ? 'Edit / Replace Video' : 'Add Story Video'}
+                </Button>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button
-                    variant="gold"
-                    glow
-                    onClick={() => setShowUploadVideoModal(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: 600 }}
+                {storyVideoUrl && (
+                  <button
+                    onClick={handleDeleteStoryVideo}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--beige)', borderRadius: '8px', padding: '9px 14px', fontSize: '0.82rem', cursor: 'pointer', flex: isMobileGrid ? '1 1 100%' : '0 0 auto', boxSizing: 'border-box' }}
                   >
-                    <Video size={16} />
-                    {storyVideoUrl ? 'EDIT / REPLACE VIDEO' : '+ ADD PROCESS VIDEO'}
-                  </Button>
-
-                  {storyVideoUrl && (
-                    <button
-                      onClick={handleDeleteStoryVideo}
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--beige)', borderRadius: '6px', padding: '8px 14px', fontSize: '0.8rem', cursor: 'pointer' }}
-                    >
-                      Reset to Default
-                    </button>
-                  )}
-                </div>
+                    Reset
+                  </button>
+                )}
               </div>
 
               {storyVideoUrl ? (
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', width: '100%', boxSizing: 'border-box' }}>
                   <video
                     src={storyVideoUrl}
                     controls
                     style={{ width: '100%', maxHeight: '280px', borderRadius: '6px', objectFit: 'cover' }}
                   />
-                  <div style={{ fontSize: '0.78rem', color: 'var(--beige)', marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Active Video Source: <code style={{ color: 'var(--gold)' }}>{storyVideoUrl.slice(0, 70)}...</code></span>
-                    <span style={{ color: '#6fbf6f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle size={14} /> Published on Customer Story Page
+                  <div style={{ fontSize: '0.78rem', color: 'var(--beige)', marginTop: '8px', display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', gap: '6px', width: '100%' }}>
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', maxWidth: '100%' }}>Source: <code style={{ color: 'var(--gold)', fontSize: '0.72rem' }}>{storyVideoUrl.slice(0, 50)}...</code></span>
+                    <span style={{ color: '#6fbf6f', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                      <CheckCircle size={13} /> Live on Story Page
                     </span>
                   </div>
                 </div>
@@ -5371,23 +5734,22 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'contact-messages' && (
           <div>
             {/* Page Header with Action Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
-              <div>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', color: 'var(--cream)', margin: 0, fontWeight: 700 }}>
-                  Contact Form Messages &amp; Customer Support Settings
-                </h1>
-                <p style={{ color: 'var(--beige)', fontSize: '0.9rem', marginTop: '4px', margin: 0 }}>
-                  Manage customer inquiries received via the contact form and configure customer support channels.
-                </p>
-              </div>
+            <div style={{ marginBottom: '24px' }}>
+              <span className="section-label">Inbox</span>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 6px 0', fontWeight: 700, lineHeight: 1.2 }}>
+                Contact &amp; Support
+              </h1>
+              <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '0 0 14px 0', lineHeight: 1.4 }}>
+                Customer inquiries from the contact form and support channel settings.
+              </p>
               <Button
                 variant="gold"
                 glow
                 onClick={openEditSupportModal}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600 }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, width: isMobileGrid ? '100%' : 'auto' }}
               >
-                <Headphones size={18} />
-                Customer Support Info
+                <Headphones size={16} />
+                Support Channel Settings
               </Button>
             </div>
 
@@ -5397,67 +5759,121 @@ export const AdminDashboard: React.FC = () => {
                 Received Customer Inquiries ({contactMessages.length})
               </h3>
               <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>Subject</th>
-                      <th>Message</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                {isMobileGrid ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px' }}>
                     {contactMessages.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px' }}>
-                          No customer contact messages received yet.
-                        </td>
-                      </tr>
+                      <div className="glass-panel" style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px', borderRadius: '8px' }}>
+                        No customer contact messages received yet.
+                      </div>
                     ) : (
                       contactMessages.map((msg) => (
-                        <tr key={msg.id}>
-                          <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
-                          <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
-                          <td>
-                            <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>
-                              {msg.email}
+                        <div key={msg.id} className="glass-panel" style={{ padding: '16px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '1rem' }}>{msg.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--gold)' }}>{msg.created_at}</div>
+                          </div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
+                            <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                              ✉ {msg.email}
                             </a>
-                          </td>
-                          <td>{msg.phone || '—'}</td>
-                          <td>
-                            <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                            {msg.phone && (
+                              <div style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>
+                                📞 {msg.phone}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div style={{ marginBottom: '12px' }}>
+                            <span style={{ display: 'inline-block', background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', marginBottom: '8px' }}>
                               {msg.subject || 'General'}
                             </span>
-                          </td>
-                          <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
-                            {msg.message?.length > 70 ? `${msg.message.slice(0, 70)}...` : msg.message}
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              <button
-                                onClick={() => setSelectedContactMessage(msg)}
-                                style={{ background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="View complete message"
-                              >
-                                <Eye size={14} /> View
-                              </button>
-                              <button
-                                onClick={() => handleDeleteContactMessage(msg.id)}
-                                style={{ background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Delete message"
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4, background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '4px' }}>
+                              {msg.message?.length > 100 ? `${msg.message.slice(0, 100)}...` : msg.message}
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                            <button
+                              onClick={() => setSelectedContactMessage(msg)}
+                              style={{ flex: 1, background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '8px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                            >
+                              <Eye size={14} /> View
+                            </button>
+                            <button
+                              onClick={() => handleDeleteContactMessage(msg.id)}
+                              style={{ flex: 1, background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '8px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </div>
+                        </div>
                       ))
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Subject</th>
+                        <th>Message</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contactMessages.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px' }}>
+                            No customer contact messages received yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        contactMessages.map((msg) => (
+                          <tr key={msg.id}>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
+                            <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
+                            <td>
+                              <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>
+                                {msg.email}
+                              </a>
+                            </td>
+                            <td>{msg.phone || '—'}</td>
+                            <td>
+                              <span style={{ background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                {msg.subject || 'General'}
+                              </span>
+                            </td>
+                            <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4 }}>
+                              {msg.message?.length > 70 ? `${msg.message.slice(0, 70)}...` : msg.message}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  onClick={() => setSelectedContactMessage(msg)}
+                                  style={{ background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  title="View complete message"
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteContactMessage(msg.id)}
+                                  style={{ background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  title="Delete message"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
 
@@ -5746,18 +6162,115 @@ export const AdminDashboard: React.FC = () => {
 
         {/* EDIT BANNER MODAL */}
         {editingBanner && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-            <div className="glass-panel" style={{ padding: '30px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-              <h3 style={{ color: 'var(--cream)', marginBottom: '20px' }}>Edit Banner</h3>
-              <form onSubmit={handleEditBannerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(8px)', padding: '16px' }}>
+            <div className="glass-panel" style={{ padding: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '14px', border: '1px solid var(--gold)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', margin: 0, fontSize: '1.3rem' }}>✏️ Edit Slide</h3>
+                <button onClick={() => { setEditingBanner(null); setEditingBannerImageFile(null); }} style={{ background: 'none', border: 'none', color: 'var(--rose-gold)', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleEditBannerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <Input label="Title" required value={editingBanner.title} onChange={e => setEditingBanner({...editingBanner, title: e.target.value})} />
                 <Input label="Subtitle" required value={editingBanner.subtitle || ''} onChange={e => setEditingBanner({...editingBanner, subtitle: e.target.value})} />
                 <Input label="Category Tag" required value={editingBanner.tag || ''} onChange={e => setEditingBanner({...editingBanner, tag: e.target.value})} />
                 <Input label="Button Text" required value={editingBanner.buttonText || ''} onChange={e => setEditingBanner({...editingBanner, buttonText: e.target.value})} />
                 <Input label="Link URL" required value={editingBanner.link || ''} onChange={e => setEditingBanner({...editingBanner, link: e.target.value})} />
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <Button variant="text" type="button" onClick={() => setEditingBanner(null)}>Cancel</Button>
-                  <Button variant="gold" type="submit">Save Changes</Button>
+
+                {/* Current Banner Image */}
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--beige)', display: 'block', marginBottom: '8px' }}>Current Slide Image</span>
+                  {editingBanner.image ? (
+                    <div style={{ borderRadius: '8px', overflow: 'hidden', height: '160px', border: '1px solid var(--glass-border)', marginBottom: '10px' }}>
+                      <img
+                        src={editingBannerImageFile ? URL.createObjectURL(editingBannerImageFile) : editingBanner.image}
+                        alt={editingBanner.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ height: '80px', borderRadius: '8px', border: '1px dashed var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--beige)', fontSize: '0.8rem', marginBottom: '10px' }}>
+                      No image uploaded yet
+                    </div>
+                  )}
+                  <input
+                    ref={editingBannerFileRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => setEditingBannerImageFile(e.target.files?.[0] || null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => editingBannerFileRef.current?.click()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.4)', borderRadius: '8px', color: 'var(--gold)', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', width: '100%', justifyContent: 'center' }}
+                  >
+                    <UploadCloud size={16} />
+                    {editingBannerImageFile ? `✓ Image Selected: ${editingBannerImageFile.name}` : 'Choose New Image (Optional)'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <Button variant="glass" type="button" onClick={() => { setEditingBanner(null); setEditingBannerImageFile(null); }}>Cancel</Button>
+                  <Button variant="gold" type="submit" glow style={{ flex: 1 }}>Save Changes</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT REEL MODAL */}
+        {editingReel && (
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(8px)', padding: '16px', boxSizing: 'border-box' }}>
+            <div className="glass-panel" style={{ padding: '24px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', borderRadius: '14px', border: '1px solid var(--gold)', boxSizing: 'border-box' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--cream)', margin: 0, fontSize: '1.2rem' }}>🎬 Edit Reel</h3>
+                <button onClick={() => { setEditingReel(null); setEditingReelVideoFile(null); }} style={{ background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '8px', color: 'var(--rose-gold)', cursor: 'pointer', padding: '6px' }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form — all items full width, no overflow */}
+              <form onSubmit={handleEditReelSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', boxSizing: 'border-box' }}>
+                <Input label="Caption / Title" required value={editingReel.title || ''} onChange={e => setEditingReel({ ...editingReel, title: e.target.value })} />
+                <Input label="Likes Display" value={editingReel.likes || ''} onChange={e => setEditingReel({ ...editingReel, likes: e.target.value })} />
+                <Input label="Views Display" value={editingReel.views || ''} onChange={e => setEditingReel({ ...editingReel, views: e.target.value })} />
+                <Input label="Comments Display" value={editingReel.comments || ''} onChange={e => setEditingReel({ ...editingReel, comments: e.target.value })} />
+                <Input label="Video URL (optional)" value={editingReel.video_url || editingReel.videoUrl || ''} onChange={e => setEditingReel({ ...editingReel, video_url: e.target.value })} />
+
+                {/* Replace video file section */}
+                <div style={{ width: '100%', boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--beige)', display: 'block', marginBottom: '8px' }}>Replace Video File (optional)</span>
+
+                  {/* Current video URL chip — wraps instead of overflowing */}
+                  {(editingReel.video_url || editingReel.videoUrl) && (
+                    <div style={{ padding: '8px 10px', borderRadius: '6px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.2)', color: 'var(--beige)', fontSize: '0.7rem', marginBottom: '10px', wordBreak: 'break-all', lineHeight: 1.4 }}>
+                      📎 {editingReel.video_url || editingReel.videoUrl}
+                    </div>
+                  )}
+
+                  {/* Styled file picker button */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px dashed var(--glass-border)', borderRadius: '8px', color: 'var(--beige)', padding: '10px 14px', cursor: 'pointer', fontSize: '0.82rem', width: '100%', boxSizing: 'border-box' }}>
+                    <Video size={15} style={{ flexShrink: 0, color: 'var(--gold)' }} />
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {editingReelVideoFile ? `✓ ${editingReelVideoFile.name}` : 'Choose new video file...'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => setEditingReelVideoFile(e.target.files?.[0] || null)}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+
+                {/* Action buttons — stacked on mobile, side by side on wider screens */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  <Button variant="glass" type="button" onClick={() => { setEditingReel(null); setEditingReelVideoFile(null); }} style={{ flex: '1 1 100px', minWidth: '80px' }}>Cancel</Button>
+                  <Button variant="gold" type="submit" glow disabled={isUpdatingReel} style={{ flex: '2 1 140px', minWidth: '120px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    {isUpdatingReel ? 'Saving...' : 'Save Changes'}
+                  </Button>
                 </div>
               </form>
             </div>
