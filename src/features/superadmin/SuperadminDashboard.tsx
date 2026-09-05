@@ -4594,9 +4594,9 @@ export const SuperadminDashboard: React.FC = () => {
                       <h3 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, margin: '0 0 12px 0' }}>
                         Inventory & Fulfillment Overview
                       </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '14px' }}>
+                      <div className="sales-kpi-grid">
                         <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(201, 168, 76, 0.25)', background: 'rgba(20, 16, 13, 0.7)' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Total Current Stock</span>
+                          <span className="sales-kpi-label" style={{ display: 'block' }}>Total Current Stock</span>
                           <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f5efe6', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
                             {(displaySalesProducts.inventory_summary?.current_stock ?? 0).toLocaleString()}
                           </span>
@@ -4604,7 +4604,7 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(201, 168, 76, 0.25)', background: 'rgba(20, 16, 13, 0.7)' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Sold Quantity (Period)</span>
+                          <span className="sales-kpi-label" style={{ display: 'block' }}>Sold Quantity (Period)</span>
                           <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#c9a84c', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
                             {(displaySalesProducts.inventory_summary?.sold_quantity ?? 0).toLocaleString()}
                           </span>
@@ -4612,7 +4612,7 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(230, 126, 34, 0.3)', background: 'rgba(230, 126, 34, 0.05)' }}>
-                          <span style={{ fontSize: '0.72rem', color: '#e67e22', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Low-Stock Products</span>
+                          <span className="sales-kpi-label" style={{ color: '#e67e22', display: 'block' }}>Low-Stock Products</span>
                           <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#e67e22', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
                             {(displaySalesProducts.inventory_summary?.low_stock_count ?? 0).toLocaleString()}
                           </span>
@@ -4620,7 +4620,7 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
 
                         <div className="glass-panel" style={{ padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(231, 76, 60, 0.3)', background: 'rgba(231, 76, 60, 0.05)' }}>
-                          <span style={{ fontSize: '0.72rem', color: '#e74c3c', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Out of Stock Products</span>
+                          <span className="sales-kpi-label" style={{ color: '#e74c3c', display: 'block' }}>Out of Stock Products</span>
                           <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#e74c3c', margin: '4px 0', display: 'block', fontFamily: 'var(--font-display)' }}>
                             {(displaySalesProducts.inventory_summary?.out_of_stock_count ?? 0).toLocaleString()}
                           </span>
@@ -4642,9 +4642,9 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
 
                         {/* Search & Category Filter Toolbar */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                          <div style={{ position: 'relative', minWidth: '220px' }}>
-                            <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                        <div className="sales-product-search-toolbar">
+                          <div className="sales-product-search-input-wrap">
+                            <Search size={15} className="sales-product-search-icon" />
                             <input
                               type="text"
                               placeholder="Search product or category..."
@@ -4653,17 +4653,33 @@ export const SuperadminDashboard: React.FC = () => {
                                 setSalesSearch(e.target.value);
                                 setSalesProductsPage(1);
                               }}
-                              style={{
-                                width: '100%',
-                                background: '#14100d',
-                                color: '#f5efe6',
-                                border: '1px solid rgba(201, 168, 76, 0.4)',
-                                borderRadius: '8px',
-                                padding: '7px 10px 7px 32px',
-                                fontSize: '0.82rem',
-                                outline: 'none',
-                              }}
+                              className="sales-product-search-input"
                             />
+                            {salesSearch && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSalesSearch('');
+                                  setSalesProductsPage(1);
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  right: '8px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'rgba(255,255,255,0.4)',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                }}
+                                title="Clear search"
+                              >
+                                <X size={13} />
+                              </button>
+                            )}
                           </div>
 
                           <select
@@ -4672,15 +4688,7 @@ export const SuperadminDashboard: React.FC = () => {
                               setSalesCategory(e.target.value);
                               setSalesProductsPage(1);
                             }}
-                            style={{
-                              background: '#14100d',
-                              color: '#f5efe6',
-                              border: '1px solid rgba(201, 168, 76, 0.4)',
-                              borderRadius: '8px',
-                              padding: '7px 12px',
-                              fontSize: '0.82rem',
-                              outline: 'none',
-                            }}
+                            className="sales-product-category-select"
                           >
                             <option value="ALL">All Categories</option>
                             <option value="Dark Chocolate">Dark Chocolate</option>
@@ -4693,63 +4701,78 @@ export const SuperadminDashboard: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Mobile scroll hint */}
+                      <div className="sales-table-mobile-hint">
+                        <span>&larr; Swipe table horizontally &rarr;</span>
+                      </div>
+
                       {/* Product Table */}
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: '#f5efe6' }}>
+                      <div className="sales-product-table-wrap">
+                        <table className="sales-product-table">
+                          <colgroup>
+                            <col style={{ width: '280px', minWidth: '280px' }} />
+                            <col style={{ width: '220px', minWidth: '220px' }} />
+                            <col style={{ width: '120px', minWidth: '120px' }} />
+                            <col style={{ width: '120px', minWidth: '120px' }} />
+                            <col style={{ width: '120px', minWidth: '120px' }} />
+                            <col style={{ width: '160px', minWidth: '160px' }} />
+                          </colgroup>
                           <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                              <th style={{ padding: '12px' }}>PRODUCT</th>
-                              <th style={{ padding: '12px' }}>CATEGORY</th>
-                              <th style={{ padding: '12px' }}>UNITS SOLD</th>
-                              <th style={{ padding: '12px' }}>ONLINE UNITS</th>
-                              <th style={{ padding: '12px' }}>OFFLINE UNITS</th>
-                              <th style={{ padding: '12px' }}>CURRENT STOCK</th>
+                            <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c' }}>
+                              <th style={{ padding: '12px 14px', textAlign: 'left' }}>PRODUCT</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'left' }}>CATEGORY</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'right' }}>UNITS SOLD</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'right' }}>ONLINE UNITS</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'right' }}>OFFLINE UNITS</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'center' }}>CURRENT STOCK</th>
                             </tr>
                           </thead>
                           <tbody>
                             {displaySalesProducts.products && displaySalesProducts.products.length > 0 ? (
                               displaySalesProducts.products.map((prod, i) => (
-                                <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                                  <td style={{ padding: '12px', fontWeight: 600 }}>
+                                <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
+                                  <td style={{ padding: '12px 14px', fontWeight: 600, verticalAlign: 'middle' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                       {prod.image_url ? (
                                         <img
                                           src={getImageUrl(prod.image_url)}
                                           alt={prod.name}
-                                          style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)' }}
+                                          style={{ width: '38px', height: '38px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)', flexShrink: 0 }}
                                         />
                                       ) : (
-                                        <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c' }}>
+                                        <div style={{ width: '38px', height: '38px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c', flexShrink: 0 }}>
                                           <ShoppingBag size={18} />
                                         </div>
                                       )}
-                                      <div>
-                                        <div style={{ color: '#f5efe6', fontWeight: 600 }}>{prod.name}</div>
-                                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>₹{prod.price.toLocaleString('en-IN')}</div>
+                                      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                        <div style={{ color: '#f5efe6', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word', whiteSpace: 'normal' }}>{prod.name}</div>
+                                        <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>₹{prod.price.toLocaleString('en-IN')}</div>
                                       </div>
                                     </div>
                                   </td>
-                                  <td style={{ padding: '12px' }}>
-                                    <span style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(201,168,76,0.1)', color: 'var(--beige)', fontSize: '0.78rem' }}>
+                                  <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                    <span style={{ padding: '4px 10px', borderRadius: '6px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', color: 'var(--beige)', fontSize: '0.78rem', display: 'inline-block', whiteSpace: 'nowrap' }}>
                                       {prod.category_name}
                                     </span>
                                   </td>
-                                  <td style={{ padding: '12px', fontWeight: 700, color: '#c9a84c', fontSize: '0.92rem' }}>
+                                  <td style={{ padding: '12px 14px', fontWeight: 700, color: '#c9a84c', fontSize: '0.92rem', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                     {prod.units_sold.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '12px', color: '#5dade2', fontWeight: 600 }}>
+                                  <td style={{ padding: '12px 14px', color: '#5dade2', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                     {prod.online_units.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '12px', color: '#e67e22', fontWeight: 600 }}>
+                                  <td style={{ padding: '12px 14px', color: '#e67e22', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                     {prod.offline_units.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '12px' }}>
+                                  <td style={{ padding: '12px 14px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                     <span
                                       style={{
                                         fontWeight: 700,
-                                        padding: '4px 10px',
+                                        padding: '4px 12px',
                                         borderRadius: '12px',
                                         fontSize: '0.75rem',
+                                        display: 'inline-block',
+                                        whiteSpace: 'nowrap',
                                         background:
                                           prod.current_stock <= 0
                                             ? 'rgba(231, 76, 60, 0.15)'
@@ -6008,23 +6031,10 @@ export const SuperadminDashboard: React.FC = () => {
             </div>
 
             {/* Filters Toolbar */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                marginBottom: '24px',
-                flexWrap: 'wrap',
-                background: 'rgba(20, 16, 13, 0.85)',
-                padding: '14px 18px',
-                borderRadius: '10px',
-                border: '1px solid rgba(201, 168, 76, 0.25)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}>
+            <div className="audit-filters-toolbar">
+              <div className="audit-filters-group">
                 {/* Search */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', minWidth: '220px' }}>
+                <div className="audit-search-wrap">
                   <Search size={16} color="#c9a84c" />
                   <input
                     type="text"
@@ -6038,32 +6048,45 @@ export const SuperadminDashboard: React.FC = () => {
                   />
                 </div>
 
-                {/* Action Filter */}
-                <select
-                  value={auditActionFilter}
-                  onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
-                >
-                  <option value="ALL">All Actions</option>
-                  <option value="Login">Login</option>
-                  <option value="Logout">Logout</option>
-                  <option value="Created Product">Created Product</option>
-                  <option value="Updated Product">Updated Product</option>
-                  <option value="Deleted Product">Deleted Product</option>
-                  <option value="Updated Order Status">Updated Order Status</option>
-                  <option value="Created Coupon">Created Coupon</option>
-                  <option value="Updated Coupon">Updated Coupon</option>
-                  <option value="Changed Settings">Changed Settings</option>
-                  <option value="CREATE_ADMIN">Registered Admin</option>
-                  <option value="DELETE_ADMIN">Deleted Admin</option>
-                  <option value="Offline Sale Recorded">Offline Sale Recorded</option>
-                </select>
+                {/* Action & Status Filters Pair */}
+                <div className="audit-filter-row-pair">
+                  <select
+                    value={auditActionFilter}
+                    onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
+                    style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="ALL">All Actions</option>
+                    <option value="Login">Login</option>
+                    <option value="Logout">Logout</option>
+                    <option value="Created Product">Created Product</option>
+                    <option value="Updated Product">Updated Product</option>
+                    <option value="Deleted Product">Deleted Product</option>
+                    <option value="Updated Order Status">Updated Order Status</option>
+                    <option value="Created Coupon">Created Coupon</option>
+                    <option value="Updated Coupon">Updated Coupon</option>
+                    <option value="Changed Settings">Changed Settings</option>
+                    <option value="CREATE_ADMIN">Registered Admin</option>
+                    <option value="DELETE_ADMIN">Deleted Admin</option>
+                    <option value="Offline Sale Recorded">Offline Sale Recorded</option>
+                  </select>
+
+                  <select
+                    value={auditStatusFilter}
+                    onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
+                    style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="ALL">All Status</option>
+                    <option value="SUCCESS">SUCCESS</option>
+                    <option value="FAILURE">FAILURE</option>
+                    <option value="DENIED">DENIED</option>
+                  </select>
+                </div>
 
                 {/* User Filter */}
                 <select
                   value={auditUserId}
                   onChange={(e) => { setAuditUserId(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="ALL">All Users</option>
                   {displayAdmins.items.map((u) => (
@@ -6071,38 +6094,30 @@ export const SuperadminDashboard: React.FC = () => {
                   ))}
                 </select>
 
-                {/* Status Filter */}
-                <select
-                  value={auditStatusFilter}
-                  onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '6px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
-                >
-                  <option value="ALL">All Status</option>
-                  <option value="SUCCESS">SUCCESS</option>
-                  <option value="FAILURE">FAILURE</option>
-                  <option value="DENIED">DENIED</option>
-                </select>
-
                 {/* Date Range */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Calendar size={15} color="#c9a84c" />
-                  <input
-                    type="date"
-                    value={auditDateFrom}
-                    onChange={(e) => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
-                    style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
-                  />
-                  <span style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>to</span>
-                  <input
-                    type="date"
-                    value={auditDateTo}
-                    onChange={(e) => { setAuditDateTo(e.target.value); setAuditPage(1); }}
-                    style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
-                  />
+                <div className="audit-date-range-wrap">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px' }}>
+                    <Calendar size={14} color="#c9a84c" />
+                    <input
+                      type="date"
+                      value={auditDateFrom}
+                      onChange={(e) => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
+                      style={{ background: 'transparent', color: '#f5efe6', colorScheme: 'dark', border: 'none', fontSize: '0.8rem', cursor: 'pointer', width: '100%', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px' }}>
+                    <Calendar size={14} color="#c9a84c" />
+                    <input
+                      type="date"
+                      value={auditDateTo}
+                      onChange={(e) => { setAuditDateTo(e.target.value); setAuditPage(1); }}
+                      style={{ background: 'transparent', color: '#f5efe6', colorScheme: 'dark', border: 'none', fontSize: '0.8rem', cursor: 'pointer', width: '100%', outline: 'none' }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <Button variant="secondary" size="sm" onClick={handleClearAuditFilters}>
+              <Button variant="secondary" size="sm" onClick={handleClearAuditFilters} style={{ flexShrink: 0 }}>
                 Clear Filters
               </Button>
             </div>
@@ -6143,16 +6158,28 @@ export const SuperadminDashboard: React.FC = () => {
               <DashboardCardSkeleton height="350px" />
             ) : (
               <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', color: '#f5efe6' }}>
+                {/* Mobile scroll hint */}
+                <div className="sales-table-mobile-hint">
+                  <span>&larr; Swipe table horizontally &rarr;</span>
+                </div>
+                <div className="audit-table-wrap">
+                  <table className="audit-data-table">
+                    <colgroup>
+                      <col style={{ width: '170px', minWidth: '170px' }} />
+                      <col style={{ width: '160px', minWidth: '160px' }} />
+                      <col style={{ width: '120px', minWidth: '120px' }} />
+                      <col style={{ width: '170px', minWidth: '170px' }} />
+                      <col style={{ width: '120px', minWidth: '120px' }} />
+                      <col style={{ width: '100px', minWidth: '100px' }} />
+                    </colgroup>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                        <th style={{ padding: '12px' }}>DATE & TIME</th>
-                        <th style={{ padding: '12px' }}>USER</th>
-                        <th style={{ padding: '12px' }}>ROLE</th>
-                        <th style={{ padding: '12px' }}>ACTION</th>
-                        <th style={{ padding: '12px' }}>STATUS</th>
-                        <th style={{ padding: '12px', textAlign: 'right' }}>DETAILS</th>
+                        <th style={{ padding: '12px 14px' }}>DATE & TIME</th>
+                        <th style={{ padding: '12px 14px' }}>USER</th>
+                        <th style={{ padding: '12px 14px' }}>ROLE</th>
+                        <th style={{ padding: '12px 14px' }}>ACTION</th>
+                        <th style={{ padding: '12px 14px' }}>STATUS</th>
+                        <th style={{ padding: '12px 14px', textAlign: 'right' }}>DETAILS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -6288,7 +6315,7 @@ export const SuperadminDashboard: React.FC = () => {
             {themesLoading ? (
               <DashboardCardSkeleton height="450px" />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1.1fr 1fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
+              <div className="theme-builder-grid">
                 
                 {/* 1. THEME PRESETS */}
                 <div className="glass-panel" style={{ padding: '22px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
@@ -6299,7 +6326,7 @@ export const SuperadminDashboard: React.FC = () => {
                     Click a theme to preview, then apply it live across all pages.
                   </p>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '18px' }}>
+                  <div className="theme-presets-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '18px' }}>
                     {displayThemes.items.map((preset) => {
                       const isSelected = selectedThemeId === preset.id;
                       const isActive = activeThemeId === preset.id;
@@ -6567,7 +6594,7 @@ export const SuperadminDashboard: React.FC = () => {
             )}
 
             {/* Bottom Actions Bar */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '24px' }}>
+            <div className="theme-builder-actions-bar">
               <Button variant="secondary" onClick={handleResetDefaults} disabled={isResettingTheme}>
                 <RotateCcw size={16} style={{ marginRight: '6px' }} />
                 {isResettingTheme ? 'Resetting...' : 'Reset Defaults'}
@@ -6748,7 +6775,7 @@ export const SuperadminDashboard: React.FC = () => {
               <form onSubmit={handleSavePlatformSettings}>
                 {/* ── TAB 1: Payment & Shipping ── */}
                 {psActiveTab === 'payment' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                  <div className="platform-settings-grid">
                     <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
                         Payment Settings
@@ -6801,7 +6828,7 @@ export const SuperadminDashboard: React.FC = () => {
 
                 {/* ── TAB 3: Customer & Order Settings ── */}
                 {psActiveTab === 'customer-order' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                  <div className="platform-settings-grid">
                     <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.2)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#c9a84c', margin: '0 0 18px 0', fontWeight: 700 }}>
                         Customer Settings
@@ -6861,7 +6888,7 @@ export const SuperadminDashboard: React.FC = () => {
 
                 {/* ── TAB 4: System & Security ── */}
                 {psActiveTab === 'system' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : '1fr 1fr', gap: '28px' }}>
+                  <div className="platform-settings-grid">
                     <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(231, 76, 60, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
                       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#e74c3c', margin: '0 0 6px 0', fontWeight: 700 }}>
                         Maintenance Mode
@@ -6921,7 +6948,7 @@ export const SuperadminDashboard: React.FC = () => {
                 )}
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '28px' }}>
+                <div className="platform-settings-actions">
                   <Button variant="secondary" type="button" onClick={handlePsDiscard}>
                     <X size={15} style={{ marginRight: '6px' }} />
                     Discard Changes
@@ -7400,17 +7427,7 @@ export const SuperadminDashboard: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                backdropFilter: 'blur(8px)',
-                zIndex: 9999,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px'
-              }}
+              className="payment-metric-modal-overlay"
               onClick={() => setSelectedPaymentMetric(null)}
             >
               <motion.div
@@ -7418,23 +7435,12 @@ export const SuperadminDashboard: React.FC = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                style={{
-                  background: 'linear-gradient(145deg, #1A0D00, #0A0A0A)',
-                  border: '1px solid rgba(201, 168, 76, 0.3)',
-                  borderRadius: '16px',
-                  width: '100%',
-                  maxWidth: '900px',
-                  maxHeight: '85vh',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
-                }}
+                className="payment-metric-modal-content"
               >
                 {/* Header */}
-                <div style={{ padding: '24px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="payment-metric-modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-display)', color: 'var(--gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <DollarSign size={24} />
+                    <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--gold)', lineHeight: 1 }}>₹</span>
                     {selectedPaymentMetric.toUpperCase()} PAYMENT ORDERS
                   </h3>
                   <button
@@ -7446,7 +7452,7 @@ export const SuperadminDashboard: React.FC = () => {
                 </div>
                 
                 {/* Body */}
-                <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                <div className="payment-metric-modal-body" style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
                   {isPaymentMetricLoading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
                       <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(201, 168, 76, 0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -7458,58 +7464,123 @@ export const SuperadminDashboard: React.FC = () => {
                       description={`There are currently no orders with ${selectedPaymentMetric} payment status.`}
                     />
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: 'rgba(255,255,255,0.5)' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>ORDER ID</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>DATE</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>CUSTOMER</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>PRODUCT</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>QTY</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>PAYMENT</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>AMOUNT</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>STATUS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paymentMetricOrders.map((ord: any, i: number) => (
-                            <tr key={ord.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#f5efe6', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                              <td style={{ padding: '16px 12px' }}>
-                                <span style={{ fontWeight: 700, color: '#c9a84c' }}>{ord.order_id}</span>
-                              </td>
-                              <td style={{ padding: '16px 12px', color: 'rgba(255,255,255,0.7)' }}>{ord.created_at}</td>
-                              <td style={{ padding: '16px 12px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ fontWeight: 600, color: '#f5efe6' }}>{ord.customer_name}</span>
-                                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>{ord.customer_email}</span>
-                                </div>
-                              </td>
-                              <td style={{ padding: '16px 12px', maxWidth: '200px' }}>{ord.product_summary}</td>
-                              <td style={{ padding: '16px 12px', fontWeight: 600 }}>{ord.quantity}</td>
-                              <td style={{ padding: '16px 12px' }}>{ord.payment_method}</td>
-                              <td style={{ padding: '16px 12px', fontWeight: 700, color: '#c9a84c' }}>₹{ord.amount?.toLocaleString('en-IN')}</td>
-                              <td style={{ padding: '16px 12px' }}>
-                                <span style={{
-                                  padding: '4px 10px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  background: ord.order_status?.toUpperCase() === 'CANCELLED' ? 'rgba(231, 76, 60, 0.15)' :
-                                              ord.order_status?.toUpperCase() === 'DELIVERED' ? 'rgba(46, 204, 113, 0.15)' :
-                                              'rgba(243, 156, 18, 0.15)',
-                                  color: ord.order_status?.toUpperCase() === 'CANCELLED' ? '#e74c3c' :
-                                         ord.order_status?.toUpperCase() === 'DELIVERED' ? '#2ecc71' :
-                                         '#f39c12'
-                                }}>
-                                  {ord.order_status}
-                                </span>
-                              </td>
+                    <>
+                      {/* Mobile scroll hint */}
+                      <div className="sales-table-mobile-hint">
+                        <span>&larr; Swipe table horizontally &rarr;</span>
+                      </div>
+                      <div className="payment-metric-table-wrap">
+                        <table className="payment-metric-table">
+                          <colgroup>
+                            <col style={{ width: '130px' }} />
+                            <col style={{ width: '140px' }} />
+                            <col style={{ width: '200px' }} />
+                            <col style={{ width: '330px' }} />
+                            <col style={{ width: '80px' }} />
+                            <col style={{ width: '150px' }} />
+                            <col style={{ width: '120px' }} />
+                            <col style={{ width: '130px' }} />
+                          </colgroup>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: 'rgba(255,255,255,0.5)' }}>
+                              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600 }}>ORDER ID</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600 }}>DATE</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600 }}>CUSTOMER</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600 }}>PRODUCT</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 600 }}>QTY</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600 }}>PAYMENT</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 600 }}>AMOUNT</th>
+                              <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 600 }}>STATUS</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {paymentMetricOrders.map((ord: any, i: number) => (
+                              <tr key={ord.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#f5efe6', background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                                <td style={{ padding: '14px 12px', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontWeight: 700, color: '#c9a84c' }}>{ord.order_id}</span>
+                                </td>
+                                <td style={{ padding: '14px 12px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{ord.created_at}</td>
+                                <td style={{ padding: '14px 12px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontWeight: 600, color: '#f5efe6' }}>{ord.customer_name}</span>
+                                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', wordBreak: 'break-all' }}>{ord.customer_email}</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '14px 12px', verticalAlign: 'middle' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {ord.product_summary ? (
+                                      ord.product_summary.split(', ').map((item: string, idx: number) => {
+                                        const match = item.match(/^(.*?)\s*(\([xX]?\d+\)|[xX]\s*\d+)$/);
+                                        const name = match ? match[1].trim() : item.trim();
+                                        const qtyTag = match ? match[2].trim() : null;
+                                        return (
+                                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                            <span style={{ color: '#f5efe6', fontSize: '0.82rem', fontWeight: 500, lineHeight: 1.35 }}>
+                                              {name}
+                                            </span>
+                                            {qtyTag && (
+                                              <span style={{
+                                                background: 'rgba(201, 168, 76, 0.15)',
+                                                color: '#c9a84c',
+                                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                                padding: '1px 6px',
+                                                borderRadius: '4px',
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
+                                              }}>
+                                                {qtyTag}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      <span style={{ color: 'rgba(255,255,255,0.4)' }}>—</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '14px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    background: 'rgba(201, 168, 76, 0.12)',
+                                    color: '#c9a84c',
+                                    border: '1px solid rgba(201, 168, 76, 0.25)',
+                                    padding: '3px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
+                                  }}>
+                                    {ord.quantity}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '14px 12px', whiteSpace: 'nowrap' }}>{ord.payment_method}</td>
+                                <td style={{ padding: '14px 12px', fontWeight: 700, color: '#c9a84c', textAlign: 'right', whiteSpace: 'nowrap' }}>₹{ord.amount?.toLocaleString('en-IN')}</td>
+                                <td style={{ padding: '14px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <span style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    display: 'inline-block',
+                                    whiteSpace: 'nowrap',
+                                    background: ord.order_status?.toUpperCase() === 'CANCELLED' ? 'rgba(231, 76, 60, 0.15)' :
+                                                ord.order_status?.toUpperCase() === 'DELIVERED' ? 'rgba(46, 204, 113, 0.15)' :
+                                                'rgba(243, 156, 18, 0.15)',
+                                    color: ord.order_status?.toUpperCase() === 'CANCELLED' ? '#e74c3c' :
+                                           ord.order_status?.toUpperCase() === 'DELIVERED' ? '#2ecc71' :
+                                           '#f39c12'
+                                  }}>
+                                    {ord.order_status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                   
                   {/* Pagination */}
