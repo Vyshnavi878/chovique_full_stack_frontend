@@ -38,6 +38,9 @@ import {
   PackageCheck,
   LogOut,
   MessageSquare,
+  Calendar,
+  CreditCard,
+  Ship,
 } from 'lucide-react';
 import { useApp } from '../../app/providers';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
@@ -2001,109 +2004,130 @@ export const CustomerDashboard: React.FC = () => {
                     </button>
 
                     {/* Order Title Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
-                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
-                        Order #{selectedOrder.id}
-                      </h2>
-                      {/* Order Status Badge */}
-                      <span
-                        style={{
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          padding: '4px 14px',
-                          borderRadius: '6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          background:
-                            selectedOrder.status === 'Delivered'
-                              ? 'rgba(46, 204, 113, 0.18)'
-                              : selectedOrder.status === 'Confirmed'
-                              ? 'rgba(52, 152, 219, 0.18)'
-                              : selectedOrder.status === 'Cancelled'
-                              ? 'rgba(231, 76, 60, 0.18)'
-                              : selectedOrder.status === 'Returned'
-                              ? 'rgba(155, 89, 182, 0.18)'
-                              : 'rgba(241, 196, 15, 0.18)',
-                          color:
-                            selectedOrder.status === 'Delivered'
-                              ? '#2ecc71'
-                              : selectedOrder.status === 'Confirmed'
-                              ? '#3498db'
-                              : selectedOrder.status === 'Cancelled'
-                              ? '#e74c3c'
-                              : selectedOrder.status === 'Returned'
-                              ? '#9b59b6'
-                              : '#f1c40f',
-                          border:
-                            selectedOrder.status === 'Delivered'
-                              ? '1px solid rgba(46, 204, 113, 0.4)'
-                              : selectedOrder.status === 'Confirmed'
-                              ? '1px solid rgba(52, 152, 219, 0.4)'
-                              : selectedOrder.status === 'Cancelled'
-                              ? '1px solid rgba(231, 76, 60, 0.4)'
-                              : selectedOrder.status === 'Returned'
-                              ? '1px solid rgba(155, 89, 182, 0.4)'
-                              : '1px solid rgba(241, 196, 15, 0.4)',
-                        }}
-                      >
-                        Order Status: {selectedOrder.status}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '12px' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h2 style={{ fontFamily: 'var(--font-display, serif)', fontSize: 'clamp(1.4rem, 4vw, 2.1rem)', color: '#f5efe6', margin: '0 0 8px 0', fontWeight: 700, wordBreak: 'break-word', letterSpacing: '0.5px' }}>
+                          Order #{selectedOrder.id}
+                        </h2>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                          {/* Order Status Badge */}
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              padding: '5px 14px',
+                              borderRadius: '6px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background:
+                                selectedOrder.status === 'Delivered'
+                                  ? 'rgba(46, 204, 113, 0.18)'
+                                  : selectedOrder.status === 'Confirmed'
+                                  ? 'rgba(52, 152, 219, 0.18)'
+                                  : selectedOrder.status === 'Cancelled'
+                                  ? 'rgba(231, 76, 60, 0.18)'
+                                  : selectedOrder.status === 'Returned'
+                                  ? 'rgba(155, 89, 182, 0.18)'
+                                  : 'rgba(241, 196, 15, 0.18)',
+                              color:
+                                selectedOrder.status === 'Delivered'
+                                  ? '#2ecc71'
+                                  : selectedOrder.status === 'Confirmed'
+                                  ? '#3498db'
+                                  : selectedOrder.status === 'Cancelled'
+                                  ? '#e74c3c'
+                                  : selectedOrder.status === 'Returned'
+                                  ? '#9b59b6'
+                                  : '#f1c40f',
+                              border:
+                                selectedOrder.status === 'Delivered'
+                                  ? '1px solid rgba(46, 204, 113, 0.4)'
+                                  : selectedOrder.status === 'Confirmed'
+                                  ? '1px solid rgba(52, 152, 219, 0.4)'
+                                  : selectedOrder.status === 'Cancelled'
+                                  ? '1px solid rgba(231, 76, 60, 0.4)'
+                                  : selectedOrder.status === 'Returned'
+                                  ? '1px solid rgba(155, 89, 182, 0.4)'
+                                  : '1px solid rgba(241, 196, 15, 0.4)',
+                            }}
+                          >
+                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor' }} />
+                            Order: {selectedOrder.status}
+                          </span>
+
+                          {/* Payment Status Badge */}
+                          <span
+                            style={{
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              padding: '5px 14px',
+                              borderRadius: '6px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background:
+                                (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                  ? 'rgba(46, 204, 113, 0.18)'
+                                  : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                                  ? 'rgba(231, 76, 60, 0.18)'
+                                  : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                                  ? 'rgba(155, 89, 182, 0.18)'
+                                  : 'rgba(241, 196, 15, 0.18)',
+                              color:
+                                (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                  ? '#2ecc71'
+                                  : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                                  ? '#e74c3c'
+                                  : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                                  ? '#9b59b6'
+                                  : '#f1c40f',
+                              border:
+                                (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
+                                  ? '1px solid rgba(46, 204, 113, 0.4)'
+                                  : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
+                                  ? '1px solid rgba(231, 76, 60, 0.4)'
+                                  : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
+                                  ? '1px solid rgba(155, 89, 182, 0.4)'
+                                  : '1px solid rgba(241, 196, 15, 0.4)',
+                            }}
+                          >
+                            Payment: {selectedOrder.payment_status || 'Paid'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', color: 'rgba(255, 255, 255, 0.65)', fontSize: '0.86rem', margin: '0 0 24px 0' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Calendar size={14} color="#c9a84c" /> Placed on {selectedOrder.date}
                       </span>
-                      {/* Payment Status Badge */}
-                      <span
-                        style={{
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          padding: '4px 14px',
-                          borderRadius: '6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          background:
-                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
-                              ? 'rgba(46, 204, 113, 0.18)'
-                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
-                              ? 'rgba(231, 76, 60, 0.18)'
-                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
-                              ? 'rgba(155, 89, 182, 0.18)'
-                              : 'rgba(241, 196, 15, 0.18)',
-                          color:
-                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
-                              ? '#2ecc71'
-                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
-                              ? '#e74c3c'
-                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
-                              ? '#9b59b6'
-                              : '#f1c40f',
-                          border:
-                            (selectedOrder.payment_status || 'Paid').toUpperCase() === 'PAID'
-                              ? '1px solid rgba(46, 204, 113, 0.4)'
-                              : (selectedOrder.payment_status || '').toUpperCase() === 'FAILED'
-                              ? '1px solid rgba(231, 76, 60, 0.4)'
-                              : (selectedOrder.payment_status || '').toUpperCase().includes('REFUND')
-                              ? '1px solid rgba(155, 89, 182, 0.4)'
-                              : '1px solid rgba(241, 196, 15, 0.4)',
-                        }}
-                      >
-                        Payment Status: {selectedOrder.payment_status || 'Paid'}
+                      <span>•</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <CreditCard size={14} color="#c9a84c" /> Payment Method: <strong style={{ color: '#f5efe6' }}>{selectedOrder.paymentMethod || 'Cash on Delivery'}</strong>
                       </span>
                     </div>
 
-                    <p style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: '0.9rem', margin: '0 0 28px 0' }}>
-                      Placed on {selectedOrder.date} &nbsp;•&nbsp; Payment Method: <strong>{selectedOrder.paymentMethod || 'Cash on Delivery'}</strong>
-                    </p>
-
-                    {/* Order Status Lifecycle Tracker Card (Represents Order Status Only) */}
-                    <div
-                      style={{
-                        background: 'rgba(18, 14, 11, 0.95)',
-                        border: '1px solid rgba(201, 168, 76, 0.25)',
-                        borderRadius: '14px',
-                        padding: '28px 24px',
-                        marginBottom: '28px',
-                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                      }}
-                    >
+                    {/* Order Status Lifecycle Tracker Card (Interactive & Responsive) */}
+                    <div className="customer-order-card">
                       {(() => {
                         const currentSt = selectedOrder.status || 'Processing';
+
+                        const statusDescriptions: Record<string, string> = {
+                          'Pending': 'Your artisanal chocolate order has been placed and is awaiting store confirmation.',
+                          'Confirmed': 'Your order has been confirmed! Our master kitchen is preparing the ingredients.',
+                          'Processing': 'Our master chocolatiers are handcrafting and packaging your chocolates in temperature-controlled luxury boxes.',
+                          'Shipped': 'Your package has been dispatched with our express cold-chain courier partner.',
+                          'Out for Delivery': 'Out with our courier partner today! Keep your phone handy for delivery.',
+                          'Out_For_Delivery': 'Out with our courier partner today! Keep your phone handy for delivery.',
+                          'Delivered': 'Your chocolates have been safely delivered. We hope you enjoy every bite!',
+                          'Cancelled': 'This order was cancelled as requested.',
+                          'Returned': 'A return process has been recorded for this order.',
+                        };
 
                         if (currentSt === 'Cancelled') {
                           const cancelledSteps = [
@@ -2112,34 +2136,49 @@ export const CustomerDashboard: React.FC = () => {
                             { key: 'Cancelled', label: 'Cancelled', icon: X, isDone: true, isError: true },
                           ];
                           return (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-                              <div style={{ position: 'absolute', top: '20px', left: '40px', right: '40px', height: '2px', background: 'rgba(231, 76, 60, 0.3)', zIndex: 1 }} />
-                              {cancelledSteps.map((step) => {
-                                const StepIcon = step.icon;
-                                return (
-                                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
-                                    <div
-                                      style={{
-                                        width: '40px',
-                                        height: '40px',
-                                        borderRadius: '50%',
-                                        background: step.isError ? '#e74c3c' : '#2ecc71',
-                                        border: `2px solid ${step.isError ? '#e74c3c' : '#2ecc71'}`,
-                                        color: '#0f0c0a',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        boxShadow: `0 0 14px ${step.isError ? 'rgba(231, 76, 60, 0.4)' : 'rgba(46, 204, 113, 0.4)'}`,
-                                      }}
-                                    >
-                                      <StepIcon size={18} />
-                                    </div>
-                                    <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: 700, color: step.isError ? '#e74c3c' : '#f5efe6' }}>
-                                      {step.label}
-                                    </span>
+                            <div>
+                              <div className="customer-order-status-banner" style={{ borderColor: 'rgba(231, 76, 60, 0.4)' }}>
+                                <div className="customer-order-status-info">
+                                  <div className="customer-order-status-icon-box" style={{ background: 'rgba(231, 76, 60, 0.15)', borderColor: 'rgba(231, 76, 60, 0.4)', color: '#e74c3c' }}>
+                                    <X size={22} />
                                   </div>
-                                );
-                              })}
+                                  <div>
+                                    <div style={{ color: '#e74c3c', fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                      Order Cancelled
+                                    </div>
+                                    <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.84rem', marginTop: '2px' }}>
+                                      {statusDescriptions['Cancelled']}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="customer-stepper-scroll-wrap">
+                                <div className="customer-stepper-inner" style={{ minWidth: '380px' }}>
+                                  <div style={{ position: 'absolute', top: '32px', left: 'calc(100% / 6)', right: 'calc(100% / 6)', height: '3px', background: 'rgba(231, 76, 60, 0.3)', zIndex: 1 }} />
+                                  {cancelledSteps.map((step) => {
+                                    const StepIcon = step.icon;
+                                    return (
+                                      <div key={step.key} className="customer-step-node">
+                                        <div
+                                          className="customer-step-circle"
+                                          style={{
+                                            background: step.isError ? '#e74c3c' : '#2ecc71',
+                                            border: `2px solid ${step.isError ? '#e74c3c' : '#2ecc71'}`,
+                                            color: '#0f0c0a',
+                                            boxShadow: step.isError ? '0 0 16px rgba(231, 76, 60, 0.5)' : '0 0 12px rgba(46, 204, 113, 0.4)',
+                                          }}
+                                        >
+                                          <StepIcon size={18} strokeWidth={2.5} />
+                                        </div>
+                                        <span className="customer-step-label" style={{ fontWeight: 700, color: step.isError ? '#e74c3c' : '#f5efe6' }}>
+                                          {step.label}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             </div>
                           );
                         }
@@ -2149,40 +2188,55 @@ export const CustomerDashboard: React.FC = () => {
                             { key: 'Placed', label: 'Order Placed', icon: Clock },
                             { key: 'Confirmed', label: 'Confirmed', icon: Check },
                             { key: 'Processing', label: 'Processing', icon: Package },
-                            { key: 'Shipped', label: 'Shipped', icon: Truck },
+                            { key: 'Shipped', label: 'Shipped', icon: Ship },
                             { key: 'Delivered', label: 'Delivered', icon: PackageCheck },
                             { key: 'Returned', label: 'Returned', icon: RefreshCw },
                           ];
                           return (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-                              <div style={{ position: 'absolute', top: '20px', left: '40px', right: '40px', height: '2px', background: 'rgba(155, 89, 182, 0.4)', zIndex: 1 }} />
-                              {returnedSteps.map((step) => {
-                                const StepIcon = step.icon;
-                                const isReturn = step.key === 'Returned';
-                                return (
-                                  <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
-                                    <div
-                                      style={{
-                                        width: '40px',
-                                        height: '40px',
-                                        borderRadius: '50%',
-                                        background: isReturn ? '#9b59b6' : '#2ecc71',
-                                        border: `2px solid ${isReturn ? '#9b59b6' : '#2ecc71'}`,
-                                        color: '#0f0c0a',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        boxShadow: `0 0 14px ${isReturn ? 'rgba(155, 89, 182, 0.4)' : 'rgba(46, 204, 113, 0.4)'}`,
-                                      }}
-                                    >
-                                      <StepIcon size={18} />
-                                    </div>
-                                    <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: 700, color: isReturn ? '#9b59b6' : '#f5efe6' }}>
-                                      {step.label}
-                                    </span>
+                            <div>
+                              <div className="customer-order-status-banner" style={{ borderColor: 'rgba(155, 89, 182, 0.4)' }}>
+                                <div className="customer-order-status-info">
+                                  <div className="customer-order-status-icon-box" style={{ background: 'rgba(155, 89, 182, 0.15)', borderColor: 'rgba(155, 89, 182, 0.4)', color: '#9b59b6' }}>
+                                    <RefreshCw size={22} />
                                   </div>
-                                );
-                              })}
+                                  <div>
+                                    <div style={{ color: '#9b59b6', fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                      Order Returned
+                                    </div>
+                                    <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.84rem', marginTop: '2px' }}>
+                                      {statusDescriptions['Returned']}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="customer-stepper-scroll-wrap">
+                                <div className="customer-stepper-inner">
+                                  <div style={{ position: 'absolute', top: '32px', left: 'calc(100% / 12)', right: 'calc(100% / 12)', height: '3px', background: 'rgba(155, 89, 182, 0.4)', zIndex: 1 }} />
+                                  {returnedSteps.map((step) => {
+                                    const StepIcon = step.icon;
+                                    const isReturn = step.key === 'Returned';
+                                    return (
+                                      <div key={step.key} className="customer-step-node">
+                                        <div
+                                          className="customer-step-circle"
+                                          style={{
+                                            background: isReturn ? '#9b59b6' : '#2ecc71',
+                                            border: `2px solid ${isReturn ? '#9b59b6' : '#2ecc71'}`,
+                                            color: '#0f0c0a',
+                                            boxShadow: `0 0 14px ${isReturn ? 'rgba(155, 89, 182, 0.4)' : 'rgba(46, 204, 113, 0.4)'}`,
+                                          }}
+                                        >
+                                          <StepIcon size={18} strokeWidth={2.5} />
+                                        </div>
+                                        <span className="customer-step-label" style={{ fontWeight: 700, color: isReturn ? '#9b59b6' : '#f5efe6' }}>
+                                          {step.label}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             </div>
                           );
                         }
@@ -2192,7 +2246,7 @@ export const CustomerDashboard: React.FC = () => {
                           { key: 'Pending', label: 'Order Placed', icon: Clock },
                           { key: 'Confirmed', label: 'Confirmed', icon: Check },
                           { key: 'Processing', label: 'Processing', icon: Package },
-                          { key: 'Shipped', label: 'Shipped', icon: Truck },
+                          { key: 'Shipped', label: 'Shipped', icon: Ship },
                           { key: 'Out for Delivery', label: 'Out for Delivery', icon: Truck },
                           { key: 'Delivered', label: 'Delivered', icon: PackageCheck },
                         ];
@@ -2208,109 +2262,222 @@ export const CustomerDashboard: React.FC = () => {
                         };
 
                         const currentLevel = statusHierarchy[currentSt] !== undefined ? statusHierarchy[currentSt] : 2;
+                        const currentStepObj = normalSteps[currentLevel] || normalSteps[2];
+                        const CurrentStepIcon = currentStepObj.icon;
+                        const progressPct = Math.min(100, Math.round((currentLevel / (normalSteps.length - 1)) * 100));
 
                         return (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-                            <div
-                              style={{
-                                position: 'absolute',
-                                top: '20px',
-                                left: '40px',
-                                right: '40px',
-                                height: '2px',
-                                background: 'rgba(255, 255, 255, 0.12)',
-                                zIndex: 1,
-                              }}
-                            />
-                            {normalSteps.map((step, idx) => {
-                              const isDone = idx <= currentLevel;
-                              const StepIcon = step.icon;
-
-                              return (
-                                <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
-                                  <div
-                                    style={{
-                                      width: '40px',
-                                      height: '40px',
-                                      borderRadius: '50%',
-                                      background: isDone ? '#2ecc71' : 'rgba(18, 14, 11, 0.95)',
-                                      border: `2px solid ${isDone ? '#2ecc71' : 'rgba(255, 255, 255, 0.2)'}`,
-                                      color: isDone ? '#0f0c0a' : 'rgba(255, 255, 255, 0.4)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      boxShadow: isDone ? '0 0 14px rgba(46, 204, 113, 0.4)' : 'none',
-                                      transition: 'all 0.3s ease',
-                                    }}
-                                  >
-                                    <StepIcon size={18} />
-                                  </div>
-                                  <span style={{ marginTop: '10px', fontSize: '0.82rem', fontWeight: isDone ? 700 : 500, color: isDone ? '#f5efe6' : 'rgba(255, 255, 255, 0.4)' }}>
-                                    {step.label}
-                                  </span>
+                          <div>
+                            {/* Interactive Active Status Highlight Banner */}
+                            <div className="customer-order-status-banner">
+                              <div className="customer-order-status-info">
+                                <div className="customer-order-status-icon-box">
+                                  <CurrentStepIcon size={22} strokeWidth={2.2} />
                                 </div>
-                              );
-                            })}
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{ color: '#2ecc71', fontWeight: 800, fontSize: '0.96rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                      {currentStepObj.label}
+                                    </span>
+                                    <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '12px', background: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', fontWeight: 700 }}>
+                                      {currentLevel === 5 ? 'Completed' : `Step ${currentLevel + 1} of 6`}
+                                    </span>
+                                  </div>
+                                  <div style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: '0.84rem', marginTop: '3px', lineHeight: 1.4 }}>
+                                    {statusDescriptions[currentSt] || statusDescriptions['Processing']}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                <span style={{ fontSize: '0.76rem', color: '#c9a84c', fontWeight: 700 }}>
+                                  {progressPct}% Completed
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stepper Track with Smooth Touch Scroll on Mobile & Active Progress Bar */}
+                            <div className="customer-stepper-scroll-wrap">
+                              <div className="customer-stepper-inner">
+                                {/* Base Track Line */}
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: '32px',
+                                    left: 'calc(100% / 12)',
+                                    right: 'calc(100% / 12)',
+                                    height: '4px',
+                                    background: 'rgba(255, 255, 255, 0.1)',
+                                    borderRadius: '2px',
+                                    zIndex: 1,
+                                  }}
+                                />
+                                {/* Active Progress Fill Line */}
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: '32px',
+                                    left: 'calc(100% / 12)',
+                                    width: `calc((100% - (100% / 6)) * (${currentLevel} / 5))`,
+                                    height: '4px',
+                                    background: 'linear-gradient(90deg, #2ecc71 0%, #27ae60 100%)',
+                                    boxShadow: '0 0 12px rgba(46, 204, 113, 0.6)',
+                                    borderRadius: '2px',
+                                    zIndex: 1,
+                                    transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  }}
+                                />
+
+                                {normalSteps.map((step, idx) => {
+                                  const isDone = idx < currentLevel;
+                                  const isCurrent = idx === currentLevel;
+                                  const StepIcon = step.icon;
+
+                                  return (
+                                    <div key={step.key} className="customer-step-node">
+                                      <div
+                                        className={`customer-step-circle ${isCurrent ? 'active' : ''}`}
+                                        style={{
+                                          background: isDone
+                                            ? '#2ecc71'
+                                            : isCurrent
+                                            ? '#14100c'
+                                            : 'rgba(18, 14, 11, 0.95)',
+                                          border: isDone
+                                            ? '2px solid #2ecc71'
+                                            : isCurrent
+                                            ? '2.5px solid #2ecc71'
+                                            : '2px solid rgba(255, 255, 255, 0.18)',
+                                          color: isDone
+                                            ? '#0f0c0a'
+                                            : isCurrent
+                                            ? '#2ecc71'
+                                            : 'rgba(255, 255, 255, 0.4)',
+                                          boxShadow: isDone
+                                            ? '0 0 14px rgba(46, 204, 113, 0.4)'
+                                            : isCurrent
+                                            ? '0 0 16px rgba(46, 204, 113, 0.6)'
+                                            : 'none',
+                                        }}
+                                      >
+                                        {isDone ? <Check size={18} strokeWidth={3} /> : <StepIcon size={18} strokeWidth={2.2} />}
+                                      </div>
+
+                                      <span
+                                        className="customer-step-label"
+                                        style={{
+                                          fontWeight: isCurrent || isDone ? 700 : 500,
+                                          color: isCurrent ? '#2ecc71' : isDone ? '#f5efe6' : 'rgba(255, 255, 255, 0.4)',
+                                        }}
+                                      >
+                                        {step.label}
+                                      </span>
+
+                                      {isCurrent && (
+                                        <span
+                                          style={{
+                                            fontSize: '0.66rem',
+                                            fontWeight: 800,
+                                            letterSpacing: '0.5px',
+                                            textTransform: 'uppercase',
+                                            color: '#2ecc71',
+                                            background: 'rgba(46, 204, 113, 0.15)',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            marginTop: '4px',
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          Current
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Mobile Scroll Indicator */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                              <span style={{ fontSize: '0.72rem', color: 'rgba(201, 168, 76, 0.65)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                ⇄ Scroll track to view timeline
+                              </span>
+                            </div>
                           </div>
                         );
                       })()}
                     </div>
 
-                    {/* Order Items Table Card */}
-                    <div
-                      style={{
-                        background: 'rgba(18, 14, 11, 0.95)',
-                        border: '1px solid rgba(201, 168, 76, 0.25)',
-                        borderRadius: '14px',
-                        padding: '24px',
-                        marginBottom: '28px',
-                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                      }}
-                    >
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: '#f5efe6', margin: '0 0 18px 0', fontWeight: 700 }}>
-                        Order Items
-                      </h3>
+                    {/* Order Items Card (Responsive Table on Desktop, Clean Cards on Mobile) */}
+                    <div className="customer-order-card">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.25rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                            Order Items
+                          </h3>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c', border: '1px solid rgba(201, 168, 76, 0.3)' }}>
+                            {selectedOrder.items?.length || 0} {selectedOrder.items?.length === 1 ? 'Item' : 'Items'}
+                          </span>
+                        </div>
+                      </div>
 
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                      {/* 1. Desktop & Laptop View Data Table */}
+                      <table className="customer-order-items-desktop">
+                        <colgroup>
+                          <col style={{ width: '48%' }} />
+                          <col style={{ width: '18%' }} />
+                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '20%' }} />
+                        </colgroup>
                         <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                            <th style={{ padding: '10px 12px 14px 0' }}>PRODUCT</th>
-                            <th style={{ padding: '10px 12px 14px 12px', textAlign: 'right' }}>PRICE</th>
-                            <th style={{ padding: '10px 12px 14px 12px', textAlign: 'center' }}>QTY</th>
-                            <th style={{ padding: '10px 0 14px 12px', textAlign: 'right' }}>TOTAL</th>
+                          <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.12)', color: 'rgba(201, 168, 76, 0.9)', textTransform: 'uppercase', fontSize: '0.74rem', letterSpacing: '0.8px', fontWeight: 700 }}>
+                            <th style={{ padding: '12px 14px 14px 0', textAlign: 'left' }}>PRODUCT</th>
+                            <th style={{ padding: '12px 14px 14px 14px', textAlign: 'right' }}>PRICE</th>
+                            <th style={{ padding: '12px 14px 14px 14px', textAlign: 'center' }}>QTY</th>
+                            <th style={{ padding: '12px 0 14px 14px', textAlign: 'right' }}>TOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selectedOrder.items.map((item: any, idx: number) => {
-                            const prodName = item.product?.name || 'Artisanal Chocolate Box';
-                            const prodImage = item.product?.image || item.product?.images?.[0] || 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80';
-                            const sku = item.product?.sku || `SKU-SCB-${idx}`;
-                            const price = item.product?.price || item.price || 0;
-                            const qty = item.quantity || 1;
+                            const prodName = item.product?.name || item.name || 'Artisanal Chocolate Box';
+                            const rawImage = item.product?.image || item.product?.images?.[0] || item.image;
+                            const prodImage = getImageUrl(rawImage);
+                            const sku = item.product?.sku || item.sku || `SKU-CH-${idx + 1}`;
+                            const price = Number(item.product?.price || item.price || 0);
+                            const qty = Number(item.quantity || 1);
                             const lineTotal = price * qty;
 
                             return (
-                              <tr key={item.product?.id || idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                <td style={{ padding: '16px 12px 16px 0' }}>
+                              <tr key={item.product?.id || idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                                <td style={{ padding: '16px 14px 16px 0', verticalAlign: 'middle' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                     <img
                                       src={prodImage}
                                       alt={prodName}
-                                      style={{ width: '52px', height: '52px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(201, 168, 76, 0.3)' }}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80';
+                                      }}
+                                      style={{ width: '54px', height: '54px', borderRadius: '10px', objectFit: 'cover', border: '1px solid rgba(201, 168, 76, 0.3)', flexShrink: 0 }}
                                     />
-                                    <div>
-                                      <h4 style={{ color: '#f5efe6', margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700 }}>{prodName}</h4>
-                                      <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.78rem' }}>SKU: {sku}</span>
+                                    <div style={{ minWidth: 0 }}>
+                                      <h4 style={{ color: '#f5efe6', margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700, wordBreak: 'break-word' }}>
+                                        {prodName}
+                                      </h4>
+                                      <span style={{ display: 'inline-block', color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.76rem', background: 'rgba(255, 255, 255, 0.05)', padding: '1px 6px', borderRadius: '4px' }}>
+                                        SKU: {sku}
+                                      </span>
                                     </div>
                                   </div>
                                 </td>
-                                <td style={{ padding: '16px 12px', textAlign: 'right', color: '#f5efe6', fontWeight: 600 }}>
+                                <td style={{ padding: '16px 14px', textAlign: 'right', color: '#f5efe6', fontWeight: 600, fontSize: '0.9rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                   ₹{price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td style={{ padding: '16px 12px', textAlign: 'center', color: '#f5efe6', fontWeight: 600 }}>
-                                  {qty}
+                                <td style={{ padding: '16px 14px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                  <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '14px', background: 'rgba(201, 168, 76, 0.12)', border: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', fontWeight: 700, fontSize: '0.85rem' }}>
+                                    {qty}
+                                  </span>
                                 </td>
-                                <td style={{ padding: '16px 0 16px 12px', textAlign: 'right', color: '#f5efe6', fontWeight: 700 }}>
+                                <td style={{ padding: '16px 0 16px 14px', textAlign: 'right', color: '#c9a84c', fontWeight: 800, fontSize: '0.98rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                                   ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                               </tr>
@@ -2318,22 +2485,81 @@ export const CustomerDashboard: React.FC = () => {
                           })}
                         </tbody>
                       </table>
+
+                      {/* 2. Mobile View Clean Cards (Solves clumsy colliding table on narrow screens) */}
+                      <div className="customer-order-items-mobile">
+                        {selectedOrder.items.map((item: any, idx: number) => {
+                          const prodName = item.product?.name || item.name || 'Artisanal Chocolate Box';
+                          const rawImage = item.product?.image || item.product?.images?.[0] || item.image;
+                          const prodImage = getImageUrl(rawImage);
+                          const sku = item.product?.sku || item.sku || `SKU-CH-${idx + 1}`;
+                          const price = Number(item.product?.price || item.price || 0);
+                          const qty = Number(item.quantity || 1);
+                          const lineTotal = price * qty;
+
+                          return (
+                            <div
+                              key={item.product?.id || idx}
+                              style={{
+                                background: 'rgba(26, 20, 15, 0.7)',
+                                border: '1px solid rgba(201, 168, 76, 0.2)',
+                                borderRadius: '12px',
+                                padding: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '14px',
+                              }}
+                            >
+                              <img
+                                src={prodImage}
+                                alt={prodName}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=120&q=80';
+                                }}
+                                style={{
+                                  width: '60px',
+                                  height: '60px',
+                                  borderRadius: '10px',
+                                  objectFit: 'cover',
+                                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                                  <h4 style={{ color: '#f5efe6', margin: 0, fontSize: '0.9rem', fontWeight: 700, wordBreak: 'break-word', lineHeight: 1.3 }}>
+                                    {prodName}
+                                  </h4>
+                                  <span style={{ color: '#c9a84c', fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
+                                    ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '6px' }}>
+                                  <span style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '0.74rem' }}>
+                                    SKU: {sku}
+                                  </span>
+                                  <span style={{ fontSize: '0.76rem', color: '#f5efe6', background: 'rgba(201, 168, 76, 0.12)', border: '1px solid rgba(201, 168, 76, 0.25)', padding: '2px 8px', borderRadius: '6px' }}>
+                                    ₹{price.toLocaleString('en-IN', { minimumFractionDigits: 0 })} × {qty} qty
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* 3 Cards Grid Bottom Section */}
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.5fr 1fr', gap: '20px', marginBottom: '28px' }}>
+                    {/* 2 Cards Grid Bottom Section */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr' : '1.3fr 1fr', gap: '20px', marginBottom: '28px' }}>
                       {/* Card 1: Shipping & Billing Address */}
-                      <div
-                        style={{
-                          background: 'rgba(18, 14, 11, 0.95)',
-                          border: '1px solid rgba(201, 168, 76, 0.25)',
-                          borderRadius: '14px',
-                          padding: '22px',
-                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                        }}
-                      >
-                        <h4 style={{ color: '#f5efe6', margin: '0 0 14px 0', fontSize: '1rem', fontWeight: 700 }}>Shipping & Billing Address</h4>
-                        <div style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: '0.86rem', lineHeight: 1.6 }}>
+                      <div className="customer-order-card" style={{ marginBottom: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                          <MapPin size={18} color="#c9a84c" />
+                          <h4 style={{ color: '#f5efe6', margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+                            Shipping & Billing Address
+                          </h4>
+                        </div>
+                        <div style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: '0.88rem', lineHeight: 1.6 }}>
                           <p style={{ margin: '0 0 4px 0', fontWeight: 700, color: '#f5efe6' }}>
                             {selectedOrder.shippingAddress?.name || user.name}
                           </p>
@@ -2342,23 +2568,20 @@ export const CustomerDashboard: React.FC = () => {
                             {selectedOrder.shippingAddress?.city || 'Hyderabad'}, {selectedOrder.shippingAddress?.state || 'Telangana'} - {selectedOrder.shippingAddress?.zip || '500001'}
                           </div>
                           <div>India</div>
-                          <div style={{ marginTop: '6px', color: 'rgba(255, 255, 255, 0.6)' }}>
-                            {selectedOrder.shippingAddress?.phone || '9876543210'}
+                          <div style={{ marginTop: '8px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Phone size={13} color="#c9a84c" /> {selectedOrder.shippingAddress?.phone || '9876543210'}
                           </div>
                         </div>
                       </div>
 
                       {/* Card 2: Order Summary */}
-                      <div
-                        style={{
-                          background: 'rgba(18, 14, 11, 0.95)',
-                          border: '1px solid rgba(201, 168, 76, 0.25)',
-                          borderRadius: '14px',
-                          padding: '22px',
-                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-                        }}
-                      >
-                        <h4 style={{ color: '#f5efe6', margin: '0 0 14px 0', fontSize: '1rem', fontWeight: 700 }}>Order Summary</h4>
+                      <div className="customer-order-card" style={{ marginBottom: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                          <FileText size={18} color="#c9a84c" />
+                          <h4 style={{ color: '#f5efe6', margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+                            Order Summary
+                          </h4>
+                        </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255, 255, 255, 0.7)' }}>
                             <span>Subtotal</span>
@@ -2386,14 +2609,16 @@ export const CustomerDashboard: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-baseline' }}>
-                            <span style={{ fontSize: '1rem', fontWeight: 700, color: '#f5efe6' }}>Total</span>
-                            <div style={{ textAlign: 'right' }}>
-                              <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#c9a84c' }}>
-                                ₹{selectedOrder.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                              <span style={{ display: 'block', fontSize: '0.75rem', color: '#2ecc71', fontWeight: 700 }}>
+                          <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                            <div>
+                              <span style={{ fontSize: '1rem', fontWeight: 700, color: '#f5efe6' }}>Total</span>
+                              <span style={{ display: 'block', fontSize: '0.74rem', color: '#2ecc71', fontWeight: 700, marginTop: '2px' }}>
                                 Payment: {selectedOrder.payment_status || 'Paid'}
+                              </span>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: '1.28rem', fontWeight: 800, color: '#c9a84c' }}>
+                                ₹{selectedOrder.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
                           </div>
