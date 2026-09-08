@@ -168,7 +168,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard?section=orders">
+                <Link to="/refund-policy">
                   Returns & Refunds <ChevronRight size={13} className="nav-chevron" />
                 </Link>
               </li>
@@ -261,53 +261,44 @@ export const Footer: React.FC = () => {
           </div>
 
           <div className="footer-bottom-center">
-            <Link to="/contact">Privacy Policy</Link>
+            <Link to="/privacy-policy">Privacy Policy</Link>
             <span className="legal-pipe">|</span>
-            <Link to="/contact">Terms of Service</Link>
+            <Link to="/terms-of-service">Terms of Service</Link>
             <span className="legal-pipe">|</span>
-            <Link to="/contact">Refund Policy</Link>
+            <Link to="/refund-policy">Refund Policy</Link>
           </div>
 
           <div className="footer-bottom-right">
             <span className="secure-payments-label">SECURE PAYMENTS</span>
             <div className="payment-badges-row">
-              {/* Credit Card */}
-              <div className="payment-badge-pill" title="Credit Card">
-                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
-                  Credit Card
-                </span>
+              {/* Razorpay */}
+              <div className="payment-badge-pill" title="Razorpay Secure Payment">
+                <img
+                  src="/assets/payments/razorpay.png"
+                  alt="Razorpay"
+                  className="payment-badge-logo-img"
+                  loading="lazy"
+                />
               </div>
-              {/* Debit Card */}
-              <div className="payment-badge-pill" title="Debit Card">
-                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
-                  Debit Card
-                </span>
-              </div>
-              {/* UPI */}
-              <div className="payment-badge-pill" title="UPI">
-                <span style={{ fontWeight: 800, fontSize: '11px', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#0b8243' }}>U</span>
-                  <span style={{ color: '#0e70b7' }}>P</span>
-                  <span style={{ color: '#0b8243' }}>I</span>
-                </span>
-              </div>
+
               {/* Google Pay */}
               <div className="payment-badge-pill" title="Google Pay">
-                <span style={{ fontWeight: 700, fontSize: '11px', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '1px', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#4285F4' }}>G</span>
-                  <span style={{ color: '#EA4335' }}>o</span>
-                  <span style={{ color: '#FBBC05' }}>o</span>
-                  <span style={{ color: '#4285F4' }}>g</span>
-                  <span style={{ color: '#34A853' }}>l</span>
-                  <span style={{ color: '#EA4335' }}>e</span>
-                  <span style={{ color: '#3c4043', marginLeft: '3px' }}>Pay</span>
-                </span>
+                <img
+                  src="/assets/payments/googlepay.png"
+                  alt="Google Pay"
+                  className="payment-badge-logo-img"
+                  loading="lazy"
+                />
               </div>
-              {/* Cash on Delivery (COD) */}
-              <div className="payment-badge-pill" title="Cash on Delivery (COD)">
-                <span style={{ fontWeight: 700, fontSize: '11px', color: '#1a1a1a', fontFamily: 'sans-serif', whiteSpace: 'nowrap' }}>
-                  COD
-                </span>
+
+              {/* UPI */}
+              <div className="payment-badge-pill" title="Unified Payments Interface (UPI)">
+                <img
+                  src="/assets/payments/upi.png"
+                  alt="UPI - Unified Payments Interface"
+                  className="payment-badge-logo-img payment-badge-upi"
+                  loading="lazy"
+                />
               </div>
             </div>
           </div>

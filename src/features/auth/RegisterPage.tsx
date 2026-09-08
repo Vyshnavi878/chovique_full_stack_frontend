@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, Mail, RefreshCw, KeyRound, CheckCircle2 } from 'luc
 import { useApp } from '../../app/providers';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { LegalModal } from '../../components/LegalModal';
 import { authService } from '../../services/authService';
 import { ApiError } from '../../lib/api';
 
@@ -20,6 +21,9 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Legal Modal State: 'terms' | 'privacy' | null
+  const [legalModalType, setLegalModalType] = useState<'terms' | 'privacy' | null>(null);
 
   // Field Level Error State
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -443,9 +447,51 @@ export const RegisterPage: React.FC = () => {
                     if (error) setError('');
                   }}
                 />
-                <span style={{ fontSize: '0.82rem' }}>
-                  I accept the <a href="#" style={{ color: 'var(--gold)' }}>Terms of Service</a> &{' '}
-                  <a href="#" style={{ color: 'var(--gold)' }}>Privacy Policy</a>
+                <span style={{ fontSize: '0.82rem', color: 'var(--cream)' }}>
+                  I accept the{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLegalModalType('terms');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'var(--gold)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                      fontSize: 'inherit',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Terms of Service
+                  </button>{' '}
+                  &{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLegalModalType('privacy');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'var(--gold)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                      fontSize: 'inherit',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Privacy Policy
+                  </button>
                   <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>
                 </span>
               </label>
@@ -645,6 +691,19 @@ export const RegisterPage: React.FC = () => {
           </Link>
         </p>
       </div>
+
+      {/* Terms and Privacy Policy Separate Card Dialog */}
+      <LegalModal
+        isOpen={legalModalType !== null}
+        type={legalModalType}
+        onClose={() => setLegalModalType(null)}
+        onAccept={() => {
+          setTermsAccepted(true);
+          if (fieldErrors.terms) {
+            setFieldErrors((prev) => ({ ...prev, terms: '' }));
+          }
+        }}
+      />
     </div>
   );
 };

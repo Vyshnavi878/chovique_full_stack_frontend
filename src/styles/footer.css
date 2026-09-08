@@ -387,18 +387,40 @@
 .payment-badges-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .payment-badge-pill {
-  height: 28px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 4px 12px;
   background: #ffffff;
-  border-radius: 4px;
-  display: flex;
+  border-radius: 6px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.payment-badge-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(201, 168, 76, 0.35);
+}
+
+.payment-badge-logo-img {
+  height: 19px;
+  width: auto;
+  max-width: 85px;
+  object-fit: contain;
+  display: block;
+}
+
+.payment-badge-logo-img.payment-badge-upi {
+  height: 22px;
+  max-width: 75px;
 }
 
 /* ────────────────────────────────────────────────────────────

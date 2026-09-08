@@ -22,6 +22,7 @@ import { CustomerDashboard } from '../features/dashboard/CustomerDashboard';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { SuperadminDashboard } from '../features/superadmin/SuperadminDashboard';
 import { NotFoundPage } from '../features/error/NotFoundPage';
+import { PrivacyPolicyPage, TermsPage, RefundPolicyPage } from '../features/legal';
 
 // Styles
 import '../styles/global.css';
@@ -65,7 +66,8 @@ const AppContent: React.FC = () => {
   const isCustomerDashboard = location.pathname === '/dashboard';
 
   const showNavbar = !isAuthRoute && !isAdminDashboard;
-  const showFooter = !isAuthRoute && !isAdminDashboard && !isCustomerDashboard && location.pathname !== '/checkout';
+  // Show footer across customer-facing pages including checkout for trust badges and policy links
+  const showFooter = !isAuthRoute && !isAdminDashboard && !isCustomerDashboard;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
@@ -83,6 +85,12 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+          {/* Legal and Compliance Routes */}
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/refund-policy" element={<RefundPolicyPage />} />
 
           {/* Guest-accessible but redirects to login at checkout */}
           <Route path="/cart" element={<CartPage />} />

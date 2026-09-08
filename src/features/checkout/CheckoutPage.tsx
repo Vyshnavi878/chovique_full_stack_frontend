@@ -22,6 +22,7 @@ import { walletService } from '../../services/walletService';
 import { cartService } from '../../services/cartService';
 import { userService } from '../../services/userService';
 import type { Order, CheckoutInitiateResponse, VerifyPaymentPayload } from '../../types';
+import { RAZORPAY_CHOVIQUE_LOGO } from '../../assets/razorpayLogo';
 
 // Razorpay global type declaration
 declare global {
@@ -456,16 +457,31 @@ export const CheckoutPage: React.FC = () => {
           throw new Error('Razorpay SDK failed to load. Please check your network connection.');
         }
 
+        // Map customer's choice from Step 3 to Razorpay prefill method
+        // This opens Razorpay directly to the chosen payment screen (Card, UPI, or Net Banking)
+        // without restricting available instruments or throwing "No appropriate payment method found"
+        let methodPrefill: string | undefined = undefined;
+        if (paymentMethod === 'Credit Card') {
+          methodPrefill = 'card';
+        } else if (paymentMethod === 'UPI / Google Pay') {
+          methodPrefill = 'upi';
+        } else if (paymentMethod === 'Net Banking') {
+          methodPrefill = 'netbanking';
+        }
+
         const options = {
-          key: initData.key_id,
+          key: initData.key_id || (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_test_TZZZYdiXYpVTA5',
           amount: initData.amount,
           currency: initData.currency || 'INR',
           name: 'CHOVIQUE',
           description: `Order #${initData.order_id}`,
+          image: RAZORPAY_CHOVIQUE_LOGO,
           order_id: initData.razorpay_order_id,
           prefill: {
             name: shippingForm.name,
             contact: shippingForm.phone,
+            email: user?.email || '',
+            ...(methodPrefill ? { method: methodPrefill } : {}),
           },
           theme: {
             color: '#1a100c',
@@ -508,6 +524,13 @@ export const CheckoutPage: React.FC = () => {
         };
 
         const rzp = new window.Razorpay(options);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (rzp as any).on('payment.failed', (failResp: any) => {
+          setIsPlacingOrder(false);
+          const errDesc = failResp?.error?.description || 'Payment was unsuccessful. Please try another method or card.';
+          setOrderError(errDesc);
+          setActiveStep(4);
+        });
         rzp.open();
       } catch (err: unknown) {
         const message =
@@ -544,50 +567,105 @@ export const CheckoutPage: React.FC = () => {
         {/* Checkout Header steps indicator (Only for steps 1-4) */}
         {activeStep <= 4 && (
           <div className="checkout-steps">
-            <div className="checkout-step-list">
-              {stepsHeader.map((st) => (
-                <div
-                  key={st.num}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    opacity: activeStep >= st.num ? 1 : 0.4,
-                    transition: 'opacity 0.3s',
-                  }}
-                >
-                  <span
+            {/* Desktop / Tablet Stepper */}
+            <div className="checkout-steps-desktop">
+              <div className="checkout-step-list">
+                {stepsHeader.map((st) => (
+                  <div
+                    key={st.num}
                     style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: activeStep >= st.num ? 'var(--gradient-gold)' : 'rgba(255,255,255,0.1)',
-                      color: activeStep >= st.num ? 'var(--dark-chocolate)' : 'var(--cream)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
+                      gap: '8px',
+                      opacity: activeStep >= st.num ? 1 : 0.4,
+                      transition: 'opacity 0.3s',
                     }}
                   >
-                    {st.num}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '0.85rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      fontWeight: activeStep === st.num ? 600 : 400,
-                      color: activeStep === st.num ? 'var(--gold)' : 'var(--cream)',
-                    }}
-                  >
-                    {st.label}
-                  </span>
-                  {st.num < 4 && <ChevronRight size={14} style={{ color: 'var(--grey-mid)' }} />}
-                </div>
-              ))}
+                    <span
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: activeStep >= st.num ? 'var(--gradient-gold)' : 'rgba(255,255,255,0.1)',
+                        color: activeStep >= st.num ? 'var(--dark-chocolate)' : 'var(--cream)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {st.num}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.85rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        fontWeight: activeStep === st.num ? 600 : 400,
+                        color: activeStep === st.num ? 'var(--gold)' : 'var(--cream)',
+                      }}
+                    >
+                      {st.label}
+                    </span>
+                    {st.num < 4 && <ChevronRight size={14} style={{ color: 'var(--grey-mid)' }} />}
+                  </div>
+                ))}
+              </div>
+              <Progress value={activeStep} max={4} height={3} />
             </div>
-            <Progress value={activeStep} max={4} height={3} />
+
+            {/* Mobile Adaptive Stepper */}
+            <div className="checkout-steps-mobile">
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1.5px',
+                    fontWeight: 700,
+                    color: 'var(--gold)',
+                  }}
+                >
+                  Step {activeStep} of 4
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: 'var(--cream)',
+                    fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  {stepsHeader[activeStep - 1]?.label}
+                </span>
+              </div>
+              {/* Segmented 4-step progress pills */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                {stepsHeader.map((st) => (
+                  <div
+                    key={st.num}
+                    style={{
+                      height: '4px',
+                      borderRadius: '2px',
+                      background:
+                        activeStep >= st.num
+                          ? 'var(--gradient-gold)'
+                          : 'rgba(255, 255, 255, 0.15)',
+                      boxShadow: activeStep === st.num ? '0 0 8px rgba(212, 175, 55, 0.5)' : 'none',
+                      transition: 'all 0.3s ease',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -602,8 +680,7 @@ export const CheckoutPage: React.FC = () => {
                 initial="initial"
                 animate="animate"
                 exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+                className="glass-panel checkout-panel-card"
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
                   1. Review Your Selections
@@ -975,7 +1052,7 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div className="checkout-actions" style={{ justifyContent: 'flex-end' }}>
                   <Button variant="gold" onClick={nextStep} glow>
                     Proceed to Shipping
                   </Button>
@@ -991,8 +1068,7 @@ export const CheckoutPage: React.FC = () => {
                 initial="initial"
                 animate="animate"
                 exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+                className="glass-panel checkout-panel-card"
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
                   2. Shipping Destination
@@ -1020,7 +1096,7 @@ export const CheckoutPage: React.FC = () => {
                     required
                     autoComplete="street-address"
                   />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="checkout-grid-two">
                     <Input
                       label="City"
                       value={shippingForm.city}
@@ -1044,7 +1120,7 @@ export const CheckoutPage: React.FC = () => {
                       autoComplete="address-level1"
                     />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="checkout-grid-two">
                     <Input
                       label="ZIP Code"
                       value={shippingForm.zip}
@@ -1070,7 +1146,7 @@ export const CheckoutPage: React.FC = () => {
                     />
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="checkout-actions">
                   <Button variant="secondary" onClick={prevStep}>
                     Back
                   </Button>
@@ -1093,8 +1169,7 @@ export const CheckoutPage: React.FC = () => {
                 initial="initial"
                 animate="animate"
                 exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+                className="glass-panel checkout-panel-card"
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
                   3. Choose Payment Option
@@ -1112,8 +1187,8 @@ export const CheckoutPage: React.FC = () => {
                       }}
                       style={{
                         padding: '16px 20px',
-                        borderRadius: '4px',
-                        background: paymentMethod === method ? 'rgba(201, 168, 76, 0.05)' : 'rgba(0, 0, 0, 0.2)',
+                        borderRadius: '6px',
+                        background: paymentMethod === method ? 'rgba(201, 168, 76, 0.08)' : 'rgba(0, 0, 0, 0.25)',
                         border: paymentMethod === method ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
                         display: 'flex',
                         alignItems: 'center',
@@ -1127,7 +1202,7 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="checkout-actions">
                   <Button variant="secondary" onClick={prevStep}>
                     Back
                   </Button>
@@ -1146,8 +1221,7 @@ export const CheckoutPage: React.FC = () => {
                 initial="initial"
                 animate="animate"
                 exit="initial"
-                className="glass-panel"
-                style={{ padding: '30px', border: '1px solid var(--glass-border)' }}
+                className="glass-panel checkout-panel-card"
               >
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--cream)', marginBottom: '20px' }}>
                   4. Review and Place Order
@@ -1172,12 +1246,12 @@ export const CheckoutPage: React.FC = () => {
                 )}
 
                 {/* Sub panels details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
+                <div className="checkout-grid-two" style={{ gap: '15px', marginBottom: '25px' }}>
                   <div
                     style={{
                       padding: '16px',
-                      background: 'rgba(0,0,0,0.2)',
-                      borderRadius: '4px',
+                      background: 'rgba(0,0,0,0.25)',
+                      borderRadius: '6px',
                       border: '1px solid var(--glass-border)',
                     }}
                   >
@@ -1196,8 +1270,8 @@ export const CheckoutPage: React.FC = () => {
                   <div
                     style={{
                       padding: '16px',
-                      background: 'rgba(0,0,0,0.2)',
-                      borderRadius: '4px',
+                      background: 'rgba(0,0,0,0.25)',
+                      borderRadius: '6px',
                       border: '1px solid var(--glass-border)',
                     }}
                   >
@@ -1251,7 +1325,7 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="checkout-actions">
                   <Button variant="secondary" onClick={prevStep} disabled={isPlacingOrder}>
                     Back
                   </Button>
