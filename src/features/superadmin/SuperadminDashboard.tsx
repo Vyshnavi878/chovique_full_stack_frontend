@@ -141,6 +141,7 @@ import {
 } from '../../services/adminService';
 import { homeService } from '../../services/homeService';
 import { getImageUrl } from '../../utils/imageUrl';
+import { exportToCSV } from '../../utils/exportCsv';
 import type { SystemUser, Order, InstagramReel, Testimonial } from '../../types';
 import { ReportsAnalyticsView } from '../admin/ReportsAnalyticsView';
 import {
@@ -377,13 +378,11 @@ export const SuperadminDashboard: React.FC = () => {
       }
       if (s && e && s <= e) {
         setOverviewDateError(null);
-        fetchOverview('custom', s, e);
       } else if (s && e && s > e) {
         setOverviewDateError('Start date cannot be after end date.');
       }
     } else {
       setOverviewDateError(null);
-      fetchOverview(tfId);
     }
   };
 
@@ -403,7 +402,7 @@ export const SuperadminDashboard: React.FC = () => {
         fetchOverview(overviewTimeframe);
       }
     }
-  }, [activeTab, overviewTimeframe]);
+  }, [activeTab, overviewTimeframe, overviewStartDate, overviewEndDate]);
 
   const displayOverview = overviewData || defaultOverviewData;
 
@@ -1818,6 +1817,8 @@ export const SuperadminDashboard: React.FC = () => {
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
   const [notifToDelete, setNotifToDelete] = useState<any | null>(null);
   const [isDeletingNotif, setIsDeletingNotif] = useState<boolean>(false);
+  const [selectedNotifIds, setSelectedNotifIds] = useState<string[]>([]);
+  const [isBatchDeletingNotifs, setIsBatchDeletingNotifs] = useState<boolean>(false);
 
   const fetchSuperadminNotifications = async () => {
     setNotifLoading(true);
@@ -1908,6 +1909,41 @@ export const SuperadminDashboard: React.FC = () => {
       addToast('error', err?.detail || 'Failed to delete notification.', 'Error');
     } finally {
       setIsDeletingNotif(false);
+    }
+  };
+
+  const handleSelectAllNotifs = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedNotifIds(notifItems.map((n) => n.id));
+    } else {
+      setSelectedNotifIds([]);
+    }
+  };
+
+  const handleToggleNotifSelect = (id: string) => {
+    setSelectedNotifIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelectedNotifs = async () => {
+    if (selectedNotifIds.length === 0) return;
+    setIsBatchDeletingNotifs(true);
+    try {
+      await Promise.all(
+        selectedNotifIds.map((id) => (adminService as any).deleteSuperadminNotification(id))
+      );
+      addToast('success', `Deleted ${selectedNotifIds.length} selected notification(s).`, 'Deleted');
+      setSelectedNotifIds([]);
+      window.dispatchEvent(new CustomEvent('notification_updated'));
+      fetchSuperadminNotifications();
+    } catch (err: any) {
+      console.error('Failed batch delete superadmin notifications:', err);
+      addToast('error', err?.detail || 'Failed to delete selected notifications.', 'Error');
+      setNotifItems((prev) => prev.filter((n) => !selectedNotifIds.includes(n.id)));
+      setSelectedNotifIds([]);
+    } finally {
+      setIsBatchDeletingNotifs(false);
     }
   };
 
@@ -2619,13 +2655,10 @@ export const SuperadminDashboard: React.FC = () => {
                         onChange={(e) => {
                           const val = e.target.value;
                           setOverviewStartDate(val);
-                          if (val && overviewEndDate) {
-                            if (val > overviewEndDate) {
-                              setOverviewDateError('Start date cannot be after end date.');
-                            } else {
-                              setOverviewDateError(null);
-                              fetchOverview('custom', val, overviewEndDate);
-                            }
+                          if (val && overviewEndDate && val > overviewEndDate) {
+                            setOverviewDateError('Start date cannot be after end date.');
+                          } else {
+                            setOverviewDateError(null);
                           }
                         }}
                         style={{
@@ -2648,13 +2681,10 @@ export const SuperadminDashboard: React.FC = () => {
                         onChange={(e) => {
                           const val = e.target.value;
                           setOverviewEndDate(val);
-                          if (overviewStartDate && val) {
-                            if (overviewStartDate > val) {
-                              setOverviewDateError('Start date cannot be after end date.');
-                            } else {
-                              setOverviewDateError(null);
-                              fetchOverview('custom', overviewStartDate, val);
-                            }
+                          if (overviewStartDate && val && overviewStartDate > val) {
+                            setOverviewDateError('Start date cannot be after end date.');
+                          } else {
+                            setOverviewDateError(null);
                           }
                         }}
                         style={{
@@ -4698,6 +4728,14 @@ export const SuperadminDashboard: React.FC = () => {
                             <option value="Luxury Boxes">Luxury Boxes</option>
                             <option value="Bars">Bars</option>
                           </select>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => exportToCSV('product_sales', displaySalesProducts.products)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <Download size={14} /> Export CSV
+                          </Button>
                         </div>
                       </div>
 
@@ -4729,69 +4767,78 @@ export const SuperadminDashboard: React.FC = () => {
                           </thead>
                           <tbody>
                             {displaySalesProducts.products && displaySalesProducts.products.length > 0 ? (
-                              displaySalesProducts.products.map((prod, i) => (
-                                <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
-                                  <td style={{ padding: '12px 14px', fontWeight: 600, verticalAlign: 'middle' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                      {prod.image_url ? (
-                                        <img
-                                          src={getImageUrl(prod.image_url)}
-                                          alt={prod.name}
-                                          style={{ width: '38px', height: '38px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)', flexShrink: 0 }}
-                                        />
-                                      ) : (
-                                        <div style={{ width: '38px', height: '38px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c', flexShrink: 0 }}>
-                                          <ShoppingBag size={18} />
+                              (() => {
+                                const allProds = displaySalesProducts.products;
+                                const isServerPaginated = Boolean(displaySalesProducts.total_products && displaySalesProducts.total_products > allProds.length);
+                                const pageLimit = 5;
+                                const pagedProds = isServerPaginated
+                                  ? allProds
+                                  : allProds.slice((salesProductsPage - 1) * pageLimit, salesProductsPage * pageLimit);
+
+                                return pagedProds.map((prod, i) => (
+                                  <tr key={prod.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
+                                    <td style={{ padding: '12px 14px', fontWeight: 600, verticalAlign: 'middle' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        {prod.image_url ? (
+                                          <img
+                                            src={getImageUrl(prod.image_url)}
+                                            alt={prod.name}
+                                            style={{ width: '38px', height: '38px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(201,168,76,0.3)', flexShrink: 0 }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: '38px', height: '38px', borderRadius: '6px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9a84c', flexShrink: 0 }}>
+                                            <ShoppingBag size={18} />
+                                          </div>
+                                        )}
+                                        <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                                          <div style={{ color: '#f5efe6', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word', whiteSpace: 'normal' }}>{prod.name}</div>
+                                          <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>₹{prod.price.toLocaleString('en-IN')}</div>
                                         </div>
-                                      )}
-                                      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
-                                        <div style={{ color: '#f5efe6', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word', whiteSpace: 'normal' }}>{prod.name}</div>
-                                        <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>₹{prod.price.toLocaleString('en-IN')}</div>
                                       </div>
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                    <span style={{ padding: '4px 10px', borderRadius: '6px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', color: 'var(--beige)', fontSize: '0.78rem', display: 'inline-block', whiteSpace: 'nowrap' }}>
-                                      {prod.category_name}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '12px 14px', fontWeight: 700, color: '#c9a84c', fontSize: '0.92rem', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                    {prod.units_sold.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px 14px', color: '#5dade2', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                    {prod.online_units.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px 14px', color: '#e67e22', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                    {prod.offline_units.toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px 14px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                                    <span
-                                      style={{
-                                        fontWeight: 700,
-                                        padding: '4px 12px',
-                                        borderRadius: '12px',
-                                        fontSize: '0.75rem',
-                                        display: 'inline-block',
-                                        whiteSpace: 'nowrap',
-                                        background:
-                                          prod.current_stock <= 0
-                                            ? 'rgba(231, 76, 60, 0.15)'
-                                            : prod.current_stock <= 10
-                                            ? 'rgba(241, 196, 15, 0.15)'
-                                            : 'rgba(46, 204, 113, 0.15)',
-                                        color:
-                                          prod.current_stock <= 0
-                                            ? '#e74c3c'
-                                            : prod.current_stock <= 10
-                                            ? '#f1c40f'
-                                            : '#2ecc71',
-                                      }}
-                                    >
-                                      {prod.current_stock <= 0 ? 'Out of Stock (0)' : prod.current_stock <= 10 ? `Low (${prod.current_stock})` : `${prod.current_stock} In Stock`}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))
+                                    </td>
+                                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                      <span style={{ padding: '4px 10px', borderRadius: '6px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', color: 'var(--beige)', fontSize: '0.78rem', display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                        {prod.category_name}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#c9a84c', fontSize: '0.92rem', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                      {prod.units_sold.toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', color: '#5dade2', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                      {prod.online_units.toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', color: '#e67e22', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                      {prod.offline_units.toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                                      <span
+                                        style={{
+                                          fontWeight: 700,
+                                          padding: '4px 12px',
+                                          borderRadius: '12px',
+                                          fontSize: '0.75rem',
+                                          display: 'inline-block',
+                                          whiteSpace: 'nowrap',
+                                          background:
+                                            prod.current_stock <= 0
+                                              ? 'rgba(231, 76, 60, 0.15)'
+                                              : prod.current_stock <= 10
+                                              ? 'rgba(241, 196, 15, 0.15)'
+                                              : 'rgba(46, 204, 113, 0.15)',
+                                          color:
+                                            prod.current_stock <= 0
+                                              ? '#e74c3c'
+                                              : prod.current_stock <= 10
+                                              ? '#f1c40f'
+                                              : '#2ecc71',
+                                        }}
+                                      >
+                                        {prod.current_stock <= 0 ? 'Out of Stock (0)' : prod.current_stock <= 10 ? `Low (${prod.current_stock})` : `${prod.current_stock} In Stock`}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ));
+                              })()
                             ) : (
                               <tr>
                                 <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'rgba(255,255,255,0.5)' }}>
@@ -4807,9 +4854,9 @@ export const SuperadminDashboard: React.FC = () => {
                       <div style={{ marginTop: '16px' }}>
                         <Pagination
                           currentPage={salesProductsPage}
-                          totalPages={Math.ceil((displaySalesProducts.total_products || displaySalesProducts.products?.length || 1) / salesPageLimit) || 1}
+                          totalPages={Math.ceil((displaySalesProducts.total_products || displaySalesProducts.products?.length || 0) / 5) || 1}
                           totalItems={displaySalesProducts.total_products || displaySalesProducts.products?.length || 0}
-                          itemsPerPage={salesPageLimit}
+                          itemsPerPage={5}
                           onPageChange={setSalesProductsPage}
                         />
                       </div>
@@ -5537,7 +5584,7 @@ export const SuperadminDashboard: React.FC = () => {
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 {isRegisterOpen ? <X size={16} /> : <UserPlus size={16} />}
-                {isRegisterOpen ? 'Close Form' : '+ Register Administrator'}
+                {isRegisterOpen ? 'Close Form' : 'Register Administrator'}
               </Button>
             </div>
 
@@ -5838,6 +5885,14 @@ export const SuperadminDashboard: React.FC = () => {
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => exportToCSV('admin_directory', displayAdmins.items)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Download size={14} /> Export CSV
+                </Button>
               </div>
             </div>
 
@@ -6031,10 +6086,22 @@ export const SuperadminDashboard: React.FC = () => {
             </div>
 
             {/* Filters Toolbar */}
-            <div className="audit-filters-toolbar">
-              <div className="audit-filters-group">
+            <div
+              style={{
+                background: 'rgba(20, 16, 13, 0.85)',
+                border: '1px solid rgba(201, 168, 76, 0.25)',
+                borderRadius: '10px',
+                padding: '16px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+              }}
+            >
+              {/* Row 1: Search & Filter Dropdowns */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 {/* Search */}
-                <div className="audit-search-wrap">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', flex: '1 1 240px', minWidth: '200px' }}>
                   <Search size={16} color="#c9a84c" />
                   <input
                     type="text"
@@ -6048,78 +6115,80 @@ export const SuperadminDashboard: React.FC = () => {
                   />
                 </div>
 
-                {/* Action & Status Filters Pair */}
-                <div className="audit-filter-row-pair">
-                  <select
-                    value={auditActionFilter}
-                    onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
-                    style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
-                  >
-                    <option value="ALL">All Actions</option>
-                    <option value="Login">Login</option>
-                    <option value="Logout">Logout</option>
-                    <option value="Created Product">Created Product</option>
-                    <option value="Updated Product">Updated Product</option>
-                    <option value="Deleted Product">Deleted Product</option>
-                    <option value="Updated Order Status">Updated Order Status</option>
-                    <option value="Created Coupon">Created Coupon</option>
-                    <option value="Updated Coupon">Updated Coupon</option>
-                    <option value="Changed Settings">Changed Settings</option>
-                    <option value="CREATE_ADMIN">Registered Admin</option>
-                    <option value="DELETE_ADMIN">Deleted Admin</option>
-                    <option value="Offline Sale Recorded">Offline Sale Recorded</option>
-                  </select>
+                {/* Actions Dropdown */}
+                <select
+                  value={auditActionFilter}
+                  onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 140px' }}
+                >
+                  <option value="ALL">All Actions</option>
+                  <option value="Login">Login</option>
+                  <option value="Logout">Logout</option>
+                  <option value="Created Product">Created Product</option>
+                  <option value="Updated Product">Updated Product</option>
+                  <option value="Deleted Product">Deleted Product</option>
+                  <option value="Updated Order Status">Updated Order Status</option>
+                  <option value="Created Coupon">Created Coupon</option>
+                  <option value="Updated Coupon">Updated Coupon</option>
+                  <option value="Changed Settings">Changed Settings</option>
+                  <option value="CREATE_ADMIN">Registered Admin</option>
+                  <option value="DELETE_ADMIN">Deleted Admin</option>
+                  <option value="Offline Sale Recorded">Offline Sale Recorded</option>
+                </select>
 
-                  <select
-                    value={auditStatusFilter}
-                    onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
-                    style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
-                  >
-                    <option value="ALL">All Status</option>
-                    <option value="SUCCESS">SUCCESS</option>
-                    <option value="FAILURE">FAILURE</option>
-                    <option value="DENIED">DENIED</option>
-                  </select>
-                </div>
+                {/* Status Dropdown */}
+                <select
+                  value={auditStatusFilter}
+                  onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 120px' }}
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="SUCCESS">SUCCESS</option>
+                  <option value="FAILURE">FAILURE</option>
+                  <option value="DENIED">DENIED</option>
+                </select>
 
-                {/* User Filter */}
+                {/* User Dropdown */}
                 <select
                   value={auditUserId}
                   onChange={(e) => { setAuditUserId(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}
+                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 130px' }}
                 >
                   <option value="ALL">All Users</option>
                   {displayAdmins.items.map((u) => (
                     <option key={u.id} value={u.id}>{u.full_name}</option>
                   ))}
                 </select>
+              </div>
 
-                {/* Date Range */}
-                <div className="audit-date-range-wrap">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px' }}>
-                    <Calendar size={14} color="#c9a84c" />
+              {/* Row 2: Labeled Date Range & Clear Filters Button */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>From Date:</span>
                     <input
                       type="date"
                       value={auditDateFrom}
                       onChange={(e) => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
-                      style={{ background: 'transparent', color: '#f5efe6', colorScheme: 'dark', border: 'none', fontSize: '0.8rem', cursor: 'pointer', width: '100%', outline: 'none' }}
+                      style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 10px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px' }}>
-                    <Calendar size={14} color="#c9a84c" />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>To Date:</span>
                     <input
                       type="date"
                       value={auditDateTo}
                       onChange={(e) => { setAuditDateTo(e.target.value); setAuditPage(1); }}
-                      style={{ background: 'transparent', color: '#f5efe6', colorScheme: 'dark', border: 'none', fontSize: '0.8rem', cursor: 'pointer', width: '100%', outline: 'none' }}
+                      style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 10px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                     />
                   </div>
                 </div>
-              </div>
 
-              <Button variant="secondary" size="sm" onClick={handleClearAuditFilters} style={{ flexShrink: 0 }}>
-                Clear Filters
-              </Button>
+                <Button variant="secondary" size="sm" onClick={handleClearAuditFilters} style={{ flexShrink: 0 }}>
+                  Clear Filters
+                </Button>
+              </div>
             </div>
 
             {/* Error Alert State */}
@@ -7020,6 +7089,18 @@ export const SuperadminDashboard: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {selectedNotifIds.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDeleteSelectedNotifs}
+                    disabled={isBatchDeletingNotifs}
+                    style={{ background: 'rgba(231,76,60,0.15)', borderColor: '#e74c3c', color: '#e74c3c', fontWeight: 700 }}
+                  >
+                    <Trash2 size={14} style={{ marginRight: '6px' }} />
+                    {isBatchDeletingNotifs ? 'Deleting...' : `Delete Selected (${selectedNotifIds.length})`}
+                  </Button>
+                )}
                 {notifUnreadCount > 0 && (
                   <Button variant="secondary" onClick={handleMarkAllNotifsAsRead} size="sm">
                     <Check size={14} style={{ marginRight: '6px' }} /> Mark All as Read
@@ -7048,7 +7129,7 @@ export const SuperadminDashboard: React.FC = () => {
               ].map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => { setNotifCategoryTab(t.id); setNotifPage(1); }}
+                  onClick={() => { setNotifCategoryTab(t.id); setNotifPage(1); setSelectedNotifIds([]); }}
                   style={{
                     padding: '10px 20px',
                     fontSize: '0.85rem',
@@ -7075,7 +7156,7 @@ export const SuperadminDashboard: React.FC = () => {
                   <Input
                     placeholder="Search notifications..."
                     value={notifSearch}
-                    onChange={(e) => { setNotifSearch(e.target.value); setNotifPage(1); }}
+                    onChange={(e) => { setNotifSearch(e.target.value); setNotifPage(1); setSelectedNotifIds([]); }}
                   />
                 </div>
 
@@ -7083,7 +7164,7 @@ export const SuperadminDashboard: React.FC = () => {
                 <div style={{ width: '150px' }}>
                   <Select
                     value={notifReadFilter}
-                    onChange={(e) => { setNotifReadFilter(e.target.value); setNotifPage(1); }}
+                    onChange={(e) => { setNotifReadFilter(e.target.value); setNotifPage(1); setSelectedNotifIds([]); }}
                     options={[
                       { value: 'ALL', label: 'All Status' },
                       { value: 'UNREAD', label: 'Unread Only' },
@@ -7097,7 +7178,7 @@ export const SuperadminDashboard: React.FC = () => {
                   <Input
                     type="date"
                     value={notifDateFrom}
-                    onChange={(e) => { setNotifDateFrom(e.target.value); setNotifPage(1); }}
+                    onChange={(e) => { setNotifDateFrom(e.target.value); setNotifPage(1); setSelectedNotifIds([]); }}
                   />
                 </div>
 
@@ -7106,7 +7187,7 @@ export const SuperadminDashboard: React.FC = () => {
                   <Input
                     type="date"
                     value={notifDateTo}
-                    onChange={(e) => { setNotifDateTo(e.target.value); setNotifPage(1); }}
+                    onChange={(e) => { setNotifDateTo(e.target.value); setNotifPage(1); setSelectedNotifIds([]); }}
                   />
                 </div>
               </div>
@@ -7122,6 +7203,7 @@ export const SuperadminDashboard: React.FC = () => {
                     setNotifDateFrom('');
                     setNotifDateTo('');
                     setNotifPage(1);
+                    setSelectedNotifIds([]);
                   }}
                   style={{ color: '#c9a84c' }}
                 >
@@ -7144,10 +7226,18 @@ export const SuperadminDashboard: React.FC = () => {
                 <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ background: 'rgba(201, 168, 76, 0.08)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.5px' }}>
+                      <th style={{ padding: '14px 14px', width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={notifItems.length > 0 && selectedNotifIds.length === notifItems.length}
+                          onChange={handleSelectAllNotifs}
+                          style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                        />
+                      </th>
                       <th style={{ padding: '14px 18px' }}>Notification</th>
                       <th style={{ padding: '14px 18px' }}>Category</th>
                       <th style={{ padding: '14px 18px' }}>Severity</th>
-                      <th style={{ padding: '14px 18px' }}>Date & Time</th>
+                      <th style={{ padding: '14px 18px' }}>Date &amp; Time</th>
                       <th style={{ padding: '14px 18px' }}>Status</th>
                       <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
                     </tr>
@@ -7188,10 +7278,23 @@ export const SuperadminDashboard: React.FC = () => {
                           key={n.id}
                           style={{
                             borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            background: n.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.04)',
+                            background: selectedNotifIds.includes(n.id)
+                              ? 'rgba(201, 168, 76, 0.12)'
+                              : n.is_read
+                              ? 'transparent'
+                              : 'rgba(201, 168, 76, 0.04)',
                             transition: 'background 0.2s ease',
                           }}
                         >
+                          {/* Checkbox */}
+                          <td style={{ padding: '14px 14px', width: '40px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedNotifIds.includes(n.id)}
+                              onChange={() => handleToggleNotifSelect(n.id)}
+                              style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                            />
+                          </td>
                           {/* Title & snippet */}
                           <td style={{ padding: '14px 18px', maxWidth: '320px' }}>
                             <div style={{ fontWeight: n.is_read ? 600 : 700, color: '#f5efe6', fontSize: '0.88rem', marginBottom: '3px' }}>

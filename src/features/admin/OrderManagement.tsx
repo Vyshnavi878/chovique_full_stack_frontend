@@ -14,9 +14,11 @@ import {
   Phone,
   Mail,
   Truck,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { Pagination } from '../../components/ui/Pagination';
+import { exportToCSV } from '../../utils/exportCsv';
 
 // ─── Status Definitions ───────────────────────────────────────────────────────
 
@@ -449,7 +451,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [fulfillmentFilter, setFulfillmentFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(5);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [dbOrderData, setDbOrderData] = useState<any>(null);
 
@@ -552,14 +554,24 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
           <span className="section-label">Order Operations</span>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', color: 'var(--cream)', margin: 0 }}>Order Management</h1>
         </div>
-        <button
-          onClick={fetchDbOrders}
-          disabled={ordersLoading}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(201,168,76,0.35)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold)' }}
-        >
-          {ordersLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={15} />}
-          Refresh
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={() => exportToCSV('Order_Management_Export', ordersList)}
+            disabled={ordersList.length === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: ordersList.length === 0 ? 'not-allowed' : 'pointer', border: '1px solid rgba(201,168,76,0.35)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold)' }}
+          >
+            <FileSpreadsheet size={15} />
+            Export CSV
+          </button>
+          <button
+            onClick={fetchDbOrders}
+            disabled={ordersLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(201,168,76,0.35)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold)' }}
+          >
+            {ordersLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={15} />}
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px', marginBottom: '26px' }}>

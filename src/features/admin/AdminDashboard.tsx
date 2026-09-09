@@ -38,8 +38,10 @@ import {
   Video,
   Headphones,
   MapPin,
-  Edit3
+  Edit3,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { exportToCSV } from '../../utils/exportCsv';
 import { useApp } from '../../app/providers';
 import { Sidebar } from '../../components/Sidebar';
 import { Input, Select } from '../../components/ui/Input';
@@ -152,6 +154,15 @@ export const AdminDashboard: React.FC = () => {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
   const [pendingBatchProducts, setPendingBatchProducts] = useState<any[]>([]);
+  const [showOfflineSalesModal, setShowOfflineSalesModal] = useState(false);
+
+  // --- Pagination States for Admin Views ---
+  const [recentOrdersPage, setRecentOrdersPage] = useState<number>(1);
+  const [lowStockPage, setLowStockPage] = useState<number>(1);
+  const [couponsPage, setCouponsPage] = useState<number>(1);
+  const [testimonialsPage, setTestimonialsPage] = useState<number>(1);
+  const [complaintsPage, setComplaintsPage] = useState<number>(1);
+  const [contactMessagesPage, setContactMessagesPage] = useState<number>(1);
 
   // --- Toast Notifications State ---
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -2066,28 +2077,28 @@ export const AdminDashboard: React.FC = () => {
             {dashboardLoading ? (
               <DashboardKpiSkeleton />
             ) : (
-              <div className="admin-kpi-grid" style={{ display: 'grid', gap: '20px', marginBottom: '30px' }}>
+              <div className="admin-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '30px' }}>
                 {/* Total Orders Card */}
                 <div
                   className="glass-panel"
                   style={{
-                    padding: '22px 20px',
+                    padding: '16px 14px',
                     border: '1px solid var(--glass-border)',
                     borderRadius: '8px',
                     background: 'rgba(26, 13, 0, 0.4)',
                     boxShadow: 'var(--glass-shadow)',
                   }}
                 >
-                  <span style={{ fontSize: '0.82rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Total Orders
                   </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.4rem' : '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '6px 0 4px 0' }}>
                     {dashboardStats?.total_orders ?? (orders.length > 0 ? orders.length : 0)}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#4CC978', flexWrap: 'wrap' }}>
                     <TrendingUp size={14} />
                     <span>+8.2%</span>
-                    <span style={{ color: 'var(--grey-mid)' }}>vs last 7 days</span>
+                    <span style={{ color: 'var(--grey-mid)', fontSize: '0.7rem' }}>vs 7d</span>
                   </div>
                 </div>
 
@@ -2095,23 +2106,23 @@ export const AdminDashboard: React.FC = () => {
                 <div
                   className="glass-panel"
                   style={{
-                    padding: '22px 20px',
+                    padding: '16px 14px',
                     border: '1px solid var(--glass-border)',
                     borderRadius: '8px',
                     background: 'rgba(26, 13, 0, 0.4)',
                     boxShadow: 'var(--glass-shadow)',
                   }}
                 >
-                  <span style={{ fontSize: '0.82rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Total Customers
                   </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '8px 0 6px 0' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.4rem' : '2.1rem', color: 'var(--cream)', fontWeight: 700, margin: '6px 0 4px 0' }}>
                     {dashboardStats?.total_customers ?? (systemUsers.length > 0 ? systemUsers.length : 0)}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#4CC978', flexWrap: 'wrap' }}>
                     <TrendingUp size={14} />
                     <span>+6.7%</span>
-                    <span style={{ color: 'var(--grey-mid)' }}>vs last 7 days</span>
+                    <span style={{ color: 'var(--grey-mid)', fontSize: '0.7rem' }}>vs 7d</span>
                   </div>
                 </div>
 
@@ -2119,23 +2130,23 @@ export const AdminDashboard: React.FC = () => {
                 <div
                   className="glass-panel"
                   style={{
-                    padding: '22px 20px',
+                    padding: '16px 14px',
                     border: '1px solid var(--glass-border)',
                     borderRadius: '8px',
                     background: 'rgba(26, 13, 0, 0.4)',
                     boxShadow: 'var(--glass-shadow)',
                   }}
                 >
-                  <span style={{ fontSize: '0.82rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-                    Reward Coins Issued
+                  <span style={{ fontSize: '0.72rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Reward Coins
                   </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.1rem', color: 'var(--gold)', fontWeight: 700, margin: '8px 0 6px 0' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.4rem' : '2.1rem', color: 'var(--gold)', fontWeight: 700, margin: '6px 0 4px 0' }}>
                     {(dashboardStats?.reward_coins_issued ?? 0).toLocaleString()}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4CC978' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#4CC978', flexWrap: 'wrap' }}>
                     <TrendingUp size={14} />
                     <span>+13.3%</span>
-                    <span style={{ color: 'var(--grey-mid)' }}>vs last 7 days</span>
+                    <span style={{ color: 'var(--grey-mid)', fontSize: '0.7rem' }}>vs 7d</span>
                   </div>
                 </div>
               </div>
@@ -2223,135 +2234,155 @@ export const AdminDashboard: React.FC = () => {
               {dashboardLoading ? (
                 <DashboardCardSkeleton height="360px" />
               ) : (
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'rgba(26,13,0,0.4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
-                      Recent Orders
-                    </h3>
-                    <Button variant="text" size="sm" onClick={() => setActiveTab('orders')} style={{ color: 'var(--gold)' }}>
-                      View Management &rarr;
-                    </Button>
-                  </div>
-
-                  {recentOrders.length === 0 ? (
-                    <EmptyState title="No Recent Orders" description="No orders available yet." />
-                  ) : isMobileGrid ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                      {recentOrders.slice(0, 5).map((ord: any) => {
-                        const orderId = ord.id || ord.order_id || 'ORD-00000';
-                        const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
-                        const totalAmt = ord.amount ?? ord.total ?? 0;
-                        const ordStatus = ord.status || 'Processing';
-                        const ordDate = ord.created_at || (ord.date || 'Today');
-
-                        let badgeBg = '#f39c12';
-                        if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
-                        if (ordStatus === 'Shipped') badgeBg = '#3498db';
-                        if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
-                        if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
-
-                        return (
-                          <div 
-                            key={orderId} 
-                            style={{ 
-                              padding: '16px', 
-                              borderRadius: '8px', 
-                              background: 'rgba(255,255,255,0.03)', 
-                              border: '1px solid rgba(255,255,255,0.06)' 
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                              <span onClick={() => setActiveTab('orders')} style={{ color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>{orderId}</span>
-                              <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600, background: `${badgeBg}22`, border: `1px solid ${badgeBg}`, color: badgeBg }}>{ordStatus}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                              <div>
-                                <div 
-                                  style={{ color: 'var(--cream)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginBottom: '4px' }} 
-                                  onClick={() => {
-                                    setActiveTab('customers');
-                                    const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
-                                    if (matchingUser) handleSelectCustomer(matchingUser);
-                                  }}
-                                >
-                                  {custName}
-                                </div>
-                                <div style={{ color: 'var(--beige)', fontSize: '0.75rem' }}>{ordDate}</div>
-                              </div>
-                              <div style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '1rem' }}>
-                                ₹{Number(totalAmt).toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>
+                        Recent Orders
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Button variant="secondary" size="sm" onClick={() => setShowOfflineSalesModal(true)} style={{ fontSize: '0.8rem', padding: '5px 12px' }}>
+                          All Offline Sales
+                        </Button>
+                        <Button variant="text" size="sm" onClick={() => setActiveTab('orders')} style={{ color: 'var(--gold)' }}>
+                          View Management &rarr;
+                        </Button>
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="admin-table" style={{ fontSize: '0.85rem' }}>
-                        <thead>
-                          <tr>
-                            <th>Order ID</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentOrders.slice(0, 5).map((ord: any) => {
-                            const orderId = ord.id || ord.order_id || 'ORD-00000';
-                            const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
-                            const totalAmt = ord.amount ?? ord.total ?? 0;
-                            const ordStatus = ord.status || 'Processing';
-                            const ordDate = ord.created_at || (ord.date || 'Today');
 
-                            let badgeBg = '#f39c12';
-                            if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
-                            if (ordStatus === 'Shipped') badgeBg = '#3498db';
-                            if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
-                            if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
+                    {recentOrders.length === 0 ? (
+                      <EmptyState title="No Recent Orders" description="No orders available yet." />
+                    ) : isMobileGrid ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                        {recentOrders.slice((recentOrdersPage - 1) * 5, recentOrdersPage * 5).map((ord: any) => {
+                          const orderId = ord.id || ord.order_id || 'ORD-00000';
+                          const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
+                          const totalAmt = ord.amount ?? ord.total ?? 0;
+                          const ordStatus = ord.status || 'Processing';
+                          const ordDate = ord.created_at || (ord.date || 'Today');
 
-                            return (
-                              <tr key={orderId} style={{ cursor: 'pointer' }}>
-                                <td
-                                  onClick={() => setActiveTab('orders')}
-                                  style={{ color: 'var(--gold)', fontWeight: 600 }}
-                                >
-                                  {orderId}
-                                </td>
-                                <td
-                                  onClick={() => {
-                                    setActiveTab('customers');
-                                    const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
-                                    if (matchingUser) handleSelectCustomer(matchingUser);
-                                  }}
-                                  style={{ color: 'var(--cream)' }}
-                                >
-                                  {custName}
-                                </td>
-                                <td style={{ color: 'var(--cream)', fontWeight: 600 }}>₹{Number(totalAmt).toLocaleString()}</td>
-                                <td>
-                                  <span
-                                    style={{
-                                      padding: '4px 10px',
-                                      borderRadius: '12px',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 600,
-                                      background: `${badgeBg}22`,
-                                      border: `1px solid ${badgeBg}`,
-                                      color: badgeBg,
+                          let badgeBg = '#f39c12';
+                          if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
+                          if (ordStatus === 'Shipped') badgeBg = '#3498db';
+                          if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
+                          if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
+
+                          return (
+                            <div 
+                              key={orderId} 
+                              style={{ 
+                                padding: '16px', 
+                                borderRadius: '8px', 
+                                background: 'rgba(255,255,255,0.03)', 
+                                border: '1px solid rgba(255,255,255,0.06)' 
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <span onClick={() => setActiveTab('orders')} style={{ color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }} title={orderId}>{orderId}</span>
+                                <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600, background: `${badgeBg}22`, border: `1px solid ${badgeBg}`, color: badgeBg }}>{ordStatus}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                <div>
+                                  <div 
+                                    style={{ color: 'var(--cream)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginBottom: '4px' }} 
+                                    onClick={() => {
+                                      setActiveTab('customers');
+                                      const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
+                                      if (matchingUser) handleSelectCustomer(matchingUser);
                                     }}
                                   >
-                                    {ordStatus}
-                                  </span>
-                                </td>
-                                <td style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>{ordDate}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                    {custName}
+                                  </div>
+                                  <div style={{ color: 'var(--beige)', fontSize: '0.75rem' }}>{ordDate}</div>
+                                </div>
+                                <div style={{ color: 'var(--cream)', fontWeight: 700, fontSize: '1rem' }}>
+                                  ₹{Number(totalAmt).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                          <thead>
+                            <tr>
+                              <th>Order ID</th>
+                              <th>Customer</th>
+                              <th>Amount</th>
+                              <th>Status</th>
+                              <th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recentOrders.slice((recentOrdersPage - 1) * 5, recentOrdersPage * 5).map((ord: any) => {
+                              const orderId = ord.id || ord.order_id || 'ORD-00000';
+                              const custName = ord.customer_name || ord.name || ord.shippingAddress?.name || ord.shipping_address?.name || 'Customer';
+                              const totalAmt = ord.amount ?? ord.total ?? 0;
+                              const ordStatus = ord.status || 'Processing';
+                              const ordDate = ord.created_at || (ord.date || 'Today');
+
+                              let badgeBg = '#f39c12';
+                              if (ordStatus === 'Delivered') badgeBg = '#2ecc71';
+                              if (ordStatus === 'Shipped') badgeBg = '#3498db';
+                              if (ordStatus === 'Out for Delivery' || ordStatus === 'Out_For_Delivery') badgeBg = '#16a085';
+                              if (ordStatus === 'Cancelled') badgeBg = '#e74c3c';
+
+                              return (
+                                <tr key={orderId} style={{ cursor: 'pointer' }}>
+                                  <td
+                                    onClick={() => setActiveTab('orders')}
+                                    style={{ color: 'var(--gold)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}
+                                    title={orderId}
+                                  >
+                                    {orderId}
+                                  </td>
+                                  <td
+                                    onClick={() => {
+                                      setActiveTab('customers');
+                                      const matchingUser = systemUsers.find(u => u.name.toLowerCase() === custName.toLowerCase());
+                                      if (matchingUser) handleSelectCustomer(matchingUser);
+                                    }}
+                                    style={{ color: 'var(--cream)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}
+                                  >
+                                    {custName}
+                                  </td>
+                                  <td style={{ color: 'var(--cream)', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{Number(totalAmt).toLocaleString()}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>
+                                    <span
+                                      style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 600,
+                                        background: `${badgeBg}22`,
+                                        border: `1px solid ${badgeBg}`,
+                                        color: badgeBg,
+                                      }}
+                                    >
+                                      {ordStatus}
+                                    </span>
+                                  </td>
+                                  <td style={{ color: 'var(--beige)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{ordDate}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {recentOrders.length > 5 && (
+                    <div style={{ marginTop: '16px' }}>
+                      <Pagination
+                        currentPage={recentOrdersPage}
+                        totalPages={Math.ceil(recentOrders.length / 5)}
+                        totalItems={recentOrders.length}
+                        itemsPerPage={5}
+                        onPageChange={(p) => setRecentOrdersPage(p)}
+                      />
                     </div>
                   )}
                 </div>
@@ -2376,7 +2407,7 @@ export const AdminDashboard: React.FC = () => {
                       <EmptyState title="Stock Healthy" description="All products currently have sufficient inventory stock." />
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {lowStockProducts.slice(0, 4).map((prod: any) => (
+                        {lowStockProducts.slice((lowStockPage - 1) * 4, lowStockPage * 4).map((prod: any) => (
                           <div
                             key={prod.id}
                             onClick={() => {
@@ -2420,10 +2451,23 @@ export const AdminDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  <div style={{ textAlign: 'right', marginTop: '16px' }}>
-                    <Button variant="gold" size="sm" onClick={() => setActiveTab('products')}>
-                      View Products
-                    </Button>
+                  <div>
+                    {lowStockProducts.length > 4 && (
+                      <div style={{ marginTop: '16px', marginBottom: '12px' }}>
+                        <Pagination
+                          currentPage={lowStockPage}
+                          totalPages={Math.ceil(lowStockProducts.length / 4)}
+                          totalItems={lowStockProducts.length}
+                          itemsPerPage={4}
+                          onPageChange={(p) => setLowStockPage(p)}
+                        />
+                      </div>
+                    )}
+                    <div style={{ textAlign: 'right' }}>
+                      <Button variant="gold" size="sm" onClick={() => setActiveTab('products')}>
+                        View Products
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -4597,7 +4641,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* OFFLINE SALES TAB */}
         {activeTab === 'offline-sales' && (
-          <OfflineSalesView addToast={addToast} />
+          <OfflineSalesView addToast={addToast} currentUserRole={role || user?.role} />
         )}
 
         {/* COUPONS TAB */}
@@ -4637,73 +4681,119 @@ export const AdminDashboard: React.FC = () => {
                   </Button>
                 </div>
 
-                {/* Coupons List */}
-                <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>Active &amp; Past Coupons</h3>
-                  {couponsList.length === 0 ? (
-                    <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      {couponsList.map((c: any) => {
-                        const isExpired = c.status === 'EXPIRED' || c.status === 'Expired' || (c.usage_limit > 0 && (c.usage_count || 0) >= c.usage_limit) || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
-                        const isInactive = !c.is_active || c.status === 'INACTIVE';
-                        const cType = c.coupon_type || 'CUSTOMER';
-
-                        return (
-                          <div key={c.id || c.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--gold)' }}>{c.code}</span>
-                                <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: cType === 'INFLUENCER' ? 'rgba(155,89,182,0.2)' : 'rgba(52,152,219,0.2)', color: cType === 'INFLUENCER' ? '#9b59b6' : '#3498db', borderRadius: '4px', fontWeight: 700 }}>
-                                  {cType}
-                                </span>
-                                {isExpired ? (
-                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(231,76,60,0.2)', color: '#e74c3c', borderRadius: '4px', fontWeight: 700 }}>
-                                    EXPIRED
-                                  </span>
-                                ) : isInactive ? (
-                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(149,165,166,0.2)', color: '#95a5a6', borderRadius: '4px', fontWeight: 700 }}>
-                                    INACTIVE
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: '0.68rem', padding: '2px 8px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
-                                    ACTIVE
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--beige)', marginTop: '4px' }}>{c.description}</div>
-                              <div style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
-                                {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
-                                <span style={{ color: 'var(--grey-light)', marginLeft: '12px' }}>(Times Used: {c.usage_count || 0})</span>
-                              </div>
-                              {c.expires_at && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '4px' }}>
-                                  Expires: {new Date(c.expires_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button 
-                                onClick={() => setEditingCoupon({ ...c })}
-                                style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Edit Coupon"
-                              >
-                                <Edit2 size={14} /> Edit
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteCoupon(c.code)}
-                                style={{ background: 'rgba(255,0,0,0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Delete Coupon"
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                {/* Coupons List - 2 Cards per line (6 per page) */}
+                <div className="glass-panel" style={{ padding: '20px 24px', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
+                        Active &amp; Past Coupons ({couponsList.length})
+                      </h3>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--beige)' }}>
+                        Displaying 2 coupons per line (6 per page)
+                      </span>
                     </div>
-                  )}
-                </div>
+
+                    {couponsList.length === 0 ? (
+                      <p style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>No coupons found.</p>
+                    ) : (
+                      <>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                            gap: '16px',
+                            marginBottom: '20px',
+                          }}
+                        >
+                          {couponsList.slice((couponsPage - 1) * 6, couponsPage * 6).map((c: any) => {
+                            const isExpired = c.status === 'EXPIRED' || c.status === 'Expired' || (c.usage_limit > 0 && (c.usage_count || 0) >= c.usage_limit) || (c.expires_at ? new Date(c.expires_at) < new Date() : false);
+                            const isInactive = !c.is_active || c.status === 'INACTIVE';
+                            const cType = c.coupon_type || 'CUSTOMER';
+
+                            return (
+                              <div
+                                key={c.id || c.code}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  padding: '16px',
+                                  background: 'rgba(15, 12, 9, 0.75)',
+                                  borderRadius: '10px',
+                                  border: '1px solid rgba(201, 168, 76, 0.25)',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                  gap: '12px',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--gold)', letterSpacing: '0.5px' }}>{c.code}</span>
+                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.65rem', padding: '2px 7px', background: cType === 'INFLUENCER' ? 'rgba(155,89,182,0.2)' : 'rgba(52,152,219,0.2)', color: cType === 'INFLUENCER' ? '#9b59b6' : '#3498db', borderRadius: '4px', fontWeight: 700 }}>
+                                        {cType}
+                                      </span>
+                                      {isExpired ? (
+                                        <span style={{ fontSize: '0.65rem', padding: '2px 7px', background: 'rgba(231,76,60,0.2)', color: '#e74c3c', borderRadius: '4px', fontWeight: 700 }}>
+                                          EXPIRED
+                                        </span>
+                                      ) : isInactive ? (
+                                        <span style={{ fontSize: '0.65rem', padding: '2px 7px', background: 'rgba(149,165,166,0.2)', color: '#95a5a6', borderRadius: '4px', fontWeight: 700 }}>
+                                          INACTIVE
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '0.65rem', padding: '2px 7px', background: 'rgba(46,204,113,0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: 700 }}>
+                                          ACTIVE
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ fontSize: '0.82rem', color: 'var(--beige)', lineHeight: 1.4, minHeight: '36px' }}>
+                                    {c.description || c.name || 'No description provided'}
+                                  </div>
+
+                                  <div style={{ fontSize: '0.85rem', color: '#2ecc71', fontWeight: 700, marginTop: '8px' }}>
+                                    {c.discount_type === 'PERCENTAGE' ? `${c.discount_percent}% OFF` : c.discount_type === 'FIXED_AMOUNT' ? `₹${c.discount_amount} OFF` : 'FREE SHIPPING'}
+                                    <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.74rem', marginLeft: '8px', fontWeight: 400 }}>
+                                      (Used: {c.usage_count || 0})
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                  <button 
+                                    onClick={() => setEditingCoupon({ ...c })}
+                                    style={{ flex: 1, background: 'rgba(201,168,76,0.12)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '6px', cursor: 'pointer', padding: '6px 10px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                    title="Edit Coupon"
+                                  >
+                                    <Edit2 size={13} /> Edit
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteCoupon(c.code)}
+                                    style={{ flex: 1, background: 'rgba(231,76,60,0.12)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '6px', cursor: 'pointer', padding: '6px 10px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                    title="Delete Coupon"
+                                  >
+                                    <Trash2 size={13} /> Delete
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {couponsList.length > 6 && (
+                          <div style={{ marginTop: '16px' }}>
+                            <Pagination
+                              currentPage={couponsPage}
+                              totalPages={Math.ceil(couponsList.length / 6)}
+                              totalItems={couponsList.length}
+                              itemsPerPage={6}
+                              onPageChange={(p) => setCouponsPage(p)}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
 
                 {/* Edit Coupon Modal */}
                 {editingCoupon && (
@@ -5085,290 +5175,333 @@ export const AdminDashboard: React.FC = () => {
         {/* HELP & COMPLAINTS PANEL */}
         {activeTab === 'complaints' && (
           <div>
-            <div style={{ marginBottom: '24px' }}>
-              <span className="section-label">Support Helpdesk</span>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 0 0', lineHeight: 1.2 }}>
-                Customer Support Ledger
-              </h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <span className="section-label">Support Helpdesk</span>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 0 0', lineHeight: 1.2 }}>
+                  Customer Support Ledger
+                </h1>
+              </div>
+              <Button
+                variant="glass"
+                onClick={() => exportToCSV('Customer_Complaints_Ledger', tickets)}
+                disabled={tickets.length === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '8px 14px', border: '1px solid rgba(201,168,76,0.35)', color: '#c9a84c' }}
+              >
+                <FileSpreadsheet size={15} /> Export CSV
+              </Button>
             </div>
 
             {/* Support Ticket Summary Counters */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Complaints</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0' }}>{tickets.length}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobileGrid ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '18px' }}>
+              <div className="glass-panel" style={{ padding: '12px 14px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Complaints</span>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0 0' }}>{tickets.length}</h3>
               </div>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Pending Resolution</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: 'var(--rose-gold)' }}>
+              <div className="glass-panel" style={{ padding: '12px 14px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Resolution</span>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0 0', color: 'var(--rose-gold)' }}>
                   {tickets.filter(t => t.status === 'Pending').length}
                 </h3>
               </div>
-              <div className="glass-panel" style={{ padding: '20px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Resolved Issues</span>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '8px 0 0 0', color: '#2ecc71' }}>
+              <div className="glass-panel" style={{ padding: '12px 14px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resolved Issues</span>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0 0', color: '#2ecc71' }}>
                   {tickets.filter(t => t.status === 'Resolved').length}
                 </h3>
               </div>
             </div>
 
-            {/* Support Ticket Directory List */}
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                Support Complaints Log
-              </h3>
+            {/* Support Ticket Directory List (2 Cards per line, 6 per page) */}
+            <div className="glass-panel" style={{ padding: '14px 18px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', margin: 0 }}>
+                  Support Complaints Log ({tickets.length})
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--beige)' }}>
+                  Displaying 2 complaints per line (6 per page)
+                </span>
+              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
                 {tickets.length === 0 ? (
-                  <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--grey-light)', fontStyle: 'italic', padding: '16px', textAlign: 'center' }}>
                     No customer complaints registered.
                   </p>
                 ) : (
-                  tickets.map((t) => {
-                    const isClosedOrResolved = t.status === 'Resolved' || t.status === 'Closed';
-                    const currentSelectedStatus = ticketStatusMap[t.id] ?? t.status;
-                    return (
-                      <div
-                        key={t.id}
-                        style={{
-                          padding: '20px',
-                          background: 'rgba(0,0,0,0.15)',
-                          borderRadius: '8px',
-                          borderLeft: isClosedOrResolved ? '4px solid #2ecc71' : '4px solid var(--gold)',
-                          borderTop: '1px solid var(--glass-border)',
-                          borderRight: '1px solid var(--glass-border)',
-                          borderBottom: '1px solid var(--glass-border)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'flex-start', gap: '8px', marginBottom: '12px' }}>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700, wordBreak: 'break-all' }}>
-                              {t.id} · {t.category}
-                            </span>
-                            <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: isMobileGrid ? '0.95rem' : '1.1rem', wordBreak: 'break-word' }}>
-                              {t.customerName} ({t.customerId})
-                            </h4>
-                          </div>
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              padding: '3px 10px',
-                              borderRadius: '20px',
-                              fontWeight: 700,
-                              flexShrink: 0,
-                              alignSelf: isMobileGrid ? 'flex-start' : 'flex-start',
-                              background: isClosedOrResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
-                              color: isClosedOrResolved ? '#2ecc71' : 'var(--gold)',
-                              border: `1px solid ${isClosedOrResolved ? '#2ecc71' : 'var(--gold)'}`,
-                            }}
-                          >
-                            {t.status}
-                          </span>
-                        </div>
-
-                        {/* Stored Order Relationship Display */}
-                        {(() => {
-                          const relatedOrderId = t.orderId || t.order_id;
-                          return relatedOrderId ? (
-                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                              <span style={{ color: 'var(--beige)' }}>
-                                Related Order: <strong style={{ color: 'var(--gold)', fontFamily: 'monospace' }}>#{relatedOrderId}</strong>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    const ord = await orderService.getOrder(relatedOrderId);
-                                    setViewingComplaintOrder(ord);
-                                  } catch (err: any) {
-                                    addToast('error', err?.detail || err?.message || 'Failed to load related order details.', 'Order Error');
-                                  }
-                                }}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                      gap: '16px',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    {tickets.slice((complaintsPage - 1) * 6, complaintsPage * 6).map((t) => {
+                      const isClosedOrResolved = t.status === 'Resolved' || t.status === 'Closed';
+                      const currentSelectedStatus = ticketStatusMap[t.id] ?? t.status;
+                      return (
+                        <div
+                          key={t.id}
+                          style={{
+                            padding: '14px 16px',
+                            background: 'rgba(12, 10, 8, 0.75)',
+                            borderRadius: '10px',
+                            borderLeft: isClosedOrResolved ? '4px solid #2ecc71' : '4px solid var(--gold)',
+                            borderTop: '1px solid var(--glass-border)',
+                            borderRight: '1px solid var(--glass-border)',
+                            borderBottom: '1px solid var(--glass-border)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'flex-start', gap: '8px', marginBottom: '10px' }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 700, wordBreak: 'break-all' }}>
+                                  {t.id} · {t.category}
+                                </span>
+                                <h4 style={{ margin: '4px 0 0 0', color: 'var(--cream)', fontSize: isMobileGrid ? '0.95rem' : '1.05rem', wordBreak: 'break-word' }}>
+                                  {t.customerName} ({t.customerId})
+                                </h4>
+                              </div>
+                              <span
                                 style={{
+                                  fontSize: '0.72rem',
                                   padding: '3px 10px',
-                                  fontSize: '0.75rem',
-                                  background: 'rgba(201, 168, 76, 0.15)',
-                                  color: 'var(--gold)',
-                                  border: '1px solid rgba(201, 168, 76, 0.35)',
+                                  borderRadius: '20px',
+                                  fontWeight: 700,
+                                  flexShrink: 0,
+                                  alignSelf: isMobileGrid ? 'flex-start' : 'flex-start',
+                                  background: isClosedOrResolved ? 'rgba(46, 204, 113, 0.15)' : 'rgba(201, 168, 76, 0.15)',
+                                  color: isClosedOrResolved ? '#2ecc71' : 'var(--gold)',
+                                  border: `1px solid ${isClosedOrResolved ? '#2ecc71' : 'var(--gold)'}`,
+                                }}
+                              >
+                                {t.status}
+                              </span>
+                            </div>
+
+                            {/* Stored Order Relationship Display */}
+                            {(() => {
+                              const relatedOrderId = t.orderId || t.order_id;
+                              return relatedOrderId ? (
+                                <div style={{ margin: '4px 0 10px 0', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ color: 'var(--beige)' }}>
+                                    Order: <strong style={{ color: 'var(--gold)', fontFamily: 'monospace' }}>#{relatedOrderId}</strong>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const ord = await orderService.getOrder(relatedOrderId);
+                                        setViewingComplaintOrder(ord);
+                                      } catch (err: any) {
+                                        addToast('error', err?.detail || err?.message || 'Failed to load related order details.', 'Order Error');
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '2px 8px',
+                                      fontSize: '0.72rem',
+                                      background: 'rgba(201, 168, 76, 0.15)',
+                                      color: 'var(--gold)',
+                                      border: '1px solid rgba(201, 168, 76, 0.35)',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <ExternalLink size={12} /> View Order
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ margin: '4px 0 10px 0', fontSize: '0.78rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
+                                  No related order
+                                </div>
+                              );
+                            })()}
+
+                            <p style={{ fontSize: '0.88rem', color: 'var(--beige)', lineHeight: '1.45', margin: '0 0 10px 0' }}>
+                              {t.description}
+                            </p>
+
+                            {t.adminNotes && (
+                              <div
+                                style={{
+                                  padding: '10px',
+                                  background: 'rgba(255,255,255,0.03)',
+                                  border: '1px solid var(--glass-border)',
                                   borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  fontWeight: 600,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
+                                  fontSize: '0.82rem',
+                                  color: 'var(--cream)',
+                                  marginBottom: '10px',
                                 }}
                               >
-                                <ExternalLink size={12} /> View Related Order
-                              </button>
-                            </div>
-                          ) : (
-                            <div style={{ margin: '4px 0 12px 0', fontSize: '0.8rem', color: 'var(--grey-light)', fontStyle: 'italic' }}>
-                              No related order
-                            </div>
-                          );
-                        })()}
+                                <span style={{ color: 'var(--gold)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                                  Admin Resolution Notes:
+                                </span>
+                                {t.adminNotes}
+                              </div>
+                            )}
 
-                        <p style={{ fontSize: '0.9rem', color: 'var(--beige)', lineHeight: '1.5', margin: '0 0 15px 0' }}>
-                          {t.description}
-                        </p>
-
-                        {t.adminNotes && (
-                          <div
-                            style={{
-                              padding: '12px',
-                              background: 'rgba(255,255,255,0.03)',
-                              border: '1px solid var(--glass-border)',
-                              borderRadius: '4px',
-                              fontSize: '0.85rem',
-                              color: 'var(--cream)',
-                              marginBottom: '10px',
-                            }}
-                          >
-                            <span style={{ color: 'var(--gold)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                              Admin Resolution Notes:
-                            </span>
-                            {t.adminNotes}
+                            {t.customerResolutionFeedback && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '6px', marginBottom: '10px' }}>
+                                <span style={{ fontWeight: 600 }}>Customer Feedback:</span>
+                                <span>{t.customerResolutionFeedback === 'Resolved' ? 'Confirmed Resolved ✓' : 'Reported Unresolved ✗'}</span>
+                              </div>
+                            )}
                           </div>
-                        )}
 
-                        {t.customerResolutionFeedback && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: t.customerResolutionFeedback === 'Resolved' ? '#2ecc71' : 'var(--rose-gold)', marginTop: '8px', marginBottom: '10px' }}>
-                            <span style={{ fontWeight: 600 }}>Customer Feedback:</span>
-                            <span>{t.customerResolutionFeedback === 'Resolved' ? 'Confirmed Resolved ✓' : 'Reported Unresolved ✗'}</span>
-                          </div>
-                        )}
-
-                        {!isClosedOrResolved && (
-                          <form
-                            onSubmit={async (e) => {
-                              e.preventDefault();
-                              const form = e.currentTarget;
-                              const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
-                              const action = (e.nativeEvent as any).submitter.name;
-                              
-                              if (action === 'update_status') {
-                                const status = currentSelectedStatus;
-                                try {
-                                  await updateSupportTicketStatus(t.id, status, notes);
-                                  addToast('success', `Ticket ${t.id} status updated to ${status}. Customer notified.`, 'Status Updated');
-                                } catch (err: any) {
-                                  addToast('error', err?.detail || err?.message || 'Failed to update ticket status.', 'Update Error');
-                                  setTicketStatusMap((prev) => ({ ...prev, [t.id]: t.status }));
+                          {!isClosedOrResolved && (
+                            <form
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                const form = e.currentTarget;
+                                const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement).value;
+                                const action = (e.nativeEvent as any).submitter.name;
+                                
+                                if (action === 'update_status') {
+                                  const status = currentSelectedStatus;
+                                  try {
+                                    await updateSupportTicketStatus(t.id, status, notes);
+                                    addToast('success', `Ticket ${t.id} status updated to ${status}. Customer notified.`, 'Status Updated');
+                                  } catch (err: any) {
+                                    addToast('error', err?.detail || err?.message || 'Failed to update ticket status.', 'Update Error');
+                                    setTicketStatusMap((prev) => ({ ...prev, [t.id]: t.status }));
+                                  }
+                                } else if (action === 'resolve') {
+                                  try {
+                                    await resolveSupportTicket(t.id, notes);
+                                    addToast('success', `Ticket ${t.id} resolved and customer notified.`, 'Ticket Resolved');
+                                  } catch (err: any) {
+                                    addToast('error', err?.detail || err?.message || 'Failed to resolve ticket. Ensure you have updated the status at least twice.', 'Resolve Error');
+                                  }
                                 }
-                              } else if (action === 'resolve') {
-                                try {
-                                  await resolveSupportTicket(t.id, notes);
-                                  addToast('success', `Ticket ${t.id} resolved and customer notified.`, 'Ticket Resolved');
-                                } catch (err: any) {
-                                  addToast('error', err?.detail || err?.message || 'Failed to resolve ticket. Ensure you have updated the status at least twice.', 'Resolve Error');
-                                }
-                              }
-                            }}
-                            style={{ marginTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}
-                          >
-                            {/* Status dropdown */}
-                            <div style={{ marginBottom: '10px' }}>
-                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--beige)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Update Status
-                              </label>
-                              <select
-                                name="status"
-                                value={currentSelectedStatus}
-                                onChange={(e) => setTicketStatusMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                                style={{
-                                  width: '100%',
-                                  padding: '10px 12px',
-                                  background: 'rgba(0,0,0,0.35)',
-                                  border: '1px solid var(--glass-border)',
-                                  borderRadius: '8px',
-                                  color: 'var(--cream)',
-                                  fontSize: '0.85rem',
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                }}
-                              >
-                                <option value="Pending">Pending</option>
-                                <option value="Under Review">Under Review</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Awaiting Customer Response">Awaiting Response</option>
-                                <option value="Investigating">Investigating</option>
-                                <option value="Resolved">Resolved</option>
-                                <option value="Closed">Closed</option>
-                              </select>
-                            </div>
-                            {/* Notes */}
-                            <div style={{ marginBottom: '12px' }}>
-                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--beige)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Admin Notes (Optional)
-                              </label>
-                              <textarea
-                                key={t.adminNotes || 'notes'}
-                                name="notes"
-                                defaultValue={t.adminNotes || ''}
-                                placeholder="How is this issue being handled..."
-                                rows={2}
-                                style={{
-                                  width: '100%',
-                                  padding: '10px 12px',
-                                  background: 'rgba(0,0,0,0.35)',
-                                  border: '1px solid var(--glass-border)',
-                                  borderRadius: '8px',
-                                  color: 'var(--cream)',
-                                  fontSize: '0.85rem',
-                                  outline: 'none',
-                                  resize: 'none',
-                                  boxSizing: 'border-box',
-                                }}
-                              />
-                            </div>
-                            {/* Action buttons — full width on mobile */}
-                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                              <Button variant="secondary" size="sm" type="submit" name="update_status" style={{ flex: '1 1 110px' }}>
-                                Update Status
-                              </Button>
-                              <Button variant="gold" size="sm" type="submit" name="resolve" glow style={{ flex: '2 1 160px', display: 'flex', justifyContent: 'center' }}>
-                                Resolve &amp; Notify
-                              </Button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    );
-                  })
+                              }}
+                              style={{ marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}
+                            >
+                              {/* Status dropdown */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--beige)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                  Update Status
+                                </label>
+                                <select
+                                  name="status"
+                                  value={currentSelectedStatus}
+                                  onChange={(e) => setTicketStatusMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    background: 'rgba(0,0,0,0.35)',
+                                    border: '1px solid var(--glass-border)',
+                                    borderRadius: '6px',
+                                    color: 'var(--cream)',
+                                    fontSize: '0.82rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                  }}
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="Under Review">Under Review</option>
+                                  <option value="In Progress">In Progress</option>
+                                  <option value="Awaiting Customer Response">Awaiting Response</option>
+                                  <option value="Investigating">Investigating</option>
+                                  <option value="Resolved">Resolved</option>
+                                  <option value="Closed">Closed</option>
+                                </select>
+                              </div>
+                              {/* Notes */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--beige)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                  Admin Notes (Optional)
+                                </label>
+                                <textarea
+                                  key={t.adminNotes || 'notes'}
+                                  name="notes"
+                                  defaultValue={t.adminNotes || ''}
+                                  placeholder="How is this issue being handled..."
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    background: 'rgba(0,0,0,0.35)',
+                                    border: '1px solid var(--glass-border)',
+                                    borderRadius: '6px',
+                                    color: 'var(--cream)',
+                                    fontSize: '0.82rem',
+                                    outline: 'none',
+                                    resize: 'none',
+                                    boxSizing: 'border-box',
+                                  }}
+                                />
+                              </div>
+                              {/* Action buttons */}
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <Button variant="secondary" size="sm" type="submit" name="update_status" style={{ flex: '1 1 100px', fontSize: '0.78rem' }}>
+                                  Update Status
+                                </Button>
+                                <Button variant="gold" size="sm" type="submit" name="resolve" glow style={{ flex: '1 1 120px', display: 'flex', justifyContent: 'center', fontSize: '0.78rem' }}>
+                                  Resolve Issue
+                                </Button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
+
+              {tickets.length > 6 && (
+                <div style={{ marginTop: '16px' }}>
+                  <Pagination
+                    currentPage={complaintsPage}
+                    totalPages={Math.ceil(tickets.length / 6)}
+                    totalItems={tickets.length}
+                    itemsPerPage={6}
+                    onPageChange={(p) => setComplaintsPage(p)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* ATELIER TESTIMONIALS TAB */}
+        {/* REVIEWS TAB */}
         {activeTab === 'testimonials' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             {/* Header Section with Primary Action Buttons */}
             <div style={{ marginBottom: '16px', boxSizing: 'border-box', width: '100%' }}>
               <span className="section-label">Content Management</span>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: isMobileGrid ? '1.6rem' : '2.2rem', color: 'var(--cream)', margin: '4px 0 6px 0', fontWeight: 700, lineHeight: 1.2 }}>
-                Testimonials &amp; Story Video
+                Reviews &amp; Story Video
               </h1>
               <p style={{ fontSize: '0.85rem', color: 'var(--beige)', margin: '0 0 16px 0', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%', boxSizing: 'border-box' }}>
                 Manage customer reviews, moderation, and the Our Story crafting video.
               </p>
-              {/* Action buttons — stack on mobile, side by side on desktop */}
-              <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
+              {/* Action buttons — stack on mobile, side by side on desktop without hover overlaps */}
+              <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', gap: '12px', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
                 <Button
                   variant="gold"
                   glow
                   onClick={() => setShowAddTestimonialModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: isMobileGrid ? 'none' : '1', width: '100%', padding: '12px 16px', fontWeight: 600, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, fontSize: '0.85rem', boxSizing: 'border-box', flex: isMobileGrid ? '1 1 100%' : '0 0 auto' }}
                 >
                   <Plus size={16} />
-                  Add Testimonial
+                  Add Review
                 </Button>
 
                 <Button
                   variant="glass"
                   onClick={() => setShowUploadVideoModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: isMobileGrid ? 'none' : '1', width: '100%', padding: '12px 16px', fontWeight: 600, fontSize: '0.85rem', border: '1px solid var(--gold)', color: 'var(--gold)', boxSizing: 'border-box' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, fontSize: '0.85rem', border: '1px solid var(--gold)', color: 'var(--gold)', boxSizing: 'border-box', flex: isMobileGrid ? '1 1 100%' : '0 0 auto' }}
                 >
                   <Video size={16} />
                   {storyVideoUrl ? 'Edit / Replace Video' : 'Add Story Video'}
@@ -5376,11 +5509,16 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Section 1: Customer Testimonials List & Moderation */}
+            {/* Section 1: Customer Reviews List & Moderation (2 Cards per line, 6 per page) */}
             <div className="glass-panel" style={{ padding: isMobileGrid ? '16px' : '24px', border: '1px solid var(--glass-border)', boxSizing: 'border-box', width: '100%' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', margin: '0 0 14px 0' }}>
-                Customer Testimonials ({testimonialsList.length})
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--cream)', margin: 0 }}>
+                  Customer Reviews ({testimonialsList.length})
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--beige)' }}>
+                  Displaying 2 cards per line (6 per page)
+                </span>
+              </div>
 
               {/* Status Filter Tabs — wrap cleanly on mobile */}
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '18px' }}>
@@ -5407,90 +5545,115 @@ export const AdminDashboard: React.FC = () => {
                 ))}
               </div>
 
-              {/* Testimonials Items */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '550px', overflowY: 'auto' }}>
+              {/* Testimonials / Reviews Items Grid (2 Columns, 3 Rows = 6 per page) */}
+              <div>
                 {testimonialsList.length === 0 ? (
                   <p style={{ color: 'var(--beige)', fontStyle: 'italic', padding: '20px 0', margin: 0 }}>
-                    No testimonials found in this category.
+                    No reviews found in this category.
                   </p>
                 ) : (
-                  testimonialsList.map((t, idx) => {
-                    const st = t.status || (t.is_active ? 'approved' : 'pending');
-                    return (
-                      <div
-                        key={t.id || idx}
-                        style={{
-                          padding: '16px',
-                          background: 'rgba(255,255,255,0.03)',
-                          border: '1px solid var(--glass-border)',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)' }}>
-                            {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
-                              <Star key={i} size={14} fill="currentColor" />
-                            ))}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                      gap: '16px',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    {testimonialsList.slice((testimonialsPage - 1) * 6, testimonialsPage * 6).map((t, idx) => {
+                      const st = t.status || (t.is_active ? 'approved' : 'pending');
+                      return (
+                        <div
+                          key={t.id || idx}
+                          style={{
+                            padding: '18px',
+                            background: 'rgba(12, 10, 8, 0.75)',
+                            border: '1px solid rgba(201, 168, 76, 0.2)',
+                            borderRadius: '10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <div style={{ display: 'flex', gap: '4px', color: 'var(--gold)' }}>
+                                {Array.from({ length: t.rating || t.stars || 5 }).map((_, i) => (
+                                  <Star key={i} size={14} fill="currentColor" />
+                                ))}
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  background: st === 'approved' ? 'rgba(90,190,90,0.15)' : st === 'rejected' ? 'rgba(250,90,90,0.15)' : 'rgba(240,190,60,0.15)',
+                                  color: st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040',
+                                  border: `1px solid ${st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040'}`,
+                                }}
+                              >
+                                {st}
+                              </span>
+                            </div>
+                            <p style={{ color: 'var(--cream)', fontSize: '0.88rem', fontStyle: 'italic', margin: 0, lineHeight: 1.45 }}>
+                              "{t.text}"
+                            </p>
                           </div>
-                          <span
-                            style={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              padding: '2px 8px',
-                              borderRadius: '10px',
-                              background: st === 'approved' ? 'rgba(90,190,90,0.15)' : st === 'rejected' ? 'rgba(250,90,90,0.15)' : 'rgba(240,190,60,0.15)',
-                              color: st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040',
-                              border: `1px solid ${st === 'approved' ? '#6fbf6f' : st === 'rejected' ? '#f07070' : '#e0b040'}`,
-                            }}
-                          >
-                            {st}
-                          </span>
-                        </div>
-                        <p style={{ color: 'var(--cream)', fontSize: '0.9rem', fontStyle: 'italic', margin: 0 }}>
-                          "{t.text}"
-                        </p>
-                        {/* Author name + action buttons — stacked on mobile */}
-                        <div style={{ display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {t.author}{t.title ? ` — ${t.title}` : ''}
-                          </span>
-                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                            {st !== 'approved' && t.id && (
-                              <button
-                                onClick={() => handleApproveTestimonial(t.id)}
-                                style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '8px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              >
-                                <CheckCircle size={13} /> Approve
-                              </button>
-                            )}
-                            {st !== 'rejected' && t.id && (
-                              <button
-                                onClick={() => handleRejectTestimonial(t.id)}
-                                style={{ background: 'rgba(240,160,60,0.12)', border: '1px solid #e09040', color: '#e09040', borderRadius: '8px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                              >
-                                Reject
-                              </button>
-                            )}
-                            {t.id && (
-                              <button
-                                onClick={() => handleDeleteTestimonial(t.id)}
-                                style={{ color: 'var(--rose-gold)', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '8px', cursor: 'pointer', padding: '6px 8px', display: 'flex', alignItems: 'center' }}
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
+
+                          <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: isMobileGrid ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileGrid ? 'flex-start' : 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--gold)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.author}{t.title ? ` — ${t.title}` : ''}
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                              {st !== 'approved' && t.id && (
+                                <button
+                                  onClick={() => handleApproveTestimonial(t.id)}
+                                  style={{ background: 'rgba(90,190,90,0.2)', border: '1px solid #6fbf6f', color: '#6fbf6f', borderRadius: '6px', padding: '5px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <CheckCircle size={13} /> Approve
+                                </button>
+                              )}
+                              {st !== 'rejected' && t.id && (
+                                <button
+                                  onClick={() => handleRejectTestimonial(t.id)}
+                                  style={{ background: 'rgba(240,160,60,0.12)', border: '1px solid #e09040', color: '#e09040', borderRadius: '6px', padding: '5px 10px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              {t.id && (
+                                <button
+                                  onClick={() => handleDeleteTestimonial(t.id)}
+                                  style={{ color: '#ff6b6b', background: 'rgba(231,76,60,0.12)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: '6px', cursor: 'pointer', padding: '5px 8px', display: 'flex', alignItems: 'center' }}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
               </div>
+
+              {testimonialsList.length > 6 && (
+                <div style={{ marginTop: '16px' }}>
+                  <Pagination
+                    currentPage={testimonialsPage}
+                    totalPages={Math.ceil(testimonialsList.length / 6)}
+                    totalItems={testimonialsList.length}
+                    itemsPerPage={6}
+                    onPageChange={(p) => setTestimonialsPage(p)}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Section 2: Our Story Process Video Card */}
@@ -5550,13 +5713,13 @@ export const AdminDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* MODAL 1: ADD ATELIER TESTIMONIAL MODAL */}
+            {/* MODAL 1: ADD CUSTOMER REVIEW MODAL */}
             {showAddTestimonialModal && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                 <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', margin: 0 }}>
-                      + Add Atelier Testimonial
+                      + Add Customer Review
                     </h3>
                     <button
                       onClick={() => setShowAddTestimonialModal(false)}
@@ -5603,12 +5766,12 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <label style={{ fontSize: '0.8rem', color: 'var(--beige)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        Testimonial Quote Text *
+                        Review Quote Text *
                       </label>
                       <textarea
                         required
                         rows={4}
-                        placeholder="Write the customer quote or review text..."
+                        placeholder="Write the customer review text..."
                         value={newTestimonial.text}
                         onChange={(e) => setNewTestimonial({ ...newTestimonial, text: e.target.value })}
                         style={{
@@ -5625,7 +5788,7 @@ export const AdminDashboard: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                       <Button variant="gold" fullWidth type="submit" disabled={uploadingTestimonial} glow>
-                        {uploadingTestimonial ? 'Creating Testimonial...' : 'Create Testimonial'}
+                        {uploadingTestimonial ? 'Creating Review...' : 'Create Review'}
                       </Button>
                       <Button variant="glass" type="button" onClick={() => setShowAddTestimonialModal(false)}>
                         Cancel
@@ -5636,13 +5799,13 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* MODAL 2: ADD / EDIT PROCESS VIDEO MODAL */}
+            {/* MODAL 2: ADD / EDIT PROCESS VIDEO MODAL (INCLUDES CURRENT LIVE VIDEO PREVIEW) */}
             {showUploadVideoModal && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '30px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)' }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '26px', border: '1px solid var(--gold)', background: 'rgba(20,10,0,0.95)', maxHeight: '90vh', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', margin: 0 }}>
-                      {storyVideoUrl ? 'Edit / Replace Process Video' : '+ Add Our Story Process Video'}
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', color: 'var(--gold)', margin: 0 }}>
+                      {storyVideoUrl ? 'Edit & Replace Process Video' : '+ Add Our Story Process Video'}
                     </h3>
                     <button
                       onClick={() => setShowUploadVideoModal(false)}
@@ -5652,8 +5815,27 @@ export const AdminDashboard: React.FC = () => {
                     </button>
                   </div>
 
-                  <p style={{ color: 'var(--beige)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                    Select a video file to display in the Our Story section on the customer homepage. Max size: 100MB.
+                  {/* Existing Live Video Preview Card inside Modal */}
+                  {storyVideoUrl && (
+                    <div style={{ marginBottom: '18px', padding: '14px', background: 'rgba(0,0,0,0.45)', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.3)' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                        Current Live Crafting Process Video:
+                      </span>
+                      <video
+                        src={storyVideoUrl}
+                        controls
+                        style={{ width: '100%', maxHeight: '200px', borderRadius: '6px', objectFit: 'cover', background: '#000' }}
+                      />
+                      <div style={{ fontSize: '0.74rem', color: 'var(--beige)', marginTop: '8px', wordBreak: 'break-all' }}>
+                        Source URL: <code style={{ color: 'var(--gold)' }}>{storyVideoUrl}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  <p style={{ color: 'var(--beige)', fontSize: '0.83rem', marginBottom: '16px', lineHeight: 1.4 }}>
+                    {storyVideoUrl
+                      ? 'Upload a new video file to replace the existing Our Story process video. Max size: 100MB.'
+                      : 'Select a video file to display in the Our Story section on the customer homepage. Max size: 100MB.'}
                   </p>
 
                   <form onSubmit={handleUploadStoryVideo} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -5742,69 +5924,90 @@ export const AdminDashboard: React.FC = () => {
               <p style={{ color: 'var(--beige)', fontSize: '0.85rem', margin: '0 0 14px 0', lineHeight: 1.4 }}>
                 Customer inquiries from the contact form and support channel settings.
               </p>
-              <Button
-                variant="gold"
-                glow
-                onClick={openEditSupportModal}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, width: isMobileGrid ? '100%' : 'auto' }}
-              >
-                <Headphones size={16} />
-                Support Channel Settings
-              </Button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <Button
+                  variant="gold"
+                  glow
+                  onClick={openEditSupportModal}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, width: isMobileGrid ? '100%' : 'auto' }}
+                >
+                  <Headphones size={16} />
+                  Support Channel Settings
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setActiveTab('reviews')}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 20px', fontWeight: 600, width: isMobileGrid ? '100%' : 'auto' }}
+                >
+                  <MessageSquare size={16} />
+                  View Testimonials
+                </Button>
+              </div>
             </div>
 
             {/* Messages Table */}
-            <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--glass-border)' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', marginBottom: '20px' }}>
-                Received Customer Inquiries ({contactMessages.length})
-              </h3>
+            <div className="glass-panel" style={{ padding: '14px 18px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', color: 'var(--cream)', margin: 0 }}>
+                  Received Customer Inquiries ({contactMessages.length})
+                </h3>
+                <Button
+                  variant="glass"
+                  onClick={() => exportToCSV('Contact_Messages_Inbox', contactMessages)}
+                  disabled={contactMessages.length === 0}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '8px 14px', border: '1px solid rgba(201,168,76,0.35)', color: '#c9a84c' }}
+                >
+                  <FileSpreadsheet size={15} /> Export CSV
+                </Button>
+              </div>
+
               <div className="admin-table-wrapper" style={{ overflowY: 'auto', maxHeight: '550px' }}>
                 {isMobileGrid ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '2px' }}>
                     {contactMessages.length === 0 ? (
-                      <div className="glass-panel" style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '30px', borderRadius: '8px' }}>
+                      <div className="glass-panel" style={{ textAlign: 'center', color: 'var(--beige)', fontStyle: 'italic', padding: '24px', borderRadius: '8px' }}>
                         No customer contact messages received yet.
                       </div>
                     ) : (
-                      contactMessages.map((msg) => (
-                        <div key={msg.id} className="glass-panel" style={{ padding: '16px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
+                      contactMessages.slice((contactMessagesPage - 1) * 5, contactMessagesPage * 5).map((msg) => (
+                        <div key={msg.id} className="glass-panel" style={{ padding: '14px', borderRadius: '8px', background: 'rgba(26,13,0,0.4)', border: '1px solid var(--glass-border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                            <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '1rem' }}>{msg.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--gold)' }}>{msg.created_at}</div>
+                            <div style={{ fontWeight: 600, color: 'var(--cream)', fontSize: '0.95rem' }}>{msg.name}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--gold)' }}>{msg.created_at}</div>
                           </div>
                           
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-                            <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                            <a href={`mailto:${msg.email}`} style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: '0.82rem' }}>
                               ✉ {msg.email}
                             </a>
                             {msg.phone && (
-                              <div style={{ color: 'var(--beige)', fontSize: '0.85rem' }}>
+                              <div style={{ color: 'var(--beige)', fontSize: '0.82rem' }}>
                                 📞 {msg.phone}
                               </div>
                             )}
                           </div>
                           
-                          <div style={{ marginBottom: '12px' }}>
-                            <span style={{ display: 'inline-block', background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', marginBottom: '8px' }}>
+                          <div style={{ marginBottom: '10px' }}>
+                            <span style={{ display: 'inline-block', background: 'rgba(201, 168, 76, 0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', marginBottom: '6px' }}>
                               {msg.subject || 'General'}
                             </span>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--beige)', lineHeight: 1.4, background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '4px' }}>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--beige)', lineHeight: 1.4, background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '4px' }}>
                               {msg.message?.length > 100 ? `${msg.message.slice(0, 100)}...` : msg.message}
                             </div>
                           </div>
                           
-                          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
                             <button
                               onClick={() => setSelectedContactMessage(msg)}
-                              style={{ flex: 1, background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '8px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                              style={{ flex: 1, background: 'rgba(201, 168, 76, 0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', borderRadius: '4px', cursor: 'pointer', padding: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                              <Eye size={14} /> View
+                              <Eye size={13} /> View
                             </button>
                             <button
                               onClick={() => handleDeleteContactMessage(msg.id)}
-                              style={{ flex: 1, background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '8px', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                              style={{ flex: 1, background: 'rgba(255, 0, 0, 0.15)', border: '1px solid #ff6b6b', color: '#ff6b6b', borderRadius: '4px', cursor: 'pointer', padding: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                              <Trash2 size={14} /> Delete
+                              <Trash2 size={13} /> Delete
                             </button>
                           </div>
                         </div>
@@ -5832,7 +6035,7 @@ export const AdminDashboard: React.FC = () => {
                           </td>
                         </tr>
                       ) : (
-                        contactMessages.map((msg) => (
+                        contactMessages.slice((contactMessagesPage - 1) * 5, contactMessagesPage * 5).map((msg) => (
                           <tr key={msg.id}>
                             <td style={{ fontSize: '0.8rem', color: 'var(--gold)', whiteSpace: 'nowrap' }}>{msg.created_at}</td>
                             <td style={{ fontWeight: 600, color: 'var(--cream)' }}>{msg.name}</td>
@@ -5875,6 +6078,18 @@ export const AdminDashboard: React.FC = () => {
                   </table>
                 )}
               </div>
+
+              {contactMessages.length > 5 && (
+                <div style={{ marginTop: '16px' }}>
+                  <Pagination
+                    currentPage={contactMessagesPage}
+                    totalPages={Math.ceil(contactMessages.length / 5)}
+                    totalItems={contactMessages.length}
+                    itemsPerPage={5}
+                    onPageChange={(p) => setContactMessagesPage(p)}
+                  />
+                </div>
+              )}
             </div>
 
             {/* EDIT CUSTOMER SUPPORT INFO MODAL */}
@@ -6362,6 +6577,64 @@ export const AdminDashboard: React.FC = () => {
             addToast={addToast}
             onRefresh={() => {}}
           />
+        )}
+
+        {/* All Offline Sales Modal */}
+        {showOfflineSalesModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(6px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={() => setShowOfflineSalesModal(false)}
+          >
+            <div
+              style={{
+                background: '#14100d',
+                border: '1px solid rgba(201, 168, 76, 0.4)',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '1100px',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  padding: '20px 24px',
+                  borderBottom: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'rgba(0,0,0,0.3)',
+                }}
+              >
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: '#c9a84c', margin: 0, fontWeight: 700 }}>
+                  All Offline Sales Ledger
+                </h2>
+                <Button variant="secondary" size="sm" onClick={() => setShowOfflineSalesModal(false)}>
+                  Close
+                </Button>
+              </div>
+              <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                <OfflineSalesView addToast={addToast} />
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

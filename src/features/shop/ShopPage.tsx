@@ -205,29 +205,36 @@ export const ShopPage: React.FC = () => {
               <Search size={16} />
             </div>
 
-            {/* Top Horizontal Category Chips */}
+            {/* Top Category Dropdown */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-start' }}>
               <span style={{ fontSize: '0.82rem', color: '#c9a84c', fontWeight: 600 }}>
-                Top Categories:
+                Category:
               </span>
-              <div className="category-chips-row" style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-                {categoryChips.map((chip) => {
-                  const isActive = selectedCategory === chip.id;
-                  return (
-                    <button
-                      key={chip.id}
-                      onClick={() => {
-                        setSelectedCategory(chip.id);
-                        setSearchParams(chip.id === 'all' ? {} : { category: chip.id });
-                        setCurrentPage(1);
-                      }}
-                      className={`chip-btn ${isActive ? 'active' : ''}`}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCategory(val);
+                  setSearchParams(val === 'all' ? {} : { category: val });
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                  color: '#f5efe6',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                {categoryChips.map((chip) => (
+                  <option key={chip.id} value={chip.id} style={{ background: '#14100d', color: '#f5efe6' }}>
+                    {chip.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

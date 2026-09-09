@@ -253,6 +253,13 @@ export const CartPage: React.FC = () => {
         <div className="cart-layout">
           {/* Cart items list */}
           <div className="cart-items-list">
+            {/* Add More Items Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              <Button variant="outline" onClick={() => navigate('/shop')} size="sm" glow>
+                + ADD MORE ITEMS
+              </Button>
+            </div>
+
             {cart.map((item) => (
               <div
                 key={item.product.id}
@@ -292,6 +299,7 @@ export const CartPage: React.FC = () => {
                     border: '1px solid var(--glass-border)',
                     borderRadius: '4px',
                     background: 'rgba(0,0,0,0.2)',
+                    width: 'fit-content',
                   }}
                 >
                   <button

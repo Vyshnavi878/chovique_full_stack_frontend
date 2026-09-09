@@ -66,7 +66,8 @@ type CustomerTab =
   | 'coupons'
   | 'notifications'
   | 'settings'
-  | 'help';
+  | 'help'
+  | 'account'; // mobile-only composite tab (Profile + Addresses + Settings)
 
 export const getAvailableCouponsList = (availData: UserCoupon[] = [], usedData: any[] = []): UserCoupon[] => {
   const usedCodesSet = new Set<string>(
@@ -90,6 +91,7 @@ export const CustomerDashboard: React.FC = () => {
     wallet,
     orders,
     setOrders,
+    cart,
     wishlist,
     logout,
     tickets,
@@ -112,9 +114,17 @@ export const CustomerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeTab, setActiveTab] = useState<CustomerTab>('overview');
+  const [activeTab, setActiveTab] = useState<CustomerTab>(
+    // On mobile, default to the composite 'account' tab since Home → landing page
+    // and there is no separate 'overview' entry point in the mobile bottom nav
+    window.innerWidth <= 768 ? 'account' : 'overview'
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+  // isMobile: true when viewport ≤768px (used to gate mobile-only UI elements)
+  const isMobile = isMobileGrid;
+  // Mobile Account sub-section: 'profile' | 'addresses' | 'settings'
+  const [mobileAccountSection, setMobileAccountSection] = useState<'profile' | 'addresses' | 'settings'>('profile');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -122,6 +132,8 @@ export const CustomerDashboard: React.FC = () => {
   const [notifReadFilter, setNotifReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [isNotifLoading, setIsNotifLoading] = useState(false);
   const [notifActionSuccess, setNotifActionSuccess] = useState<string | null>(null);
+  const [selectedNotifIds, setSelectedNotifIds] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isSubmittingSupportTicket, setIsSubmittingSupportTicket] = useState(false);
 
@@ -263,6 +275,9 @@ export const CustomerDashboard: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Note: Global Navbar hiding and footer management for customer mobile is
+  // handled in App.tsx via the CustomerMobileNav component + body class.
 
   // Profile Form state — seeded from authenticated user, no hardcoded demo fallbacks
   const [profileForm, setProfileForm] = useState({
@@ -461,6 +476,13 @@ export const CustomerDashboard: React.FC = () => {
     if (activeTab === 'profile' && isProfileDirty) {
       setPendingTabChange(newTab);
       setShowUnsavedModal(true);
+      return;
+    }
+    // On mobile, map profile/addresses/settings to the composite 'account' tab
+    if (isMobile && (newTab === 'profile' || newTab === 'addresses' || newTab === 'settings')) {
+      setActiveTab('account');
+      setMobileAccountSection(newTab as 'profile' | 'addresses' | 'settings');
+      setIsSidebarOpen(false);
       return;
     }
     setActiveTab(newTab);
@@ -4807,6 +4829,35 @@ export const CustomerDashboard: React.FC = () => {
                   console.error('Failed to mark notification read:', err);
                 }
               };
+              
+              const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+                if (e.target.checked) {
+                  setSelectedNotifIds(filteredNotifications.map((n) => n.id));
+                } else {
+                  setSelectedNotifIds([]);
+                }
+              };
+            
+              const handleToggleSelectOne = (id: string) => {
+                setSelectedNotifIds((prev) =>
+                  prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+                );
+              };
+            
+              const handleDeleteSelected = async () => {
+                if (selectedNotifIds.length === 0) return;
+                setIsBatchDeleting(true);
+                try {
+                  await Promise.all(selectedNotifIds.map((id) => removeNotification(id)));
+                  setNotifActionSuccess(`Deleted ${selectedNotifIds.length} notification(s)`);
+                  setSelectedNotifIds([]);
+                  setTimeout(() => setNotifActionSuccess(null), 2500);
+                } catch (err) {
+                  console.error('Failed batch delete:', err);
+                } finally {
+                  setIsBatchDeleting(false);
+                }
+              };
 
               const handleViewRelatedEntity = (notif: SupportNotification) => {
                 if (!notif.is_read && !notif.read) {
@@ -4880,22 +4931,43 @@ export const CustomerDashboard: React.FC = () => {
                         onClick={handleRefreshNotifs}
                         disabled={isNotifLoading}
                         style={{
-                          padding: '10px 16px',
-                          background: 'rgba(20, 16, 13, 0.85)',
+                          padding: '10px 18px',
+                          background: 'rgba(201, 168, 76, 0.1)',
                           border: '1px solid rgba(201, 168, 76, 0.3)',
                           borderRadius: '8px',
                           color: '#c9a84c',
                           fontSize: '0.82rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
+                          fontWeight: 700,
+                          cursor: isNotifLoading ? 'not-allowed' : 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
-                          transition: 'all 0.2s ease',
                         }}
                       >
                         <RefreshCw size={15} className={isNotifLoading ? 'animate-spin' : ''} /> Refresh
                       </button>
+                      
+                      {selectedNotifIds.length > 0 && (
+                        <button
+                          onClick={handleDeleteSelected}
+                          disabled={isBatchDeleting}
+                          style={{
+                            padding: '10px 18px',
+                            background: 'rgba(231, 76, 60, 0.15)',
+                            border: '1px solid #e74c3c',
+                            borderRadius: '8px',
+                            color: '#e74c3c',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <Trash2 size={16} /> {isBatchDeleting ? 'Deleting...' : `Delete Selected (${selectedNotifIds.length})`}
+                        </button>
+                      )}
 
                       {unreadTotal > 0 && (
                         <button
@@ -4958,37 +5030,61 @@ export const CustomerDashboard: React.FC = () => {
                       gap: '16px',
                     }}
                   >
-                    {/* Categories */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {categoryTabs.map((tab) => {
-                        const isActive = notifCategory === tab.id;
-                        return (
+                    {/* Categories Dropdown or Tabs */}
+                    {isMobile ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <select
+                          value={notifCategory}
+                          onChange={(e) => setNotifCategory(e.target.value as any)}
+                          style={{
+                            padding: '6px 12px',
+                            background: 'rgba(10, 8, 6, 0.8)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: '6px',
+                            color: '#f5efe6',
+                            fontSize: '0.82rem',
+                            outline: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {categoryTabs.map((tab) => (
+                            <option key={tab.id} value={tab.id} style={{ background: '#14100d', color: '#f5efe6' }}>
+                              {tab.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {categoryTabs.map((tab) => (
                           <button
                             key={tab.id}
-                            onClick={() => setNotifCategory(tab.id)}
+                            onClick={() => setNotifCategory(tab.id as any)}
                             style={{
                               padding: '8px 16px',
-                              borderRadius: '6px',
-                              border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
-                              background: isActive ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
-                              color: isActive ? '#f5efe6' : 'rgba(255,255,255,0.6)',
-                              fontWeight: isActive ? 700 : 500,
+                              background: notifCategory === tab.id ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
+                              border: `1px solid ${notifCategory === tab.id ? '#c9a84c' : 'rgba(255,255,255,0.1)'}`,
+                              borderRadius: '8px',
+                              color: notifCategory === tab.id ? '#c9a84c' : '#f5efe6',
                               fontSize: '0.85rem',
+                              fontWeight: notifCategory === tab.id ? 700 : 500,
                               cursor: 'pointer',
                               transition: 'all 0.2s ease',
                             }}
                           >
                             {tab.label}
                           </button>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Read / Unread Status Filter */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Filter size={14} /> Status:
-                      </span>
+                      {!isMobile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', fontWeight: 600 }}>
+                          <Filter size={14} /> Status Filter
+                        </div>
+                      )}
                       <select
                         value={notifReadFilter}
                         onChange={(e) => setNotifReadFilter(e.target.value as any)}
@@ -5003,9 +5099,9 @@ export const CustomerDashboard: React.FC = () => {
                           cursor: 'pointer',
                         }}
                       >
-                        <option value="all">All Status</option>
-                        <option value="unread">Unread Only</option>
-                        <option value="read">Read Only</option>
+                        <option value="all" style={{ background: '#14100d', color: '#f5efe6' }}>All Status</option>
+                        <option value="unread" style={{ background: '#14100d', color: '#f5efe6' }}>Unread Only</option>
+                        <option value="read" style={{ background: '#14100d', color: '#f5efe6' }}>Read Only</option>
                       </select>
                     </div>
                   </div>
@@ -5037,6 +5133,14 @@ export const CustomerDashboard: React.FC = () => {
                         <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
                           <thead>
                             <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
+                              <th style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={filteredNotifications.length > 0 && selectedNotifIds.length === filteredNotifications.length}
+                                  onChange={handleSelectAll}
+                                  style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                                />
+                              </th>
                               <th style={{ padding: '16px 20px', fontWeight: 700 }}>NOTIFICATION</th>
                               <th style={{ padding: '16px 20px', fontWeight: 700 }}>TYPE</th>
                               <th style={{ padding: '16px 20px', fontWeight: 700 }}>DATE &amp; TIME</th>
@@ -5072,10 +5176,20 @@ export const CustomerDashboard: React.FC = () => {
                                   key={notif.id}
                                   style={{
                                     borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                    background: isUnread ? 'rgba(201, 168, 76, 0.04)' : 'transparent',
+                                    background: selectedNotifIds.includes(notif.id) ? 'rgba(201, 168, 76, 0.1)' : isUnread ? 'rgba(201, 168, 76, 0.04)' : 'transparent',
                                     transition: 'background 0.2s ease',
                                   }}
                                 >
+                                  {/* Checkbox */}
+                                  <td style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedNotifIds.includes(notif.id)}
+                                      onChange={() => handleToggleSelectOne(notif.id)}
+                                      style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                                    />
+                                  </td>
+
                                   {/* Title & Message */}
                                   <td style={{ padding: '16px 20px', maxWidth: '400px' }}>
                                     <div style={{ fontWeight: isUnread ? 700 : 600, color: '#f5efe6', marginBottom: '4px' }}>
@@ -5135,20 +5249,40 @@ export const CustomerDashboard: React.FC = () => {
                                         onClick={() => handleViewRelatedEntity(notif)}
                                         style={{
                                           padding: '6px 12px',
-                                          background: 'rgba(255, 255, 255, 0.08)',
-                                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                                          background: 'transparent',
+                                          border: '1px solid rgba(255,255,255,0.2)',
                                           borderRadius: '6px',
                                           color: '#f5efe6',
                                           fontSize: '0.78rem',
                                           fontWeight: 600,
                                           cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
                                           transition: 'all 0.2s ease',
                                         }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                                       >
-                                        View Related <ExternalLink size={12} />
+                                        View
+                                      </button>
+                                      
+                                      <button
+                                        onClick={() => {
+                                          removeNotification(notif.id);
+                                          setNotifActionSuccess('Notification deleted');
+                                          setTimeout(() => setNotifActionSuccess(null), 2500);
+                                        }}
+                                        title="Delete Notification"
+                                        style={{
+                                          padding: '6px',
+                                          background: 'transparent',
+                                          border: 'none',
+                                          color: 'rgba(255, 255, 255, 0.45)',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.color = '#e74c3c'}
+                                        onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)'}
+                                      >
+                                        <Trash2 size={16} />
                                       </button>
                                     </div>
                                   </td>
@@ -5884,6 +6018,345 @@ export const CustomerDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          {/* MOBILE ACCOUNT COMPOSITE PANEL (≤768px only)
+               Renders Profile, Addresses, and Settings as sub-sections
+               The individual desktop panels (activeTab==='profile', etc.) are
+               still rendered below via their own conditionals — they remain
+               hidden on mobile because on mobile activeTab==='account', not
+               'profile'/'addresses'/'settings'. Desktop continues unchanged. */}
+          {activeTab === 'account' && isMobile && (
+            <div className="cust-mobile-account-page">
+              {/* Sub-section Tabs */}
+              <div className="cust-mobile-account-tabs">
+                {(['profile', 'addresses', 'settings'] as const).map((sec) => (
+                  <button
+                    key={sec}
+                    className={`cust-mobile-account-tab-btn ${mobileAccountSection === sec ? 'active' : ''}`}
+                    onClick={() => setMobileAccountSection(sec)}
+                  >
+                    {sec === 'profile' ? 'My Profile' : sec === 'addresses' ? 'Addresses' : 'Settings'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Profile sub-section */}
+              {mobileAccountSection === 'profile' && (
+                <div className="cust-mobile-account-section">
+                  <div style={{ marginBottom: '24px' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>
+                      My Profile Details
+                    </h2>
+                    <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.88rem', margin: 0 }}>
+                      Manage your personal information and profile details.
+                    </p>
+                  </div>
+                  {/* Reuse the existing profile content by temporarily setting activeTab internally.
+                      We directly render the profile form inline using the same state that the
+                      desktop profile panel uses — no duplication of business logic. */}
+                  <div
+                    ref={(el) => {
+                      if (el && mobileAccountSection === 'profile') {
+                        // Sync: nothing extra needed — the profile form state is shared
+                      }
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
+                      {(() => {
+                        const raw = avatarPreviewUrl || user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url;
+                        const url = raw && (raw.startsWith('data:') || raw.startsWith('blob:')) ? raw : raw ? getImageUrl(raw) : '';
+                        return url && !imgLoadError ? (
+                          <img src={url} alt="Profile" onError={() => setImgLoadError(true)}
+                            style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #c9a84c', boxShadow: '0 0 16px rgba(201,168,76,0.3)' }} />
+                        ) : (
+                          <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'linear-gradient(135deg,rgba(201,168,76,0.25),rgba(18,14,11,0.95))', border: '2px solid #c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', color: '#c9a84c', fontWeight: 700 }}>
+                            {user?.name?.charAt(0)?.toUpperCase() || 'C'}
+                          </div>
+                        );
+                      })()}
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <label htmlFor="mob-avatar-upload" style={{ padding: '8px 16px', borderRadius: '6px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.4)', color: '#c9a84c', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <UploadCloud size={14} /> Change Photo
+                          <input
+                            id="mob-avatar-upload"
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 5 * 1024 * 1024) { setAvatarError('Image must be under 5MB.'); return; }
+                              setPendingAvatarFile(file);
+                              setAvatarPreviewUrl(URL.createObjectURL(file));
+                              setAvatarError('');
+                              setImgLoadError(false);
+                            }}
+                          />
+                        </label>
+                        {(pendingAvatarFile || avatarPreviewUrl) && (
+                          <button onClick={() => { setPendingAvatarFile(null); setAvatarPreviewUrl(null); setAvatarError(''); setImgLoadError(false); }}
+                            style={{ padding: '8px 16px', borderRadius: '6px', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        )}
+                      </div>
+                      {avatarError && <span style={{ color: '#e74c3c', fontSize: '0.78rem' }}>{avatarError}</span>}
+                    </div>
+
+                    {/* Profile Form */}
+                    <form onSubmit={handleProfileSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', marginBottom: '6px', fontWeight: 600 }}>Full Name <span style={{ color: '#e74c3c' }}>*</span></label>
+                        <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} placeholder="Your full name"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.25)', color: '#f5efe6', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', marginBottom: '6px', fontWeight: 600 }}>Email Address</label>
+                        <input value={profileForm.email} disabled
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(201,168,76,0.15)', color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem', outline: 'none', cursor: 'not-allowed', boxSizing: 'border-box' }} />
+                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px', display: 'block' }}>Email cannot be changed.</span>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', marginBottom: '6px', fontWeight: 600 }}>Phone Number</label>
+                        <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} placeholder="10-digit mobile number"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.25)', color: '#f5efe6', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', marginBottom: '6px', fontWeight: 600 }}>Date of Birth</label>
+                        <input type="date" value={profileForm.dob} onChange={e => setProfileForm(p => ({ ...p, dob: e.target.value }))}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.25)', color: '#f5efe6', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', marginBottom: '6px', fontWeight: 600 }}>Gender</label>
+                        <select value={profileForm.gender} onChange={e => setProfileForm(p => ({ ...p, gender: e.target.value }))}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.25)', color: profileForm.gender ? '#f5efe6' : 'rgba(255,255,255,0.4)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}>
+                          <option value="">Select gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Non-binary">Non-binary</option>
+                          <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                      </div>
+                      {profileError && (
+                        <div style={{ padding: '10px 14px', background: 'rgba(231,76,60,0.12)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <AlertTriangle size={14} /> {profileError}
+                        </div>
+                      )}
+                      {profileSaved && (
+                        <div style={{ padding: '10px 14px', background: 'rgba(46,204,113,0.1)', border: '1px solid #2ecc71', color: '#2ecc71', borderRadius: '8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <CheckCircle size={14} /> Profile saved successfully!
+                        </div>
+                      )}
+                      <button type="submit" disabled={isProfileSaving}
+                        style={{ padding: '12px 24px', borderRadius: '8px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: isProfileSaving ? 'not-allowed' : 'pointer', opacity: isProfileSaving ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        {isProfileSaving ? <><Loader2 size={16} className="spin" /> Saving...</> : <><CheckCircle size={16} /> Save Profile</>}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* Addresses sub-section */}
+              {mobileAccountSection === 'addresses' && (
+                <div className="cust-mobile-account-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: '#f5efe6', margin: '0 0 4px 0', fontWeight: 700 }}>Address Book</h2>
+                      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: 0 }}>Manage your shipping addresses.</p>
+                    </div>
+                    <button
+                      onClick={() => { if (showAddAddressForm) { setShowAddAddressForm(false); setEditingAddressId(null); } else { handleOpenAddAddress(); } }}
+                      style={{ padding: '9px 18px', borderRadius: '6px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {showAddAddressForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Add Address</>}
+                    </button>
+                  </div>
+
+                  {/* Address form (shared state with desktop) */}
+                  {showAddAddressForm && (
+                    <div style={{ background: 'rgba(18,14,11,0.95)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+                      <h3 style={{ color: '#c9a84c', fontSize: '1rem', fontWeight: 700, margin: '0 0 16px 0' }}>{editingAddressId ? 'Edit Address' : 'New Address'}</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {[{key:'title',label:'Label',ph:'Home / Work / Other'},{key:'name',label:'Full Name',ph:'Recipient name'},{key:'street',label:'Street Address',ph:'House, street, area'},{key:'city',label:'City',ph:'City'},{key:'zip',label:'Pincode',ph:'6-digit pincode'},{key:'phone',label:'Phone',ph:'10-digit mobile'}].map(({key,label,ph}) => (
+                          <div key={key}>
+                            <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>{label}</label>
+                            <input value={(addressForm as any)[key]} onChange={e => setAddressForm(f => ({...f, [key]: e.target.value}))} placeholder={ph}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>State</label>
+                          <select value={addressForm.state} onChange={e => setAddressForm(f => ({...f, state: e.target.value}))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }}>
+                            {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm(f => ({...f, isDefault: e.target.checked}))} />
+                          Set as default address
+                        </label>
+                        {addressFormError && <span style={{ color: '#e74c3c', fontSize: '0.78rem' }}>{addressFormError}</span>}
+                        <button
+                          onClick={async () => {
+                            setAddressFormError('');
+                            if (!addressForm.name.trim()) { setAddressFormError('Name is required.'); return; }
+                            if (!addressForm.street.trim()) { setAddressFormError('Street is required.'); return; }
+                            if (!addressForm.city.trim()) { setAddressFormError('City is required.'); return; }
+                            if (!/^\d{6}$/.test(addressForm.zip.trim())) { setAddressFormError('Enter a valid 6-digit pincode.'); return; }
+                            if (!/^[6-9]\d{9}$/.test(addressForm.phone.trim())) { setAddressFormError('Enter a valid 10-digit phone.'); return; }
+                            setIsAddressSaving(true);
+                            try {
+                              if (editingAddressId) {
+                                await updateAddress(editingAddressId, { title: addressForm.title, name: addressForm.name, street: addressForm.street, city: addressForm.city, state: addressForm.state, zip: addressForm.zip, phone: addressForm.phone, isDefault: addressForm.isDefault });
+                              } else {
+                                await addAddress({ title: addressForm.title, name: addressForm.name, street: addressForm.street, city: addressForm.city, state: addressForm.state, zip: addressForm.zip, phone: addressForm.phone, isDefault: addressForm.isDefault });
+                              }
+                              setShowAddAddressForm(false); setEditingAddressId(null);
+                            } catch (err: any) { setAddressFormError(err?.message || 'Failed to save address.'); }
+                            finally { setIsAddressSaving(false); }
+                          }}
+                          disabled={isAddressSaving}
+                          style={{ padding: '10px 20px', borderRadius: '7px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontWeight: 700, fontSize: '0.88rem', cursor: isAddressSaving ? 'not-allowed' : 'pointer', opacity: isAddressSaving ? 0.7 : 1 }}>
+                          {isAddressSaving ? 'Saving...' : editingAddressId ? 'Update Address' : 'Save Address'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Address list */}
+                  {addresses.length === 0 && !showAddAddressForm ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                      <MapPin size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                      <p>No saved addresses yet.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {addresses.map((addr: CustomerAddress) => (
+                        <div key={addr.id} style={{ padding: '16px', background: 'rgba(18,14,11,0.9)', border: `1px solid ${addr.isDefault ? '#c9a84c' : 'rgba(201,168,76,0.2)'}`, borderRadius: '10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 700, color: '#f5efe6', fontSize: '0.9rem' }}>{addr.title || 'Address'}</span>
+                              {addr.isDefault && <span style={{ fontSize: '0.65rem', padding: '2px 7px', background: 'rgba(201,168,76,0.15)', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.4)', borderRadius: '10px', fontWeight: 700 }}>DEFAULT</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ title: addr.title||'Home', name: addr.name, street: addr.street, city: addr.city, state: addr.state||'Telangana', zip: addr.zip, phone: addr.phone||'', isDefault: addr.isDefault||false }); setShowAddAddressForm(true); setAddressFormError(''); }}
+                                style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: '#c9a84c', fontSize: '0.75rem', cursor: 'pointer' }}>Edit</button>
+                              <button onClick={async () => { if (window.confirm('Delete this address?')) { try { await deleteAddress(addr.id); } catch {} } }}
+                                style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: '0.75rem', cursor: 'pointer' }}>Delete</button>
+                            </div>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.83rem', color: 'rgba(255,255,255,0.65)', lineHeight: '1.5' }}>
+                            {addr.name} · {addr.street}, {addr.city}, {addr.state} – {addr.zip}
+                            {addr.phone ? ` · ${addr.phone}` : ''}
+                          </p>
+                          {!addr.isDefault && (
+                            <button onClick={async () => { try { await setDefaultAddress(addr.id); } catch {} }}
+                              style={{ marginTop: '8px', padding: '4px 10px', borderRadius: '5px', background: 'transparent', border: '1px solid rgba(201,168,76,0.25)', color: 'rgba(201,168,76,0.7)', fontSize: '0.73rem', cursor: 'pointer' }}>Set as Default</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Settings sub-section */}
+              {mobileAccountSection === 'settings' && (
+                <div className="cust-mobile-account-section">
+                  <div style={{ marginBottom: '24px' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: '#f5efe6', margin: '0 0 6px 0', fontWeight: 700 }}>Account Settings</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: 0 }}>Manage your account security and preferences.</p>
+                  </div>
+
+                  {/* Change Password card */}
+                  <div style={{ background: 'rgba(18,14,11,0.95)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '12px', padding: '20px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#f5efe6', margin: '0 0 4px 0', fontWeight: 700 }}>Security Credentials</h3>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem', margin: 0 }}>Update your account password securely.</p>
+                      </div>
+                      {!showUpdatePasswordForm && (
+                        <button onClick={() => { setShowUpdatePasswordForm(true); setUpdatePasswordStep(1); setUpdatePasswordError(''); setUpdatePasswordMessage(''); }}
+                          style={{ padding: '9px 18px', borderRadius: '6px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.4)', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>
+                          Change Password
+                        </button>
+                      )}
+                    </div>
+
+                    {showUpdatePasswordForm && (
+                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {updatePasswordStep === 1 && (
+                          <>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>Email Address</label>
+                              <input type="email" value={updatePasswordEmail} onChange={e => setUpdatePasswordEmail(e.target.value)} disabled={isUpdatingPassword}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                            <button onClick={handleSendUpdatePasswordOTP} disabled={isUpdatingPassword}
+                              style={{ padding: '10px', borderRadius: '7px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontWeight: 700, fontSize: '0.88rem', cursor: isUpdatingPassword ? 'not-allowed' : 'pointer', opacity: isUpdatingPassword ? 0.7 : 1 }}>
+                              {isUpdatingPassword ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          </>
+                        )}
+                        {updatePasswordStep === 2 && (
+                          <>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>Enter 6-digit OTP</label>
+                              <input value={updatePasswordOTP} onChange={e => setUpdatePasswordOTP(e.target.value)} maxLength={6} placeholder="OTP"
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                            {updatePasswordTimer > 0 && <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Resend in {updatePasswordTimer}s</span>}
+                            <button onClick={handleVerifyUpdatePasswordOTP} disabled={isUpdatingPassword}
+                              style={{ padding: '10px', borderRadius: '7px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontWeight: 700, fontSize: '0.88rem', cursor: isUpdatingPassword ? 'not-allowed' : 'pointer', opacity: isUpdatingPassword ? 0.7 : 1 }}>
+                              {isUpdatingPassword ? 'Verifying...' : 'Verify OTP'}
+                            </button>
+                          </>
+                        )}
+                        {updatePasswordStep === 3 && (
+                          <form onSubmit={handleUpdatePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ position: 'relative' }}>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>New Password</label>
+                              <input type={showNewPassword ? 'text' : 'password'} value={updatePasswordNew} onChange={e => setUpdatePasswordNew(e.target.value)}
+                                style={{ width: '100%', padding: '9px 40px 9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }} />
+                              <button type="button" onClick={() => setShowNewPassword(p => !p)} style={{ position: 'absolute', right: '10px', bottom: '10px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
+                                {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                              </button>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                              <label style={{ display: 'block', fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginBottom: '4px', fontWeight: 600 }}>Confirm Password</label>
+                              <input type={showConfirmPassword ? 'text' : 'password'} value={updatePasswordConfirm} onChange={e => setUpdatePasswordConfirm(e.target.value)}
+                                style={{ width: '100%', padding: '9px 40px 9px 12px', borderRadius: '7px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(201,168,76,0.2)', color: '#f5efe6', fontSize: '0.88rem', outline: 'none', boxSizing: 'border-box' }} />
+                              <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ position: 'absolute', right: '10px', bottom: '10px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
+                                {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                              </button>
+                            </div>
+                            <button type="submit" disabled={isUpdatingPassword}
+                              style={{ padding: '10px', borderRadius: '7px', background: 'linear-gradient(135deg,#c9a84c,#e5c875)', color: '#0f0c0a', border: 'none', fontWeight: 700, fontSize: '0.88rem', cursor: isUpdatingPassword ? 'not-allowed' : 'pointer', opacity: isUpdatingPassword ? 0.7 : 1 }}>
+                              {isUpdatingPassword ? 'Updating...' : 'Update Password'}
+                            </button>
+                          </form>
+                        )}
+                        {updatePasswordError && <span style={{ color: '#e74c3c', fontSize: '0.78rem' }}>{updatePasswordError}</span>}
+                        {updatePasswordMessage && <span style={{ color: '#2ecc71', fontSize: '0.78rem' }}>{updatePasswordMessage}</span>}
+                        <button onClick={() => { setShowUpdatePasswordForm(false); setUpdatePasswordStep(1); setUpdatePasswordOTP(''); setUpdatePasswordNew(''); setUpdatePasswordConfirm(''); setUpdatePasswordError(''); setUpdatePasswordMessage(''); }}
+                          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}>Cancel</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Danger Zone */}
+                  <div style={{ background: 'rgba(18,14,11,0.95)', border: '1px solid rgba(231,76,60,0.2)', borderRadius: '12px', padding: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: '#f5efe6', margin: '0 0 4px 0', fontWeight: 700 }}>Session</h3>
+                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem', margin: '0 0 14px 0' }}>Sign out of your Chovique account.</p>
+                    <button onClick={handleLogoutClick}
+                      style={{ padding: '10px 20px', borderRadius: '7px', background: 'rgba(255,77,79,0.08)', border: '1px solid rgba(255,77,79,0.3)', color: '#ff4d4f', fontSize: '0.88rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <LogOut size={15} /> Log Out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           </main>
         </div>
 

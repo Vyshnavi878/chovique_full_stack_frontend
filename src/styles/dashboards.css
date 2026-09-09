@@ -301,18 +301,18 @@
 }
 
 .coupon-ticket-left {
-  width: 105px;
+  width: 95px;
   background: rgba(201, 168, 76, 0.12);
   border-right: 1px dashed rgba(201, 168, 76, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 8px;
+  padding: 8px 6px;
   flex-shrink: 0;
 }
 
 .coupon-ticket-code {
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 800;
   color: #c9a84c;
   letter-spacing: 1px;
@@ -320,7 +320,7 @@
 }
 
 .coupon-ticket-right {
-  padding: 14px 16px;
+  padding: 10px 12px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -766,12 +766,12 @@
   .admin-workspace table.notifications-table tr,
   .customer-workspace-main table.notifications-table tr {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 36px 1fr auto;
     grid-template-areas:
-      "message message"
-      "type actions"
-      "date actions"
-      "status actions";
+      "checkbox message message"
+      "checkbox type actions"
+      "checkbox date actions"
+      "checkbox status actions";
     padding: 12px 0;
     row-gap: 4px;
     align-items: center;
@@ -790,24 +790,33 @@
 
   .admin-workspace table.notifications-table td:nth-child(1),
   .customer-workspace-main table.notifications-table td:nth-child(1) {
-    grid-area: message;
-    padding-bottom: 8px !important;
+    grid-area: checkbox;
+    padding: 0 8px 0 16px !important;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .admin-workspace table.notifications-table td:nth-child(2),
   .customer-workspace-main table.notifications-table td:nth-child(2) {
-    grid-area: type;
-    white-space: nowrap !important;
+    grid-area: message;
+    padding-bottom: 8px !important;
   }
 
   .admin-workspace table.notifications-table td:nth-child(3),
   .customer-workspace-main table.notifications-table td:nth-child(3) {
-    grid-area: date;
+    grid-area: type;
     white-space: nowrap !important;
   }
 
   .admin-workspace table.notifications-table td:nth-child(4),
   .customer-workspace-main table.notifications-table td:nth-child(4) {
+    grid-area: date;
+    white-space: nowrap !important;
+  }
+
+  .admin-workspace table.notifications-table td:nth-child(5),
+  .customer-workspace-main table.notifications-table td:nth-child(5) {
     grid-area: status;
     white-space: nowrap !important;
   }
@@ -2124,4 +2133,379 @@
     gap: 12px !important;
     width: 100% !important;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CUSTOMER DASHBOARD — MOBILE-ONLY COMPONENTS  (≤768px)
+   All rules are scoped to cust-mobile-* classes or inside
+   @media (max-width: 768px) to prevent any bleed into desktop,
+   admin, or super-admin views.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Hide global site Navbar on mobile for logged-in customers.
+   The body class 'customer-mobile-active' is added/removed by
+   App.tsx AppContent via useEffect. Desktop (>768px) is unaffected.
+   Admin and SuperAdmin views are unaffected (different routes, different roles). */
+@media (max-width: 768px) {
+  body.customer-mobile-active .navbar {
+    display: none !important;
+  }
+
+  /* Global bottom padding for all customer pages on mobile so the
+     fixed bottom nav never obscures page content */
+  body.customer-mobile-active main {
+    padding-bottom: 72px !important;
+  }
+
+  /* Global top padding for all customer pages on mobile (our 56px top nav
+     replaces the global Navbar which was 85px) */
+  body.customer-mobile-active main > * {
+    /* Each page's own top padding/margin will handle the rest */
+  }
+}
+
+/* Global top padding for ALL customer pages on mobile — applies when
+   body.customer-mobile-active is set. The fixed top nav is 56px tall. */
+@media (max-width: 768px) {
+  body.customer-mobile-active main {
+    padding-top: 56px;
+  }
+}
+
+/* ─── Dashboard-specific padding overrides on mobile ─── */
+
+@media (max-width: 768px) {
+  .dashboard-page {
+    padding-top: 56px !important; /* matches cust-mobile-topnav height */
+    overflow-x: hidden;
+  }
+
+  /* Give main content panel bottom padding so the fixed bottom nav
+     doesn't overlap the last rendered element */
+  .customer-workspace-main {
+    padding-bottom: 90px !important;
+  }
+
+  /* Workspace layout: full-width single column, no side gaps */
+  .customer-workspace-layout {
+    padding: 12px 12px 0 12px !important;
+    gap: 0 !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE TOP NAVBAR
+   ───────────────────────────────────────────────────────────── */
+.cust-mobile-topnav {
+  display: none; /* hidden by default — shown only on ≤768px via isMobile check in JSX */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 200;
+  background: rgba(10, 7, 5, 0.85);
+  border-bottom: 1px solid rgba(201, 168, 76, 0.25);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+@media (max-width: 768px) {
+  .cust-mobile-topnav {
+    display: flex;
+  }
+}
+
+.cust-mobile-topnav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border: none;
+  color: #f5efe6;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.cust-mobile-topnav-btn:hover,
+.cust-mobile-topnav-btn:active {
+  background: rgba(201, 168, 76, 0.12);
+  color: #c9a84c;
+}
+
+/* Wrapper for badge positioning */
+.cust-mobile-topnav-btn--badge-wrap {
+  position: relative;
+}
+
+.cust-mobile-topnav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.cust-mobile-topnav-logo {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Company logo image in mobile top nav */
+.cust-mobile-logo-img {
+  height: 36px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(201, 168, 76, 0.3));
+}
+
+/* Text fallback if logo image fails to load */
+.cust-mobile-logo-text {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #c9a84c;
+  background: linear-gradient(135deg, #c9a84c 0%, #e5c875 50%, #c9a84c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.cust-mobile-topnav-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Reward coins pill badge */
+.cust-mobile-coins-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  background: rgba(201, 168, 76, 0.12);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  border-radius: 20px;
+  color: #c9a84c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE FIXED BOTTOM NAVIGATION BAR
+   ───────────────────────────────────────────────────────────── */
+.cust-mobile-bottom-nav {
+  display: none; /* hidden by default */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  z-index: 200;
+  background: rgba(10, 7, 5, 0.98);
+  border-top: 1px solid rgba(201, 168, 76, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  align-items: stretch;
+  justify-content: space-around;
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.7);
+  /* Safe area for home-bar devices */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 768px) {
+  .cust-mobile-bottom-nav {
+    display: flex;
+  }
+}
+
+.cust-mobile-bottom-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  padding: 6px 4px;
+  transition: color 0.2s ease, transform 0.15s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+/* Floating Action Button style for Shop */
+.cust-mobile-bottom-btn--shop {
+  position: relative;
+  z-index: 201;
+  overflow: visible !important;
+}
+
+.shop-icon-wrapper {
+  background: #c9a84c;
+  color: #1a1512;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -24px;
+  box-shadow: 0 4px 15px rgba(201, 168, 76, 0.4);
+  border: 4px solid #0a0705;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cust-mobile-bottom-btn--shop:active .shop-icon-wrapper {
+  transform: scale(0.95);
+}
+
+.cust-mobile-bottom-btn--shop.active .shop-icon-wrapper {
+  box-shadow: 0 4px 25px rgba(201, 168, 76, 0.7);
+  background: #e5c875;
+}
+
+.cust-mobile-bottom-btn--shop.active {
+  background: transparent !important; /* Override the default active background for the FAB */
+}
+
+.cust-mobile-bottom-btn:active {
+  transform: scale(0.92);
+}
+
+.cust-mobile-bottom-btn.active {
+  color: #c9a84c;
+  background: rgba(201, 168, 76, 0.1);
+  border-radius: 8px;
+}
+
+.cust-mobile-bottom-btn.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  background: #c9a84c;
+  border-radius: 0 0 3px 3px;
+}
+
+.cust-mobile-bottom-btn--shop.active::before {
+  display: none !important; /* Hide the top yellow line for the FAB */
+}
+
+.cust-mobile-bottom-btn span {
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE COMPOSITE ACCOUNT PAGE
+   ───────────────────────────────────────────────────────────── */
+.cust-mobile-account-page {
+  width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Sub-section switcher tabs row */
+.cust-mobile-account-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: rgba(18, 14, 11, 0.9);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cust-mobile-account-tab-btn {
+  flex: 1;
+  padding: 10px 6px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-right: 1px solid rgba(201, 168, 76, 0.15);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cust-mobile-account-tab-btn:last-child {
+  border-right: none;
+}
+
+.cust-mobile-account-tab-btn.active {
+  background: linear-gradient(135deg, rgba(201, 168, 76, 0.2) 0%, rgba(229, 200, 117, 0.1) 100%);
+  color: #c9a84c;
+  font-weight: 700;
+}
+
+.cust-mobile-account-section {
+  animation: cust-mobile-fade-in 0.25s ease forwards;
+}
+
+@keyframes cust-mobile-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spin animation for loading icon in save button */
+.spin {
+  animation: spin-anim 0.8s linear infinite;
+}
+
+@keyframes spin-anim {
+  to { transform: rotate(360deg); }
 }

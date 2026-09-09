@@ -17,6 +17,7 @@ import {
   ArrowDownLeft,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   walletService,
@@ -25,6 +26,8 @@ import {
   AdminCoinTransactionItem,
 } from '../../services/walletService';
 import { Button } from '../../components/ui/Button';
+import { Pagination } from '../../components/ui/Pagination';
+import { exportToCSV } from '../../utils/exportCsv';
 
 const DEFAULT_SETTINGS: RewardSettings = {
   reward_system_enabled: true,
@@ -410,29 +413,40 @@ export const RewardCoinsView: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Search Customer Bar */}
-                  <div style={{ position: 'relative', width: '260px' }}>
-                    <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
-                    <input
-                      type="text"
-                      placeholder="Search customer..."
-                      value={customerSearch}
-                      onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        setCustPage(1);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '7px 12px 7px 34px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        background: 'rgba(0,0,0,0.4)',
-                        color: '#fff',
-                        fontSize: '0.8rem',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
+                  {/* Search Customer Bar (Left) & Export CSV (Right) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', width: '240px' }}>
+                      <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search customer..."
+                        value={customerSearch}
+                        onChange={(e) => {
+                          setCustomerSearch(e.target.value);
+                          setCustPage(1);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '7px 12px 7px 34px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          background: 'rgba(0,0,0,0.4)',
+                          color: '#fff',
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    <Button
+                      variant="glass"
+                      onClick={() => exportToCSV('Customer_Reward_Information', filteredCustomerStats)}
+                      disabled={filteredCustomerStats.length === 0}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px', border: '1px solid rgba(201,168,76,0.35)', color: '#c9a84c' }}
+                    >
+                      <FileSpreadsheet size={14} /> Export CSV
+                    </Button>
                   </div>
                 </div>
 
@@ -530,70 +544,16 @@ export const RewardCoinsView: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Compact Customer Table Pagination */}
+                {/* Customer Table Pagination */}
                 {filteredCustomerStats.length > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>
-                    <span>
-                      Showing {Math.min((custPage - 1) * custLimit + 1, filteredCustomerStats.length)}–
-                      {Math.min(custPage * custLimit, filteredCustomerStats.length)} of {filteredCustomerStats.length}
-                    </span>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        disabled={custPage <= 1}
-                        onClick={() => setCustPage((p) => Math.max(1, p - 1))}
-                        style={{
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          color: custPage <= 1 ? 'rgba(255,255,255,0.25)' : '#fff',
-                          borderRadius: '4px',
-                          padding: '4px 10px',
-                          cursor: custPage <= 1 ? 'not-allowed' : 'pointer',
-                          fontSize: '0.78rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <ChevronLeft size={14} /> Previous
-                      </button>
-                      {Array.from({ length: totalCustPages }, (_, i) => i + 1).map((pg) => (
-                        <button
-                          key={pg}
-                          onClick={() => setCustPage(pg)}
-                          style={{
-                            background: custPage === pg ? '#c9a84c' : 'rgba(0,0,0,0.3)',
-                            color: custPage === pg ? '#0f0c0a' : '#fff',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            cursor: 'pointer',
-                            fontWeight: custPage === pg ? 700 : 400,
-                            fontSize: '0.78rem',
-                          }}
-                        >
-                          {pg}
-                        </button>
-                      ))}
-                      <button
-                        disabled={custPage >= totalCustPages}
-                        onClick={() => setCustPage((p) => Math.min(totalCustPages, p + 1))}
-                        style={{
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          color: custPage >= totalCustPages ? 'rgba(255,255,255,0.25)' : '#fff',
-                          borderRadius: '4px',
-                          padding: '4px 10px',
-                          cursor: custPage >= totalCustPages ? 'not-allowed' : 'pointer',
-                          fontSize: '0.78rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        Next <ChevronRight size={14} />
-                      </button>
-                    </div>
+                  <div style={{ marginTop: '16px' }}>
+                    <Pagination
+                      currentPage={custPage}
+                      totalPages={totalCustPages}
+                      totalItems={filteredCustomerStats.length}
+                      itemsPerPage={custLimit}
+                      onPageChange={(p) => setCustPage(p)}
+                    />
                   </div>
                 )}
               </div>

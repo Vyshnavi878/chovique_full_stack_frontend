@@ -92,7 +92,6 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ isEmbedded = false }
           justifyContent: 'center',
           textAlign: 'center',
           background: isEmbedded ? 'transparent' : 'var(--gradient-hero)',
-          paddingBottom: '40px',
         }}
       >
         <div
@@ -349,7 +348,6 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ isEmbedded = false }
         paddingTop: '85px',
         minHeight: '80vh',
         background: 'var(--gradient-hero)',
-        paddingBottom: '48px',
       }}
     >
       <div className="container">{content}</div>

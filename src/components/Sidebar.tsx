@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
     { id: 'reward-settings', label: 'Reward Coins System', icon: Coins },
     { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
-    { id: 'testimonials', label: 'Atelier Testimonials', icon: Star },
+    { id: 'testimonials', label: 'Reviews', icon: Star },
     { id: 'contact-messages', label: 'Contact Messages', icon: Mail },
     { id: 'complaints', label: 'Customer Complaints', icon: AlertTriangle },
   ];

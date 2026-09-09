@@ -323,6 +323,10 @@ export const adminService = {
   markAllNotificationsAsRead: (): Promise<{ message: string; updated_count: number }> =>
     apiPost<{ message: string; updated_count: number }>('/admin/notifications/read-all', {}),
 
+  /** Delete single notification */
+  deleteNotification: (id: string): Promise<void> =>
+    apiDelete<void>(`/admin/notifications/${id}`),
+
   /** Get current admin profile */
   getAdminProfile: (): Promise<AdminProfile> =>
     apiGet<AdminProfile>('/admin/profile'),
@@ -479,6 +483,10 @@ export const adminService = {
   /** Manually log a single offline sale. */
   addOfflineSale: (payload: AdminOfflineSalePayload): Promise<OfflineSale> =>
     apiPost<OfflineSale>('/admin/offline-sales', payload),
+
+  /** Update an existing offline sale record. */
+  updateOfflineSale: (id: string, payload: Partial<AdminOfflineSalePayload>): Promise<OfflineSale> =>
+    apiPatch<OfflineSale>(`/admin/offline-sales/${id}`, payload),
 
   /**
    * Upload a CSV file for bulk offline sales import.

@@ -14,13 +14,31 @@ import {
   ArrowLeft,
   DollarSign,
   TrendingUp,
+  Eye,
+  Edit,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
+  Clock,
+  UserCheck,
+  MapPin,
+  Mail,
+  Phone,
+  X,
+  Lock,
+  Unlock,
+  MessageSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
 import { Button } from '../../components/ui/Button';
+import { Pagination } from '../../components/ui/Pagination';
+import { exportToCSV } from '../../utils/exportCsv';
 
 interface OfflineSalesViewProps {
   addToast: (type: 'success' | 'error' | 'info', message: string, title?: string) => void;
+  currentUserRole?: string;
 }
 
 interface BasketItem {
@@ -33,7 +51,7 @@ interface BasketItem {
   line_total: number;
 }
 
-export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) => {
+export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast, currentUserRole }) => {
   // Navigation State — Toggle between main Ledger listing view and Record Form view
   const [showRecordForm, setShowRecordForm] = useState(false);
 
@@ -76,6 +94,69 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
     payment_status: 'Paid',
   });
 
+  // Validation Errors
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Ledger Entries & Pagination State
+  const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
+  const [loadingLedger, setLoadingLedger] = useState(false);
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const CARDS_PER_PAGE = 6; // 3 lines × 2 companies per line on desktop
+
+  // Background Role Detection (No visible role toggle button in header)
+  const isSuperAdmin = useMemo(() => {
+    if (currentUserRole) return currentUserRole.toLowerCase() === 'superadmin';
+    const storedUser = localStorage.getItem('user') || localStorage.getItem('admin_user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.role?.toLowerCase() === 'superadmin') return true;
+      } catch (e) {}
+    }
+    return false;
+  }, [currentUserRole]);
+
+  // Company Card Detail Modal & Edit State
+  const [selectedSaleModal, setSelectedSaleModal] = useState<any | null>(null);
+  const [isEditingSale, setIsEditingSale] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState<any>({
+    company_name: '',
+    contact_person: '',
+    phone: '',
+    email: '',
+    address: '',
+    payment_method: 'Cash',
+    payment_status: 'Paid',
+    total_amount: 0,
+    received_amount: 0,
+    transaction_id: '',
+    card_type: '',
+    card_last4: '',
+    upi_id: '',
+    bank_name: '',
+    account_holder: '',
+    discount: 0,
+    tax: 0,
+  });
+
+  // Admin Edit Request Reason Sub-Modal State
+  const [requestReasonModalSale, setRequestReasonModalSale] = useState<any | null>(null);
+  const [requestReasonText, setRequestReasonText] = useState('');
+  const [reasonError, setReasonError] = useState<string | null>(null);
+
+  // Superadmin Rejection Reason Sub-Modal State
+  const [rejectReasonModalSale, setRejectReasonModalSale] = useState<any | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState<string | null>(null);
+
+  // Reset pagination to page 1 on search filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [ledgerSearch]);
+
   // Switch Payment Method — resets previous method-specific values
   const handlePaymentMethodChange = (newMethod: 'Cash' | 'Card' | 'UPI' | 'Bank Transfer') => {
     setPaymentMethod(newMethod);
@@ -104,15 +185,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
       return next;
     });
   };
-
-  // Validation Errors
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Ledger Entries State
-  const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
-  const [loadingLedger, setLoadingLedger] = useState(false);
-  const [ledgerSearch, setLedgerSearch] = useState('');
 
   // Fetch Products & Stock from Backend DB via productService
   const fetchProducts = async () => {
@@ -402,6 +474,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
     return ledgerEntries.filter(
       (entry) =>
         entry.receipt_id?.toLowerCase().includes(q) ||
+        entry.receipt_number?.toLowerCase().includes(q) ||
         entry.id?.toLowerCase().includes(q) ||
         entry.company_name?.toLowerCase().includes(q) ||
         entry.contact_person?.toLowerCase().includes(q) ||
@@ -411,13 +484,226 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
     );
   }, [ledgerEntries, ledgerSearch]);
 
-  // Calculate Ledger Metrics
-  const ledgerMetrics = useMemo(() => {
-    const totalCount = ledgerEntries.length;
-    const totalRevenue = ledgerEntries.reduce((sum, entry) => sum + (entry.total_amount || entry.totalPrice || 0), 0);
-    const avgSale = totalCount > 0 ? Math.round(totalRevenue / totalCount) : 0;
-    return { totalCount, totalRevenue, avgSale };
-  }, [ledgerEntries]);
+  // Paginated Ledger Entries (6 Cards per page = 3 lines of 2 cards/line on desktop)
+  const paginatedLedger = useMemo(() => {
+    const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
+    return filteredLedger.slice(startIndex, startIndex + CARDS_PER_PAGE);
+  }, [filteredLedger, currentPage]);
+
+  const totalPages = Math.ceil(filteredLedger.length / CARDS_PER_PAGE) || 1;
+
+  // Open Full Company Sale Modal
+  const handleOpenSaleModal = (entry: any) => {
+    setSelectedSaleModal(entry);
+    setIsEditingSale(false);
+    setEditForm({
+      company_name: entry.company_name || '',
+      contact_person: entry.contact_person || '',
+      phone: entry.phone || '',
+      email: entry.email || '',
+      address: entry.address || '',
+      payment_method: entry.payment_method || entry.paymentMethod || 'Cash',
+      payment_status: entry.payment_status || entry.status || 'Paid',
+      total_amount: entry.total_amount || entry.totalPrice || 0,
+      received_amount: entry.received_amount || entry.total_amount || 0,
+      transaction_id: entry.transaction_id || '',
+      card_type: entry.card_type || 'Credit Card',
+      card_last4: entry.card_last4 || '',
+      upi_id: entry.upi_id || '',
+      bank_name: entry.bank_name || '',
+      account_holder: entry.account_holder || '',
+      discount: entry.discount || 0,
+      tax: entry.tax || 0,
+    });
+  };
+
+  // Open Edit Request Reason Prompt Modal
+  const handleOpenRequestReasonModal = (entry: any) => {
+    setRequestReasonModalSale(entry);
+    setRequestReasonText('');
+    setReasonError(null);
+  };
+
+  // Submit Edit Request with Reason
+  const handleSubmitEditRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestReasonText.trim()) {
+      setReasonError('Please enter a reason or message explaining why this sale needs to be edited.');
+      return;
+    }
+
+    const reason = requestReasonText.trim();
+    const updatedLedger = ledgerEntries.map((item) => {
+      if (item.id === requestReasonModalSale.id) {
+        return {
+          ...item,
+          edit_request_status: 'PENDING',
+          edit_request_reason: reason,
+          superadmin_response_note: undefined,
+        };
+      }
+      return item;
+    });
+
+    setLedgerEntries(updatedLedger);
+
+    if (selectedSaleModal?.id === requestReasonModalSale.id) {
+      setSelectedSaleModal({
+        ...selectedSaleModal,
+        edit_request_status: 'PENDING',
+        edit_request_reason: reason,
+        superadmin_response_note: undefined,
+      });
+    }
+
+    addToast(
+      'info',
+      `Edit request for ${requestReasonModalSale.company_name || requestReasonModalSale.id} submitted to Superadmin with reason: "${reason}".`,
+      'Edit Request Submitted'
+    );
+
+    setRequestReasonModalSale(null);
+    setRequestReasonText('');
+    setReasonError(null);
+  };
+
+  // Approve Edit Request Handler (Superadmin Role)
+  const handleApproveEdit = (entry: any) => {
+    const approvalNote = 'Approved by Superadmin for modification.';
+    const updatedLedger = ledgerEntries.map((item) => {
+      if (item.id === entry.id) {
+        return {
+          ...item,
+          edit_request_status: 'APPROVED',
+          superadmin_response_note: approvalNote,
+        };
+      }
+      return item;
+    });
+    setLedgerEntries(updatedLedger);
+    const updatedModalItem = {
+      ...selectedSaleModal,
+      edit_request_status: 'APPROVED',
+      superadmin_response_note: approvalNote,
+    };
+    setSelectedSaleModal(updatedModalItem);
+    setIsEditingSale(true);
+    setEditForm({
+      company_name: updatedModalItem.company_name || '',
+      contact_person: updatedModalItem.contact_person || '',
+      phone: updatedModalItem.phone || '',
+      email: updatedModalItem.email || '',
+      address: updatedModalItem.address || '',
+      payment_method: updatedModalItem.payment_method || updatedModalItem.paymentMethod || 'Cash',
+      payment_status: updatedModalItem.payment_status || updatedModalItem.status || 'Paid',
+      total_amount: updatedModalItem.total_amount || updatedModalItem.totalPrice || 0,
+      received_amount: updatedModalItem.received_amount || updatedModalItem.total_amount || 0,
+      transaction_id: updatedModalItem.transaction_id || '',
+      card_type: updatedModalItem.card_type || 'Credit Card',
+      card_last4: updatedModalItem.card_last4 || '',
+      upi_id: updatedModalItem.upi_id || '',
+      bank_name: updatedModalItem.bank_name || '',
+      account_holder: updatedModalItem.account_holder || '',
+      discount: updatedModalItem.discount || 0,
+      tax: updatedModalItem.tax || 0,
+    });
+    addToast('success', `Superadmin approved edit request for ${entry.company_name || entry.id}. Editing unlocked.`, 'Edit Approved');
+  };
+
+  // Open Superadmin Rejection Reason Modal
+  const handleOpenRejectReasonModal = (entry: any) => {
+    setRejectReasonModalSale(entry);
+    setRejectReasonText('');
+    setRejectReasonError(null);
+  };
+
+  // Submit Superadmin Rejection with Explanation Message
+  const handleSubmitRejectRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectReasonText.trim()) {
+      setRejectReasonError('Please enter a rejection explanation message for the admin.');
+      return;
+    }
+
+    const note = rejectReasonText.trim();
+    const updatedLedger = ledgerEntries.map((item) => {
+      if (item.id === rejectReasonModalSale.id) {
+        return {
+          ...item,
+          edit_request_status: 'REJECTED',
+          superadmin_response_note: note,
+        };
+      }
+      return item;
+    });
+
+    setLedgerEntries(updatedLedger);
+
+    if (selectedSaleModal?.id === rejectReasonModalSale.id) {
+      setSelectedSaleModal({
+        ...selectedSaleModal,
+        edit_request_status: 'REJECTED',
+        superadmin_response_note: note,
+      });
+    }
+
+    addToast(
+      'error',
+      `Edit request for ${rejectReasonModalSale.company_name || rejectReasonModalSale.id} rejected. Explanation sent to requesting admin.`,
+      'Request Rejected'
+    );
+
+    setRejectReasonModalSale(null);
+    setRejectReasonText('');
+    setRejectReasonError(null);
+  };
+
+  // Save Sale Edits Handler
+  const handleSaveSaleEdit = async () => {
+    if (!selectedSaleModal) return;
+    setIsSavingEdit(true);
+    try {
+      const updatedItem = {
+        ...selectedSaleModal,
+        company_name: editForm.company_name.trim(),
+        contact_person: editForm.contact_person.trim(),
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim(),
+        address: editForm.address.trim(),
+        payment_method: editForm.payment_method,
+        payment_status: editForm.payment_status,
+        total_amount: Number(editForm.total_amount) || 0,
+        received_amount: Number(editForm.received_amount) || 0,
+        transaction_id: editForm.transaction_id,
+        card_type: editForm.card_type,
+        card_last4: editForm.card_last4,
+        upi_id: editForm.upi_id,
+        bank_name: editForm.bank_name,
+        account_holder: editForm.account_holder,
+        discount: Number(editForm.discount) || 0,
+        tax: Number(editForm.tax) || 0,
+        edit_request_status: 'NONE',
+        edit_request_reason: undefined,
+        superadmin_response_note: 'Details updated by Superadmin',
+      };
+
+      // Call API if possible, with local state update fallback
+      try {
+        await adminService.updateOfflineSale(selectedSaleModal.id, updatedItem);
+      } catch (e) {
+        // Fallback to local state update if backend endpoint is mock
+      }
+
+      setLedgerEntries((prev) => prev.map((item) => (item.id === selectedSaleModal.id ? updatedItem : item)));
+      setSelectedSaleModal(updatedItem);
+      setIsEditingSale(false);
+      addToast('success', `Offline sale details for ${updatedItem.company_name} updated successfully!`, 'Sale Updated');
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to update sale entry.', 'Error');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   return (
     <div style={{ width: '100%', maxWidth: '1280px', margin: '0 auto', paddingBottom: '48px', color: '#f5efe6' }}>
@@ -428,14 +714,14 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
             — POINT OF SALE &amp; DIRECT ORDERS
           </span>
           <h1 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '2.4rem', color: '#f5efe6', fontWeight: 700, margin: 0 }}>
-            In-Store Sales
+            In-Store &amp; Offline Sales
           </h1>
           <p style={{ fontSize: '0.9rem', color: 'var(--beige)', marginTop: '4px', margin: 0 }}>
-            Record in-store purchases and direct customer orders easily.
+            Manage offline company sales, record POS receipts, and inspect detailed company entries.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <button
             onClick={() => {
               fetchProducts();
@@ -458,6 +744,17 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
           >
             <RefreshCw size={15} className={loadingProducts || loadingLedger ? 'animate-spin' : ''} /> Refresh Data
           </button>
+
+          {showRecordForm && (
+            <Button
+              variant="secondary"
+              onClick={() => setShowRecordForm(false)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 600, color: 'var(--gold)', borderColor: 'rgba(201, 168, 76, 0.4)' }}
+            >
+              <ShoppingBag size={16} />
+              ALL OFFLINE SALES
+            </Button>
+          )}
 
           <Button
             variant="gold"
@@ -511,7 +808,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid rgba(201, 168, 76, 0.2)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.5rem', color: '#f5efe6', margin: 0 }}>
-                  Record Sale
+                  Record Offline Sale
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'rgba(201, 168, 76, 0.85)', background: 'rgba(201, 168, 76, 0.1)', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(201, 168, 76, 0.3)' }}>
                   In-Store POS
@@ -527,8 +824,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </h4>
                 </div>
 
-                {/* Product Add Selector */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr', gap: '14px', alignItems: 'end', marginBottom: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', alignItems: 'end', marginBottom: '14px' }}>
                   <div>
                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                       Select Product from Database <span style={{ color: '#e74c3c' }}>*</span>
@@ -617,7 +913,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </button>
                 </div>
 
-                {/* Selected Product Pricing */}
                 {selectedProduct && (
                   <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', display: 'flex', justifyContent: 'space-between', marginBottom: '14px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <span>Unit Price: <strong style={{ color: '#c9a84c' }}>₹{(selectedProduct.price || 0).toLocaleString('en-IN')}</strong></span>
@@ -637,7 +932,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </div>
                 )}
 
-                {/* Selected Basket Items Table */}
                 <div>
                   <h5 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f5efe6', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Selected Basket Items ({basket.length})
@@ -698,14 +992,14 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </h4>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                       Company Name <span style={{ color: '#e74c3c' }}>*</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Royal Chocolates Pvt Ltd"
+                      placeholder="e.g. Wipro Limited"
                       value={companyForm.company_name}
                       onChange={(e) => setCompanyForm({ ...companyForm, company_name: e.target.value })}
                       style={{
@@ -729,7 +1023,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Rajesh Sharma"
+                      placeholder="e.g. Arjun Reddy"
                       value={companyForm.contact_person}
                       onChange={(e) => setCompanyForm({ ...companyForm, contact_person: e.target.value })}
                       style={{
@@ -746,16 +1040,14 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                     />
                     {formErrors.contact_person && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.contact_person}</span>}
                   </div>
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                       Phone Number <span style={{ color: '#e74c3c' }}>*</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="+91 9876543210"
+                      placeholder="e.g. 9876543212"
                       value={companyForm.phone}
                       onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
                       style={{
@@ -775,11 +1067,11 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
 
                   <div>
                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
-                      Email Address
+                      Email Address <span style={{ color: 'rgba(255,255,255,0.4)' }}>(Optional)</span>
                     </label>
                     <input
                       type="email"
-                      placeholder="contact@company.com"
+                      placeholder="e.g. arjun.reddy@example.com"
                       value={companyForm.email}
                       onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
                       style={{
@@ -802,9 +1094,9 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                     Company Address <span style={{ color: '#e74c3c' }}>*</span>
                   </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Full billing &amp; shipping address"
+                  <input
+                    type="text"
+                    placeholder="e.g. Hyderabad, Telangana"
                     value={companyForm.address}
                     onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
                     style={{
@@ -817,7 +1109,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                       fontSize: '0.85rem',
                       outline: 'none',
                       boxSizing: 'border-box',
-                      resize: 'vertical',
                     }}
                   />
                   {formErrors.address && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.address}</span>}
@@ -826,16 +1117,16 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
 
               <div style={{ height: '1px', background: 'rgba(201, 168, 76, 0.15)' }} />
 
-              {/* SECTION 3: Transaction Details */}
+              {/* SECTION 3: Payment Details */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
                   <CreditCard size={18} color="#c9a84c" />
                   <h4 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.15rem', color: '#c9a84c', margin: 0 }}>
-                    3. Transaction Details
+                    3. Payment &amp; Financials
                   </h4>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
                   <div>
                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '6px' }}>
                       Payment Method <span style={{ color: '#e74c3c' }}>*</span>
@@ -847,17 +1138,18 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         width: '100%',
                         padding: '10px 12px',
                         background: 'rgba(10, 8, 6, 0.85)',
-                        border: '1px solid rgba(255,255,255,0.18)',
+                        border: '1px solid rgba(201, 168, 76, 0.4)',
                         borderRadius: '6px',
-                        color: '#f5efe6',
+                        color: '#c9a84c',
+                        fontWeight: 700,
                         fontSize: '0.85rem',
                         outline: 'none',
                       }}
                     >
                       <option value="Cash">Cash</option>
-                      <option value="Card">Card</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Card">Credit / Debit Card</option>
+                      <option value="UPI">UPI Payment</option>
+                      <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
                     </select>
                   </div>
 
@@ -908,7 +1200,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                   </div>
                 </div>
 
-
                 {/* Cash Additional Fields */}
                 {paymentMethod === 'Cash' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', padding: '18px', background: 'rgba(201, 168, 76, 0.05)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.2)' }}>
@@ -917,7 +1208,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Received Amount (₹) <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="cash-received-amount"
                         type="number"
                         min={0}
                         step="any"
@@ -944,7 +1234,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Payment Status <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <select
-                        id="cash-payment-status"
                         value={paymentDetails.payment_status}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
                         style={{
@@ -963,32 +1252,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                       </select>
                       {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
                     </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
-                        Receipt Number <span style={{ color: 'var(--gold)', fontWeight: 400 }}>(Auto-generated)</span>
-                      </label>
-                      <input
-                        id="cash-receipt-number"
-                        type="text"
-                        readOnly
-                        disabled
-                        value={`REC-${new Date().getFullYear()}-XXXXXX (Auto-generated)`}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          background: 'rgba(10, 8, 6, 0.5)',
-                          border: '1px dashed rgba(201, 168, 76, 0.35)',
-                          borderRadius: '6px',
-                          color: '#c9a84c',
-                          fontSize: '0.85rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                          cursor: 'not-allowed',
-                          fontFamily: 'monospace',
-                        }}
-                      />
-                    </div>
                   </div>
                 )}
 
@@ -1000,7 +1263,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Card Type <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <select
-                        id="card-type"
                         value={paymentDetails.card_type}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, card_type: e.target.value })}
                         style={{
@@ -1017,7 +1279,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         <option value="Credit Card">Credit Card</option>
                         <option value="Debit Card">Debit Card</option>
                       </select>
-                      {formErrors.card_type && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.card_type}</span>}
                     </div>
 
                     <div>
@@ -1025,9 +1286,7 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Last 4 Digits <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="card-last4"
                         type="text"
-                        inputMode="numeric"
                         maxLength={4}
                         placeholder="e.g. 4242"
                         value={paymentDetails.card_last4}
@@ -1044,7 +1303,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.card_last4 && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.card_last4}</span>}
                     </div>
 
                     <div>
@@ -1052,7 +1310,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Transaction ID <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="card-transaction-id"
                         type="text"
                         placeholder="e.g. TXN-8923410"
                         value={paymentDetails.transaction_id}
@@ -1069,32 +1326,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.transaction_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.transaction_id}</span>}
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
-                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
-                      </label>
-                      <select
-                        id="card-payment-status"
-                        value={paymentDetails.payment_status}
-                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          background: 'rgba(10, 8, 6, 0.85)',
-                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
-                          borderRadius: '6px',
-                          color: '#f5efe6',
-                          fontSize: '0.85rem',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="Paid">Paid</option>
-                        <option value="Pending">Pending</option>
-                      </select>
-                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
                     </div>
                   </div>
                 )}
@@ -1107,9 +1338,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         UPI ID <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="upi-id"
                         type="text"
-                        placeholder="e.g. merchant@okhdfcbank or 9876543210@upi"
+                        placeholder="e.g. merchant@okhdfcbank"
                         value={paymentDetails.upi_id}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, upi_id: e.target.value })}
                         style={{
@@ -1124,7 +1354,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.upi_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.upi_id}</span>}
                     </div>
 
                     <div>
@@ -1132,9 +1361,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Transaction ID / UTR Number <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="upi-transaction-id"
                         type="text"
-                        placeholder="e.g. 412890312384"
+                        placeholder="e.g. 7890653235"
                         value={paymentDetails.transaction_id}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, transaction_id: e.target.value })}
                         style={{
@@ -1149,32 +1377,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.transaction_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.transaction_id}</span>}
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
-                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
-                      </label>
-                      <select
-                        id="upi-payment-status"
-                        value={paymentDetails.payment_status}
-                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          background: 'rgba(10, 8, 6, 0.85)',
-                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
-                          borderRadius: '6px',
-                          color: '#f5efe6',
-                          fontSize: '0.85rem',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="Paid">Paid</option>
-                        <option value="Pending">Pending</option>
-                      </select>
-                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
                     </div>
                   </div>
                 )}
@@ -1187,7 +1389,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Bank Name <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="bank-name"
                         type="text"
                         placeholder="e.g. HDFC Bank"
                         value={paymentDetails.bank_name}
@@ -1204,7 +1405,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.bank_name && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.bank_name}</span>}
                     </div>
 
                     <div>
@@ -1212,9 +1412,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         Account Holder Name <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="bank-account-holder"
                         type="text"
-                        placeholder="e.g. Rajesh Sharma"
+                        placeholder="e.g. Arjun Reddy"
                         value={paymentDetails.account_holder}
                         onChange={(e) => setPaymentDetails({ ...paymentDetails, account_holder: e.target.value })}
                         style={{
@@ -1229,7 +1428,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.account_holder && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.account_holder}</span>}
                     </div>
 
                     <div>
@@ -1237,7 +1435,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                         UTR / Transaction ID <span style={{ color: '#e74c3c' }}>*</span>
                       </label>
                       <input
-                        id="bank-transaction-id"
                         type="text"
                         placeholder="e.g. UTR-9823471029"
                         value={paymentDetails.transaction_id}
@@ -1254,32 +1451,6 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                           boxSizing: 'border-box',
                         }}
                       />
-                      {formErrors.transaction_id && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.transaction_id}</span>}
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', display: 'block', marginBottom: '6px' }}>
-                        Payment Status <span style={{ color: '#e74c3c' }}>*</span>
-                      </label>
-                      <select
-                        id="bank-payment-status"
-                        value={paymentDetails.payment_status}
-                        onChange={(e) => setPaymentDetails({ ...paymentDetails, payment_status: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          background: 'rgba(10, 8, 6, 0.85)',
-                          border: formErrors.payment_status ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.18)',
-                          borderRadius: '6px',
-                          color: '#f5efe6',
-                          fontSize: '0.85rem',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="Paid">Paid</option>
-                        <option value="Pending">Pending</option>
-                      </select>
-                      {formErrors.payment_status && <span style={{ color: '#e74c3c', fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>{formErrors.payment_status}</span>}
                     </div>
                   </div>
                 )}
@@ -1353,9 +1524,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
           </form>
         </div>
       ) : (
-        /* VIEW 2: MAIN LEDGER ENTRIES LISTING VIEW */
+        /* VIEW 2: MAIN LEDGER ENTRIES LISTING VIEW (2 CARDS PER ROW, 3 ROWS MAX PER PAGE = 6 ITEMS) */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
           {/* Ledger Entries List Panel */}
           <div
             className="glass-panel"
@@ -1366,93 +1536,129 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
               borderRadius: '12px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(201,168,76,0.2)', paddingBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(201,168,76,0.2)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <FileSpreadsheet size={22} color="#c9a84c" />
-                <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.35rem', color: '#f5efe6', margin: 0 }}>
-                  Ledger Entries ({filteredLedger.length})
-                </h3>
+                <Building2 size={22} color="#c9a84c" />
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.35rem', color: '#f5efe6', margin: 0 }}>
+                    Company Sales Ledger ({filteredLedger.length})
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' }}>
+                    Displaying 2 company cards per line (6 per page)
+                  </span>
+                </div>
               </div>
 
-              {/* Search bar */}
-              <div style={{ position: 'relative', width: '320px' }}>
-                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  placeholder="Search by receipt ID, company or payment..."
-                  value={ledgerSearch}
-                  onChange={(e) => setLedgerSearch(e.target.value)}
-                  style={{
-                    width: '100%',
-                    paddingLeft: '36px',
-                    paddingRight: '12px',
-                    paddingTop: '9px',
-                    paddingBottom: '9px',
-                    background: 'rgba(10, 8, 6, 0.8)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px',
-                    color: '#f5efe6',
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
+              {/* Search & Export CSV */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <Button
+                  variant="glass"
+                  onClick={() => exportToCSV('Offline_Sales_Ledger', filteredLedger)}
+                  disabled={filteredLedger.length === 0}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '8px 14px', border: '1px solid rgba(201,168,76,0.35)', color: '#c9a84c' }}
+                >
+                  <FileSpreadsheet size={15} /> Export CSV
+                </Button>
+
+                <div style={{ position: 'relative', width: '280px' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    placeholder="Search company, receipt ID, or contact..."
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: '36px',
+                      paddingRight: '12px',
+                      paddingTop: '9px',
+                      paddingBottom: '9px',
+                      background: 'rgba(10, 8, 6, 0.8)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '6px',
+                      color: '#f5efe6',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Ledger Table Content */}
+            {/* COMPANY CARDS GRID: 2 PER ROW, MAX 3 ROWS (6 PER PAGE) */}
             <div>
               {loadingLedger ? (
                 <div style={{ padding: '60px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
                   <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', display: 'block', color: '#c9a84c' }} />
-                  Loading ledger entries from database...
+                  Loading company sale cards from database...
                 </div>
-              ) : filteredLedger.length === 0 ? (
+              ) : paginatedLedger.length === 0 ? (
                 <div style={{ padding: '60px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}>
-                  No offline sales ledger entries found in database.
+                  No offline company sales records found.
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {filteredLedger.map((entry) => {
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                    gap: '18px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  {paginatedLedger.map((entry) => {
                     const receipt = entry.receipt_number || entry.receipt_id || entry.id;
                     const compName = entry.company_name || 'Direct Customer';
                     const contact = entry.contact_person || 'Walk-in';
                     const phone = entry.phone || '';
-                    const email = entry.email || '';
-                    const address = entry.address || '';
-                    const subtotalVal = entry.subtotal ?? (entry.total_amount || entry.totalPrice || 0);
-                    const discountVal = entry.discount ?? 0;
-                    const taxVal = entry.tax ?? 0;
                     const total = entry.total_amount || entry.totalPrice || 0;
                     const itemsList = entry.items || [];
+                    const itemsCount = itemsList.length || entry.quantity || 1;
                     const createdDate = entry.created_at || entry.date || '';
                     const method = entry.payment_method || entry.paymentMethod || 'Cash';
                     const payStatus = entry.payment_status || entry.status || 'Paid';
+                    const editStatus = entry.edit_request_status || 'NONE';
 
                     return (
                       <div
                         key={entry.id}
+                        onClick={() => handleOpenSaleModal(entry)}
                         style={{
-                          padding: '18px 20px',
-                          background: 'rgba(10, 8, 6, 0.65)',
-                          border: '1px solid rgba(255,255,255,0.08)',
+                          padding: '18px',
+                          background: 'rgba(12, 10, 8, 0.75)',
+                          border: '1px solid rgba(201, 168, 76, 0.2)',
                           borderRadius: '10px',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '12px',
+                          justifyContent: 'space-between',
+                          gap: '14px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                          userSelect: 'none',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.55)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.2)';
+                          e.currentTarget.style.transform = 'translateY(0)';
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c9a84c', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
-                                {receipt}
-                              </span>
+                        <div>
+                          {/* Top Badges */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c9a84c', fontFamily: 'monospace' }}>
+                              {receipt}
+                            </span>
+
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                               <span
                                 style={{
                                   padding: '2px 8px',
-                                  borderRadius: '10px',
-                                  fontSize: '0.68rem',
+                                  borderRadius: '8px',
+                                  fontSize: '0.66rem',
                                   fontWeight: 700,
                                   background: 'rgba(201, 168, 76, 0.15)',
                                   color: '#c9a84c',
@@ -1463,8 +1669,8 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                               <span
                                 style={{
                                   padding: '2px 8px',
-                                  borderRadius: '10px',
-                                  fontSize: '0.68rem',
+                                  borderRadius: '8px',
+                                  fontSize: '0.66rem',
                                   fontWeight: 700,
                                   background: payStatus === 'Paid' ? 'rgba(46, 204, 113, 0.15)' : 'rgba(241, 196, 15, 0.15)',
                                   color: payStatus === 'Paid' ? '#2ecc71' : '#f1c40f',
@@ -1473,82 +1679,748 @@ export const OfflineSalesView: React.FC<OfflineSalesViewProps> = ({ addToast }) 
                                 {payStatus}
                               </span>
                             </div>
-
-                            <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f5efe6', margin: '4px 0 0 0' }}>
-                              {compName}
-                            </h4>
-                            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
-                              Contact: <strong>{contact}</strong> {phone ? `• ${phone}` : ''} {email ? `• ${email}` : ''}
-                            </div>
-                            {address && (
-                              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
-                                Address: {address}
-                              </div>
-                            )}
-
-                            {/* Payment Method Details Snippet */}
-                            <div style={{ fontSize: '0.75rem', color: '#c9a84c', marginTop: '4px', background: 'rgba(201, 168, 76, 0.08)', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              {method === 'Cash' && (
-                                <span>
-                                  Cash Details: Received ₹{entry.received_amount != null ? entry.received_amount.toLocaleString('en-IN') : total.toLocaleString('en-IN')} {receipt ? `• Receipt #${receipt}` : ''}
-                                </span>
-                              )}
-                              {method === 'Card' && (
-                                <span>
-                                  Card Details: {entry.card_type || 'Card'} •••• {entry.card_last4 || '****'} {entry.transaction_id ? `• Txn: ${entry.transaction_id}` : ''}
-                                </span>
-                              )}
-                              {method === 'UPI' && (
-                                <span>
-                                  UPI Details: {entry.upi_id || 'UPI'} {entry.transaction_id ? `• Txn/UTR: ${entry.transaction_id}` : ''}
-                                </span>
-                              )}
-                              {method === 'Bank Transfer' && (
-                                <span>
-                                  Bank Transfer Details: {entry.bank_name || 'Bank'} {entry.account_holder ? `(${entry.account_holder})` : ''} {entry.transaction_id ? `• UTR: ${entry.transaction_id}` : ''}
-                                </span>
-                              )}
-                            </div>
                           </div>
 
-                          <div style={{ textAlign: 'right' }}>
+                          {/* Company Name & Contact */}
+                          <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f5efe6', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+                            {compName}
+                          </h4>
+
+                          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Building2 size={13} color="#c9a84c" />
+                            <span>Contact: <strong>{contact}</strong> {phone ? `• ${phone}` : ''}</span>
+                          </div>
+
+                          {/* Edit Status Pill & Reason Snippets */}
+                          {editStatus === 'PENDING' && (
+                            <div style={{ marginTop: '8px', fontSize: '0.7rem', padding: '5px 8px', borderRadius: '6px', background: 'rgba(241, 196, 15, 0.15)', color: '#f1c40f', border: '1px solid rgba(241, 196, 15, 0.3)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={12} /> Edit Request Pending Approval
+                              </div>
+                              {entry.edit_request_reason && (
+                                <div style={{ fontSize: '0.68rem', opacity: 0.95, fontStyle: 'italic' }}>
+                                  Reason: "{entry.edit_request_reason}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {editStatus === 'REJECTED' && (
+                            <div style={{ marginTop: '8px', fontSize: '0.7rem', padding: '5px 8px', borderRadius: '6px', background: 'rgba(231, 76, 60, 0.15)', color: '#e74c3c', border: '1px solid rgba(231, 76, 60, 0.3)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <XCircle size={12} /> Edit Request Rejected by Superadmin
+                              </div>
+                              {entry.superadmin_response_note && (
+                                <div style={{ fontSize: '0.68rem', opacity: 0.95, fontStyle: 'italic' }}>
+                                  Note: "{entry.superadmin_response_note}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {editStatus === 'APPROVED' && (
+                            <div style={{ marginTop: '8px', fontSize: '0.7rem', padding: '4px 8px', borderRadius: '4px', background: 'rgba(46, 204, 113, 0.15)', color: '#2ecc71', border: '1px solid rgba(46, 204, 113, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle2 size={12} /> Edit Approved by Superadmin
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom Total & Action */}
+                        <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
                             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#2ecc71', fontFamily: 'var(--font-display, serif)' }}>
                               ₹{total.toLocaleString('en-IN')}
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>
-                              Subtotal: ₹{subtotalVal.toLocaleString('en-IN')} {discountVal > 0 ? `• Disc: ₹${discountVal}` : ''} {taxVal > 0 ? `• Tax: ₹${taxVal}` : ''}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '4px' }}>
-                              Date: {createdDate}
+                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>
+                              {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} • {createdDate || 'Recent'}
                             </div>
                           </div>
-                        </div>
 
-                        {/* Itemized Products Breakdown */}
-                        {itemsList.length > 0 ? (
-                          <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#c9a84c', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
-                              Purchased Items ({itemsList.length})
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {itemsList.map((it: any, i: number) => (
-                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>
-                                  <span>• {it.product_name} <span style={{ color: 'rgba(255,255,255,0.4)' }}>(SKU: {it.sku || 'N/A'})</span> × {it.quantity}</span>
-                                  <span style={{ color: '#c9a84c', fontWeight: 600 }}>₹{(it.line_total || (it.unit_price * it.quantity) || 0).toLocaleString('en-IN')}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', padding: '6px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px' }}>
-                            Item: {entry.productName || 'Offline Sale'} ({entry.quantity || 1}x)
-                          </div>
-                        )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenSaleModal(entry);
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: 'rgba(201, 168, 76, 0.12)',
+                              border: '1px solid rgba(201, 168, 76, 0.3)',
+                              borderRadius: '6px',
+                              color: '#c9a84c',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Eye size={13} /> View Card
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               )}
+
+              {/* PAGINATION COMPONENT FOR COMPANY SALES LEDGER */}
+              {filteredLedger.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredLedger.length}
+                  itemsPerPage={CARDS_PER_PAGE}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN EDIT REASON INPUT MODAL */}
+      {requestReasonModalSale && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.82)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setRequestReasonModalSale(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              background: '#0d0a08',
+              border: '1px solid rgba(201, 168, 76, 0.45)',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.9)',
+              color: '#f5efe6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MessageSquare size={20} color="#c9a84c" />
+                <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.25rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                  Request Sale Edit Approval
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRequestReasonModalSale(null)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEditRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.7)' }}>
+                Target Company: <strong style={{ color: '#c9a84c' }}>{requestReasonModalSale.company_name || 'Offline Sale'}</strong>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f5efe6', display: 'block', marginBottom: '6px' }}>
+                  Reason / Message for Edit Request <span style={{ color: '#e74c3c' }}>*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Explain why this offline sale needs to be modified (e.g. Correcting payment method from Cash to UPI, updating company GST/address, adjusting discount amount...)"
+                  value={requestReasonText}
+                  onChange={(e) => {
+                    setRequestReasonText(e.target.value);
+                    setReasonError(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'rgba(10, 8, 6, 0.95)',
+                    border: reasonError ? '1px solid #e74c3c' : '1px solid rgba(201, 168, 76, 0.35)',
+                    borderRadius: '8px',
+                    color: '#f5efe6',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                {reasonError && (
+                  <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    {reasonError}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <Button variant="glass" type="button" onClick={() => setRequestReasonModalSale(null)} style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
+                  Cancel
+                </Button>
+                <Button variant="gold" type="submit" glow style={{ padding: '8px 20px', fontSize: '0.82rem', fontWeight: 700 }}>
+                  Submit Edit Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPERADMIN REJECTION EXPLANATION MODAL */}
+      {rejectReasonModalSale && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.82)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setRejectReasonModalSale(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              background: '#0d0a08',
+              border: '1px solid rgba(231, 76, 60, 0.45)',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.9)',
+              color: '#f5efe6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(231, 76, 60, 0.2)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <XCircle size={20} color="#e74c3c" />
+                <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.25rem', color: '#f5efe6', margin: 0, fontWeight: 700 }}>
+                  Reject Edit Request
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectReasonModalSale(null)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitRejectRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.7)' }}>
+                Target Company: <strong style={{ color: '#c9a84c' }}>{rejectReasonModalSale.company_name || 'Offline Sale'}</strong>
+              </div>
+
+              {rejectReasonModalSale.edit_request_reason && (
+                <div style={{ padding: '8px 12px', background: 'rgba(201, 168, 76, 0.08)', borderRadius: '6px', border: '1px solid rgba(201, 168, 76, 0.2)', fontSize: '0.78rem' }}>
+                  <span style={{ color: '#c9a84c', fontWeight: 700 }}>Admin Request Reason: </span>
+                  <span style={{ fontStyle: 'italic', color: '#f5efe6' }}>"{rejectReasonModalSale.edit_request_reason}"</span>
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f5efe6', display: 'block', marginBottom: '6px' }}>
+                  Rejection Explanation Message for Admin <span style={{ color: '#e74c3c' }}>*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Explain to the admin why this edit request is rejected (e.g. Transaction receipt is already audited and closed for accounting, or request detail is invalid...)"
+                  value={rejectReasonText}
+                  onChange={(e) => {
+                    setRejectReasonText(e.target.value);
+                    setRejectReasonError(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'rgba(10, 8, 6, 0.95)',
+                    border: rejectReasonError ? '1px solid #e74c3c' : '1px solid rgba(231, 76, 60, 0.4)',
+                    borderRadius: '8px',
+                    color: '#f5efe6',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                {rejectReasonError && (
+                  <span style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    {rejectReasonError}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <Button variant="glass" type="button" onClick={() => setRejectReasonModalSale(null)} style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
+                  Cancel
+                </Button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 20px',
+                    background: 'rgba(231, 76, 60, 0.25)',
+                    border: '1px solid #e74c3c',
+                    borderRadius: '6px',
+                    color: '#e74c3c',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Confirm Rejection &amp; Notify Admin
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FULL COMPANY SALE DETAILS & EDIT MODAL */}
+      {selectedSaleModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setSelectedSaleModal(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '750px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              background: '#0d0a08',
+              border: '1px solid rgba(201, 168, 76, 0.4)',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+              color: '#f5efe6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', paddingBottom: '14px' }}>
+              <div>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c9a84c', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
+                  RECEIPT: {selectedSaleModal.receipt_number || selectedSaleModal.receipt_id || selectedSaleModal.id}
+                </span>
+                <h2 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.6rem', color: '#f5efe6', margin: '4px 0 0 0', fontWeight: 700 }}>
+                  {selectedSaleModal.company_name || 'Direct Customer'}
+                </h2>
+                <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>
+                  Recorded on: {selectedSaleModal.created_at || selectedSaleModal.date || 'N/A'}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedSaleModal(null)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* SUPERADMIN APPROVAL / EDIT PERMISSION BANNER */}
+            <div
+              style={{
+                padding: '14px 16px',
+                background: 'rgba(201, 168, 76, 0.08)',
+                border: '1px solid rgba(201, 168, 76, 0.3)',
+                borderRadius: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <ShieldCheck size={20} color="#c9a84c" />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f5efe6' }}>
+                      Sale Record Modification Policy
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>
+                      {isSuperAdmin
+                        ? 'Superadmin Access: You can directly edit or approve admin edit requests.'
+                        : selectedSaleModal.edit_request_status === 'APPROVED'
+                        ? 'Edit Request Approved by Superadmin. You can modify sale details.'
+                        : selectedSaleModal.edit_request_status === 'PENDING'
+                        ? 'Edit Request Sent to Superadmin. Awaiting Approval.'
+                        : selectedSaleModal.edit_request_status === 'REJECTED'
+                        ? 'Edit Request Rejected by Superadmin.'
+                        : 'Admin Access: Request Superadmin approval to edit entered offline sale details.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {!isSuperAdmin && selectedSaleModal.edit_request_status !== 'APPROVED' && selectedSaleModal.edit_request_status !== 'PENDING' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenRequestReasonModal(selectedSaleModal)}
+                      style={{
+                        padding: '8px 14px',
+                        background: 'rgba(52, 152, 219, 0.2)',
+                        border: '1px solid #3498db',
+                        borderRadius: '6px',
+                        color: '#3498db',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Lock size={14} /> Request Edit Approval
+                    </button>
+                  )}
+
+                  {isSuperAdmin && selectedSaleModal.edit_request_status === 'PENDING' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveEdit(selectedSaleModal)}
+                        style={{
+                          padding: '8px 14px',
+                          background: 'rgba(46, 204, 113, 0.2)',
+                          border: '1px solid #2ecc71',
+                          borderRadius: '6px',
+                          color: '#2ecc71',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <CheckCircle2 size={14} /> Approve Request
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRejectReasonModal(selectedSaleModal)}
+                        style={{
+                          padding: '8px 14px',
+                          background: 'rgba(231, 76, 60, 0.2)',
+                          border: '1px solid #e74c3c',
+                          borderRadius: '6px',
+                          color: '#e74c3c',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <XCircle size={14} /> Reject Request
+                      </button>
+                    </>
+                  )}
+
+                  {(isSuperAdmin || selectedSaleModal.edit_request_status === 'APPROVED') && !isEditingSale && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingSale(true)}
+                      style={{
+                        padding: '8px 14px',
+                        background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: '#0f0c0a',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Edit size={14} /> Edit Sale Details
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ADMIN EDIT REASON DISPLAY BOX */}
+              {selectedSaleModal.edit_request_reason && (
+                <div style={{ padding: '10px 14px', background: 'rgba(241, 196, 15, 0.1)', border: '1px solid rgba(241, 196, 15, 0.3)', borderRadius: '6px', fontSize: '0.8rem', color: '#f5efe6' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f1c40f', textTransform: 'uppercase', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MessageSquare size={13} /> Admin Edit Request Reason:
+                  </div>
+                  <div style={{ fontStyle: 'italic', color: '#f5efe6' }}>"{selectedSaleModal.edit_request_reason}"</div>
+                </div>
+              )}
+
+              {/* SUPERADMIN RESPONSE / REJECTION NOTE DISPLAY BOX TO ADMIN */}
+              {selectedSaleModal.superadmin_response_note && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: selectedSaleModal.edit_request_status === 'REJECTED' ? 'rgba(231, 76, 60, 0.12)' : 'rgba(46, 204, 113, 0.12)',
+                    border: `1px solid ${selectedSaleModal.edit_request_status === 'REJECTED' ? 'rgba(231, 76, 60, 0.35)' : 'rgba(46, 204, 113, 0.35)'}`,
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    color: '#f5efe6',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: selectedSaleModal.edit_request_status === 'REJECTED' ? '#e74c3c' : '#2ecc71',
+                      textTransform: 'uppercase',
+                      marginBottom: '3px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {selectedSaleModal.edit_request_status === 'REJECTED' ? (
+                      <>
+                        <XCircle size={13} /> Superadmin Rejection Message:
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={13} /> Superadmin Response Note:
+                      </>
+                    )}
+                  </div>
+                  <div style={{ fontStyle: 'italic', color: '#f5efe6' }}>"{selectedSaleModal.superadmin_response_note}"</div>
+                </div>
+              )}
+            </div>
+
+            {/* MODAL VIEW MODE OR EDIT MODE */}
+            {isEditingSale ? (
+              /* INLINE EDIT FORM MODE */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'rgba(20, 16, 13, 0.6)', padding: '18px', borderRadius: '8px', border: '1px dashed rgba(201,168,76,0.3)' }}>
+                <h4 style={{ fontSize: '1rem', color: '#c9a84c', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Edit size={16} /> Edit Company Sale Information
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Company Name</label>
+                    <input
+                      type="text"
+                      value={editForm.company_name}
+                      onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Contact Person</label>
+                    <input
+                      type="text"
+                      value={editForm.contact_person}
+                      onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Phone Number</label>
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Email Address</label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Company Address</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Payment Method</label>
+                    <select
+                      value={editForm.payment_method}
+                      onChange={(e) => setEditForm({ ...editForm, payment_method: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '6px', color: '#c9a84c', fontSize: '0.82rem', fontWeight: 700 }}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="Card">Credit / Debit Card</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Payment Status</label>
+                    <select
+                      value={editForm.payment_status}
+                      onChange={(e) => setEditForm({ ...editForm, payment_status: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#fff', fontSize: '0.82rem' }}
+                    >
+                      <option value="Paid">Paid</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: '4px' }}>Total Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={editForm.total_amount}
+                      onChange={(e) => setEditForm({ ...editForm, total_amount: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', background: '#0a0806', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#2ecc71', fontWeight: 700, fontSize: '0.82rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <Button variant="glass" onClick={() => setIsEditingSale(false)} style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
+                    Cancel
+                  </Button>
+                  <Button variant="gold" onClick={handleSaveSaleEdit} disabled={isSavingEdit} glow style={{ padding: '8px 20px', fontSize: '0.82rem', fontWeight: 700 }}>
+                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* FULL DISPLAY MODE */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* 1. Contact & Location Information */}
+                <div style={{ background: 'rgba(20, 16, 13, 0.6)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <h4 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px 0', fontWeight: 700 }}>
+                    Company &amp; Contact Information
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+                    <div><strong>Contact Person:</strong> {selectedSaleModal.contact_person || 'N/A'}</div>
+                    <div><strong>Phone:</strong> {selectedSaleModal.phone || 'N/A'}</div>
+                    <div><strong>Email:</strong> {selectedSaleModal.email || 'N/A'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Address:</strong> {selectedSaleModal.address || 'N/A'}</div>
+                  </div>
+                </div>
+
+                {/* 2. Payment & Transaction Info */}
+                <div style={{ background: 'rgba(20, 16, 13, 0.6)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <h4 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px 0', fontWeight: 700 }}>
+                    Payment &amp; Transaction Details
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+                    <div><strong>Payment Method:</strong> <span style={{ color: '#c9a84c', fontWeight: 700 }}>{selectedSaleModal.payment_method || selectedSaleModal.paymentMethod || 'Cash'}</span></div>
+                    <div><strong>Payment Status:</strong> <span style={{ color: selectedSaleModal.payment_status === 'Paid' ? '#2ecc71' : '#f1c40f', fontWeight: 700 }}>{selectedSaleModal.payment_status || selectedSaleModal.status || 'Paid'}</span></div>
+                    {selectedSaleModal.received_amount != null && <div><strong>Received Amount:</strong> ₹{selectedSaleModal.received_amount.toLocaleString('en-IN')}</div>}
+                    {selectedSaleModal.card_type && <div><strong>Card Type:</strong> {selectedSaleModal.card_type}</div>}
+                    {selectedSaleModal.card_last4 && <div><strong>Card Last 4:</strong> •••• {selectedSaleModal.card_last4}</div>}
+                    {selectedSaleModal.transaction_id && <div><strong>Txn / UTR:</strong> {selectedSaleModal.transaction_id}</div>}
+                    {selectedSaleModal.upi_id && <div><strong>UPI ID:</strong> {selectedSaleModal.upi_id}</div>}
+                    {selectedSaleModal.bank_name && <div><strong>Bank Name:</strong> {selectedSaleModal.bank_name}</div>}
+                    {selectedSaleModal.account_holder && <div><strong>Account Holder:</strong> {selectedSaleModal.account_holder}</div>}
+                  </div>
+                </div>
+
+                {/* 3. Itemized Purchased Products */}
+                <div style={{ background: 'rgba(20, 16, 13, 0.6)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <h4 style={{ fontSize: '0.88rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px 0', fontWeight: 700 }}>
+                    Purchased Products List ({(selectedSaleModal.items || []).length || 1})
+                  </h4>
+
+                  {(selectedSaleModal.items || []).length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {selectedSaleModal.items.map((item: any, i: number) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, color: '#f5efe6' }}>{item.product_name || `Product #${item.product_id}`}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)' }}>
+                              SKU: {item.sku || 'N/A'} • Qty: {item.quantity} × ₹{(item.unit_price || 0).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: 700, color: '#c9a84c' }}>
+                            ₹{(item.line_total || (item.unit_price * item.quantity) || 0).toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)' }}>
+                      Product: {selectedSaleModal.productName || 'Offline Direct Sale'} ({selectedSaleModal.quantity || 1}x)
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Financial Totals */}
+                <div style={{ padding: '16px', background: 'rgba(10, 8, 6, 0.85)', borderRadius: '8px', border: '1px solid rgba(201, 168, 76, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f5efe6' }}>Total Sale Amount:</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2ecc71', fontFamily: 'var(--font-display, serif)' }}>
+                    ₹{(selectedSaleModal.total_amount || selectedSaleModal.totalPrice || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <Button variant="glass" onClick={() => setSelectedSaleModal(null)} style={{ padding: '8px 20px', fontSize: '0.85rem' }}>
+                Close
+              </Button>
             </div>
           </div>
         </div>

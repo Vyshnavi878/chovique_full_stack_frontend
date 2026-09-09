@@ -325,22 +325,22 @@ export const ProductDetails: React.FC = () => {
 
             {/* Action buttons */}
             <div className="details-action-buttons">
-              <div style={{ display: 'flex', gap: '15px' }}>
+              <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                 <Button 
-                  variant={inCart ? "secondary" : "gold"} 
+                  variant="gold" 
                   size="lg" 
-                  fullWidth 
+                  style={{ flex: '1 1 200px' }}
                   disabled={product?.is_available === false || (product?.stock ?? 0) <= 0}
-                  onClick={() => inCart ? navigate('/cart') : handleAddToCart()} 
-                  glow={!inCart && product?.is_available !== false && (product?.stock ?? 0) > 0}
+                  onClick={() => handleAddToCart()} 
+                  glow={product?.is_available !== false && (product?.stock ?? 0) > 0}
                 >
                   <ShoppingBag size={18} />
-                  {product?.is_available === false || (product?.stock ?? 0) <= 0 ? 'OUT OF STOCK' : (inCart ? 'Go to Cart' : 'Add to Cart')}
+                  {product?.is_available === false || (product?.stock ?? 0) <= 0 ? 'OUT OF STOCK' : 'Add to Cart'}
                 </Button>
                 <Button 
                   variant="glass" 
                   size="lg" 
-                  fullWidth 
+                  style={{ flex: '1 1 200px' }}
                   disabled={product?.is_available === false || (product?.stock ?? 0) <= 0}
                   onClick={handleBuyNow}
                 >

@@ -15,8 +15,10 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import { exportToCSV } from '../../utils/exportCsv';
 import { SystemUser } from '../../types';
 
 interface CustomerDirectoryProps {
@@ -337,21 +339,33 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => { setStatusFilter(st); setPage(1); }}
-                  style={{
-                    padding: '5px 14px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                    background: statusFilter === st ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)',
-                    color: statusFilter === st ? 'var(--gold)' : 'var(--beige)',
-                    border: statusFilter === st ? '1px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.1)',
-                  }}
-                >
-                  {st === 'ALL' ? 'All Customers' : st === 'ACTIVE' ? 'Active' : 'Inactive'}
-                </button>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => { setStatusFilter(st); setPage(1); }}
+                    style={{
+                      padding: '5px 14px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                      background: statusFilter === st ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)',
+                      color: statusFilter === st ? 'var(--gold)' : 'var(--beige)',
+                      border: statusFilter === st ? '1px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    {st === 'ALL' ? 'All Customers' : st === 'ACTIVE' ? 'Active' : 'Inactive'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => exportToCSV('customer_directory', customersList)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 14px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                  background: 'rgba(201,168,76,0.1)', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.4)',
+                }}
+              >
+                <Download size={13} /> Export CSV
+              </button>
             </div>
           </div>
 

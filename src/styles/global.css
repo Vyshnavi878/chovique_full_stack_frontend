@@ -482,10 +482,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .cart-layout {
     grid-template-columns: 1fr;
   }
-
-  .cart-summary {
-    order: -1;
-  }
 }
 
 @media (max-width: 768px) {

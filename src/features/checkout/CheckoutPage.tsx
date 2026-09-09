@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,7 +10,12 @@ import {
   Loader2,
   Coins,
   Tag,
+  QrCode,
+  Smartphone,
+  Timer,
+  RefreshCw,
 } from 'lucide-react';
+import { useQrPaymentPoller } from './useQrPaymentPoller';
 import { useApp } from '../../app/providers';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -61,6 +66,18 @@ export const CheckoutPage: React.FC = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+
+  // ─── UPI QR Code payment state ─────────────────────────────────────────────
+  const [qrCodeData, setQrCodeData] = useState<{
+    qr_code_id: string;
+    image_url: string;
+    close_by: number; // Unix timestamp
+  } | null>(null);
+  const [isQrMode, setIsQrMode] = useState(false);
+  const [isQrExpired, setIsQrExpired] = useState(false);
+  const [qrSecondsLeft, setQrSecondsLeft] = useState(0);
+  // Internal order ID saved during QR flow to fetch order after capture
+  const [qrInternalOrderId, setQrInternalOrderId] = useState<string | null>(null);
 
   // Coins redemption state
   const [coinsToUse, setCoinsToUse] = useState(0);
@@ -445,7 +462,46 @@ export const CheckoutPage: React.FC = () => {
         return;
       }
 
-      // Online Payment Flow (Razorpay / Card / UPI / NetBanking)
+      // ─── UPI QR Code Payment Flow ────────────────────────────────────────────
+      if (paymentMethod === 'UPI QR Code') {
+        try {
+          // Step 1: Create Razorpay Order + Payment record (same initiate endpoint)
+          const initData = await orderService.initiateCheckout(orderPayload);
+          if (!initData || !initData.razorpay_order_id) {
+            throw new Error('Failed to initiate payment session.');
+          }
+
+          // Step 2: Request a dynamic UPI QR Code from our backend
+          const qrData = await apiPost<{
+            qr_code_id: string;
+            image_url: string;
+            close_by: number;
+          }>('/payments/qr-code', {
+            razorpay_order_id: initData.razorpay_order_id,
+            amount: initData.amount / 100, // convert paise back to INR
+            order_id: initData.order_id,
+          });
+
+          if (!qrData || !qrData.qr_code_id || !qrData.image_url) {
+            throw new Error('QR Code generation failed. Please try another payment method.');
+          }
+
+          setQrCodeData(qrData);
+          setQrInternalOrderId(initData.order_id);
+          setIsQrMode(true);
+          setIsQrExpired(false);
+          setQrSecondsLeft(Math.max(0, qrData.close_by - Math.floor(Date.now() / 1000)));
+          setActiveStep(5); // QR display screen
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to generate QR code.';
+          setOrderError(message);
+        } finally {
+          setIsPlacingOrder(false);
+        }
+        return;
+      }
+
+      // ─── Online Payment Flow (Razorpay Modal — Card / UPI in-modal / NetBanking) ─
       try {
         const initData = await orderService.initiateCheckout(orderPayload);
         if (!initData || !initData.razorpay_order_id) {
@@ -463,8 +519,6 @@ export const CheckoutPage: React.FC = () => {
         let methodPrefill: string | undefined = undefined;
         if (paymentMethod === 'Credit Card') {
           methodPrefill = 'card';
-        } else if (paymentMethod === 'UPI / Google Pay') {
-          methodPrefill = 'upi';
         } else if (paymentMethod === 'Net Banking') {
           methodPrefill = 'netbanking';
         }
@@ -545,8 +599,66 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const prevStep = () => {
+    // When going back from QR display screen, also clear QR state
+    if (activeStep === 5 && isQrMode) {
+      setIsQrMode(false);
+      setQrCodeData(null);
+      setIsQrExpired(false);
+      setQrInternalOrderId(null);
+      setActiveStep(4);
+      return;
+    }
     setActiveStep((prev) => Math.max(1, prev - 1));
   };
+
+  // ─── QR Payment Poller ─────────────────────────────────────────────────────
+  // Called by useQrPaymentPoller when payment captured successfully
+  const handleQrPaymentSuccess = useCallback(async (orderId: string) => {
+    try {
+      const confirmedOrder = await orderService.getOrder(orderId);
+      placeOrderLocal(confirmedOrder);
+      setCreatedOrder(confirmedOrder);
+      refreshWallet();
+      sessionStorage.removeItem('chovique_checkout_coupon');
+      sessionStorage.removeItem('chovique_buy_now_item');
+      setIsQrMode(false);
+      setQrCodeData(null);
+      setActiveStep(6);
+    } catch {
+      setOrderError('Payment received but order confirmation failed. Please check your orders.');
+      setActiveStep(4);
+    }
+  }, [orderService, placeOrderLocal, refreshWallet]);
+
+  const handleQrExpired = useCallback(() => {
+    setIsQrExpired(true);
+  }, []);
+
+  const handleQrError = useCallback((msg: string) => {
+    setIsQrExpired(true);
+    setOrderError(msg);
+  }, []);
+
+  useQrPaymentPoller({
+    qrCodeId: isQrMode && activeStep === 5 ? (qrCodeData?.qr_code_id ?? null) : null,
+    closeBy: qrCodeData?.close_by ?? null,
+    onSuccess: handleQrPaymentSuccess,
+    onExpired: handleQrExpired,
+    onError: handleQrError,
+  });
+
+  // QR countdown timer (1-second tick)
+  useEffect(() => {
+    if (!isQrMode || !qrCodeData || activeStep !== 5) return;
+
+    const tickInterval = setInterval(() => {
+      const sLeft = Math.max(0, qrCodeData.close_by - Math.floor(Date.now() / 1000));
+      setQrSecondsLeft(sLeft);
+      if (sLeft === 0) clearInterval(tickInterval);
+    }, 1000);
+
+    return () => clearInterval(tickInterval);
+  }, [isQrMode, qrCodeData, activeStep]);
 
   const stepsHeader = [
     { num: 1, label: 'Cart Review' },
@@ -1177,30 +1289,68 @@ export const CheckoutPage: React.FC = () => {
                 {paymentError && (
                   <p style={{ color: '#e74c3c', fontSize: '0.85rem', marginBottom: '15px' }}>{paymentError}</p>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
-                  {['Credit Card', 'UPI / Google Pay', 'Net Banking', 'Cash on Delivery'].map((method) => (
-                    <div
-                      key={method}
-                      onClick={() => {
-                        setPaymentMethod(method);
-                        if (paymentError) setPaymentError('');
-                      }}
-                      style={{
-                        padding: '16px 20px',
-                        borderRadius: '6px',
-                        background: paymentMethod === method ? 'rgba(201, 168, 76, 0.08)' : 'rgba(0, 0, 0, 0.25)',
-                        border: paymentMethod === method ? '1px solid var(--gold)' : '1px solid var(--glass-border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '15px',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s',
-                      }}
-                    >
-                      <CreditCard size={20} style={{ color: paymentMethod === method ? 'var(--gold)' : 'var(--beige)' }} />
-                      <span style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600 }}>{method}</span>
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '30px' }}>
+                  {[
+                    { id: 'Credit Card', label: 'Credit / Debit Card', sub: 'Visa, Mastercard, RuPay', icon: <CreditCard size={22} /> },
+                    { id: 'UPI QR Code', label: 'UPI QR Code', sub: 'Scan with GPay, PhonePe, Paytm, any UPI app', icon: <QrCode size={22} />, highlight: true },
+                    { id: 'Net Banking', label: 'Net Banking', sub: 'All major Indian banks', icon: <ShieldCheck size={22} /> },
+                    { id: 'Cash on Delivery', label: 'Cash on Delivery', sub: 'Pay when your order arrives', icon: <Truck size={22} /> },
+                  ].map((method) => {
+                    const isSelected = paymentMethod === method.id;
+                    return (
+                      <div
+                        key={method.id}
+                        id={`payment-method-${method.id.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}
+                        role="radio"
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onClick={() => { setPaymentMethod(method.id); if (paymentError) setPaymentError(''); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setPaymentMethod(method.id); if (paymentError) setPaymentError(''); } }}
+                        style={{
+                          padding: '14px 20px',
+                          borderRadius: '8px',
+                          background: isSelected
+                            ? (method.highlight ? 'rgba(124, 58, 237, 0.12)' : 'rgba(201, 168, 76, 0.08)')
+                            : 'rgba(0, 0, 0, 0.25)',
+                          border: isSelected
+                            ? (method.highlight ? '1.5px solid #7c3aed' : '1.5px solid var(--gold)')
+                            : '1px solid var(--glass-border)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          cursor: 'pointer',
+                          transition: 'all 0.25s ease',
+                          position: 'relative',
+                          outline: 'none',
+                        }}
+                      >
+                        <span style={{ color: isSelected ? (method.highlight ? '#a78bfa' : 'var(--gold)') : 'var(--beige)', flexShrink: 0 }}>
+                          {method.icon}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: 'var(--cream)', fontSize: '0.97rem', fontWeight: 600 }}>{method.label}</span>
+                            {method.highlight && (
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                padding: '2px 7px',
+                                borderRadius: '20px',
+                                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                                color: '#fff',
+                              }}>Instant</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--beige)', marginTop: '2px', opacity: 0.85 }}>{method.sub}</div>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle size={18} style={{ color: method.highlight ? '#a78bfa' : 'var(--gold)', flexShrink: 0 }} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="checkout-actions">
                   <Button variant="secondary" onClick={prevStep}>
@@ -1349,10 +1499,181 @@ export const CheckoutPage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* STEP 5: PROCESSING LOADER */}
-            {activeStep === 5 && (
+            {/* STEP 5A: UPI QR CODE DISPLAY */}
+            {activeStep === 5 && isQrMode && qrCodeData && (
               <motion.div
-                key="step5"
+                key="step5-qr"
+                variants={scaleUp}
+                initial="initial"
+                animate="animate"
+                exit="initial"
+                className="glass-panel checkout-panel-card"
+                style={{ textAlign: 'center', padding: '40px 30px' }}
+              >
+                {/* Header */}
+                <div style={{ marginBottom: '28px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <QrCode size={28} style={{ color: '#a78bfa' }} />
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.7rem', color: 'var(--cream)', margin: 0 }}>
+                      Scan to Pay
+                    </h2>
+                  </div>
+                  <p style={{ color: 'var(--beige)', fontSize: '0.9rem', margin: 0 }}>
+                    Open <strong style={{ color: 'var(--cream)' }}>Google Pay, PhonePe, Paytm</strong> or any UPI app and scan the QR code below
+                  </p>
+                </div>
+
+                {/* QR Image + Overlay on Expiry */}
+                <div style={{ position: 'relative', display: 'inline-block', marginBottom: '24px' }}>
+                  <div style={{
+                    padding: '16px',
+                    background: '#fff',
+                    borderRadius: '16px',
+                    boxShadow: isQrExpired ? 'none' : '0 0 40px rgba(167, 139, 250, 0.25), 0 0 0 2px rgba(124, 58, 237, 0.4)',
+                    display: 'inline-block',
+                    transition: 'box-shadow 0.3s',
+                    opacity: isQrExpired ? 0.3 : 1,
+                  }}>
+                    <img
+                      src={qrCodeData.image_url}
+                      alt="UPI Payment QR Code"
+                      width={220}
+                      height={220}
+                      style={{ display: 'block', borderRadius: '4px' }}
+                    />
+                  </div>
+                  {isQrExpired && (
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: '16px',
+                      background: 'rgba(15, 10, 8, 0.82)',
+                      gap: '10px',
+                    }}>
+                      <Timer size={32} style={{ color: '#e74c3c' }} />
+                      <span style={{ color: '#e74c3c', fontWeight: 700, fontSize: '0.95rem' }}>QR Code Expired</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount badge */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 24px',
+                  background: 'rgba(167, 139, 250, 0.1)',
+                  border: '1px solid rgba(124, 58, 237, 0.4)',
+                  borderRadius: '40px',
+                  marginBottom: '20px',
+                }}>
+                  <span style={{ color: 'var(--beige)', fontSize: '0.9rem' }}>Amount to Pay:</span>
+                  <span style={{ color: '#a78bfa', fontWeight: 700, fontSize: '1.15rem' }}>₹{total.toLocaleString()}</span>
+                </div>
+
+                {/* Status row */}
+                {!isQrExpired ? (
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 20px',
+                      background: 'rgba(46, 204, 113, 0.08)',
+                      border: '1px solid rgba(46, 204, 113, 0.3)',
+                      borderRadius: '8px',
+                      marginBottom: '12px',
+                    }}>
+                      <span style={{
+                        width: '10px', height: '10px', borderRadius: '50%',
+                        background: '#2ecc71',
+                        boxShadow: '0 0 8px rgba(46, 204, 113, 0.8)',
+                        animation: 'qrPulse 1.4s ease-in-out infinite',
+                        flexShrink: 0,
+                      }} />
+                      <span style={{ color: '#2ecc71', fontWeight: 600, fontSize: '0.9rem' }}>Waiting for payment...</span>
+                    </div>
+                    {/* Countdown */}
+                    <div style={{ color: 'var(--beige)', fontSize: '0.82rem' }}>
+                      <Timer size={13} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'middle', opacity: 0.7 }} />
+                      QR expires in{' '}
+                      <strong style={{ color: qrSecondsLeft < 60 ? '#e74c3c' : 'var(--cream)' }}>
+                        {Math.floor(qrSecondsLeft / 60)}:{String(qrSecondsLeft % 60).padStart(2, '0')}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{ color: '#e74c3c', fontWeight: 600, marginBottom: '8px' }}>
+                      This QR code has expired. Please go back and place your order again.
+                    </p>
+                    {orderError && (
+                      <p style={{ color: 'rgba(231, 76, 60, 0.8)', fontSize: '0.85rem', margin: 0 }}>{orderError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* App logos */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '28px', opacity: 0.65, fontSize: '0.78rem', color: 'var(--beige)' }}>
+                  <span>Works with:</span>
+                  <span style={{ fontWeight: 600 }}>Google Pay · PhonePe · Paytm · BHIM · Any UPI App</span>
+                </div>
+
+                {/* Back / Retry */}
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    style={{
+                      padding: '10px 22px',
+                      background: 'transparent',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '6px',
+                      color: 'var(--beige)',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                    }}
+                  >
+                    ← Back
+                  </button>
+                  {isQrExpired && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsQrMode(false);
+                        setQrCodeData(null);
+                        setIsQrExpired(false);
+                        setQrInternalOrderId(null);
+                        setActiveStep(4);
+                      }}
+                      style={{
+                        padding: '10px 22px',
+                        background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                      }}
+                    >
+                      <RefreshCw size={14} /> Try Again
+                    </button>
+                  )}
+                </div>
+
+                {/* Inline keyframe animation for the pulsing dot */}
+                <style>{`
+                  @keyframes qrPulse {
+                    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px rgba(46, 204, 113, 0.8); }
+                    50% { opacity: 0.6; transform: scale(1.3); box-shadow: 0 0 14px rgba(46, 204, 113, 0.4); }
+                  }
+                `}</style>
+              </motion.div>
+            )}
+
+            {/* STEP 5B: STANDARD PROCESSING LOADER */}
+            {activeStep === 5 && !isQrMode && (
+              <motion.div
+                key="step5-processing"
                 variants={scaleUp}
                 initial="initial"
                 animate="animate"

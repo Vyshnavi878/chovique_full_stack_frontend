@@ -183,15 +183,18 @@ export const AdminAuditLogsView: React.FC = () => {
             <option value="FAILURE">FAILURE</option>
           </select>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={15} color="#c9a84c" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>From Date:</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 8px', fontSize: '0.8rem', cursor: 'pointer' }}
             />
-            <span style={{ color: 'var(--beige)', fontSize: '0.8rem' }}>to</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>To Date:</span>
             <input
               type="date"
               value={dateTo}

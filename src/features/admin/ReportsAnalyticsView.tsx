@@ -18,6 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import { Pagination } from '../../components/ui/Pagination';
 
 type ReportType = 'sales' | 'orders' | 'products' | 'customers' | 'coupons' | 'reward_coins';
 type DatePreset = '7days' | '30days' | '3months' | '1year' | 'custom';
@@ -718,13 +719,36 @@ export const ReportsAnalyticsView: React.FC = () => {
 
           {/* Detailed Data Table */}
           <div className="reports-details-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ color: '#c9a84c', fontSize: '1.2rem', fontFamily: 'var(--font-display, serif)', fontWeight: 600, margin: 0 }}>
-                Detailed Report Dataset
-              </h3>
-              <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
-                Showing {reportData.table_rows.length} of {reportData.total_records} records
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ color: '#c9a84c', fontSize: '1.2rem', fontFamily: 'var(--font-display, serif)', fontWeight: 600, margin: 0 }}>
+                  Detailed Report Dataset
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
+                  Showing {reportData.table_rows.length} of {reportData.total_records} records
+                </span>
+              </div>
+              <button
+                onClick={handleExportCsv}
+                disabled={isExportingCsv}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(201, 168, 76, 0.1)',
+                  border: '1px solid rgba(201, 168, 76, 0.4)',
+                  color: '#c9a84c',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: isExportingCsv ? 'not-allowed' : 'pointer',
+                  opacity: isExportingCsv ? 0.7 : 1,
+                }}
+              >
+                <Download size={14} />
+                {isExportingCsv ? 'Exporting...' : 'Export CSV'}
+              </button>
             </div>
 
             {reportData.table_rows.length > 0 ? (
@@ -760,47 +784,15 @@ export const ReportsAnalyticsView: React.FC = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {reportData.total_pages > 1 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)' }}>
-                      Page {reportData.page} of {reportData.total_pages}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        onClick={() => fetchReport(reportData.page - 1)}
-                        disabled={reportData.page <= 1}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          background: 'rgba(10, 8, 6, 0.8)',
-                          color: '#f5efe6',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          opacity: reportData.page <= 1 ? 0.4 : 1,
-                        }}
-                      >
-                        Previous
-                      </button>
-                      <button
-                        onClick={() => fetchReport(reportData.page + 1)}
-                        disabled={reportData.page >= reportData.total_pages}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          background: 'rgba(10, 8, 6, 0.8)',
-                          color: '#f5efe6',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          opacity: reportData.page >= reportData.total_pages ? 0.4 : 1,
-                        }}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div style={{ marginTop: '20px' }}>
+                  <Pagination
+                    currentPage={reportData.page}
+                    totalPages={reportData.total_pages || 1}
+                    totalItems={reportData.total_records}
+                    itemsPerPage={20}
+                    onPageChange={(p) => fetchReport(p)}
+                  />
+                </div>
               </>
             ) : (
               /* Empty State */

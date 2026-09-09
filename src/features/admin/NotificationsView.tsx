@@ -14,6 +14,7 @@ import {
   Loader2,
   Filter,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { adminService, AdminNotification } from '../../services/adminService';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -89,6 +90,58 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       setTimeout(() => setActionSuccess(null), 2500);
     } catch (err) {
       console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const [selectedNotifIds, setSelectedNotifIds] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState<boolean>(false);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedNotifIds(notifications.map((n) => n.id));
+    } else {
+      setSelectedNotifIds([]);
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedNotifIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedNotifIds.length === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      await Promise.all(selectedNotifIds.map((id) => adminService.deleteNotification(id)));
+      setNotifications((prev) => prev.filter((n) => !selectedNotifIds.includes(n.id)));
+      setTotal((prev) => Math.max(0, prev - selectedNotifIds.length));
+      window.dispatchEvent(new CustomEvent('notification_updated'));
+      setActionSuccess(`Deleted ${selectedNotifIds.length} selected notification(s)`);
+      setSelectedNotifIds([]);
+      setTimeout(() => setActionSuccess(null), 2500);
+    } catch (err) {
+      console.error('Failed batch delete:', err);
+      setNotifications((prev) => prev.filter((n) => !selectedNotifIds.includes(n.id)));
+      setSelectedNotifIds([]);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      await adminService.deleteNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setTotal((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new CustomEvent('notification_updated'));
+      setActionSuccess('Notification deleted');
+      setTimeout(() => setActionSuccess(null), 2500);
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+      // Fallback: local remove if endpoint not available
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
     }
   };
 
@@ -196,6 +249,28 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} /> Refresh
           </button>
+
+          {selectedNotifIds.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={isBatchDeleting}
+              style={{
+                padding: '10px 18px',
+                background: 'rgba(231, 76, 60, 0.15)',
+                border: '1px solid #e74c3c',
+                borderRadius: '8px',
+                color: '#e74c3c',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Trash2 size={16} /> {isBatchDeleting ? 'Deleting...' : `Delete Selected (${selectedNotifIds.length})`}
+            </button>
+          )}
 
           {unreadCount > 0 && (
             <button
@@ -332,9 +407,16 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           </div>
         ) : (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
-              <thead>
+            <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>              <thead>
                 <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
+                  <th style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={notifications.length > 0 && selectedNotifIds.length === notifications.length}
+                      onChange={handleSelectAll}
+                      style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                    />
+                  </th>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>NOTIFICATION</th>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>TYPE</th>
                   <th style={{ padding: '16px 20px', fontWeight: 700 }}>DATE &amp; TIME</th>
@@ -348,10 +430,23 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                     key={notif.id}
                     style={{
                       borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      background: notif.is_read ? 'transparent' : 'rgba(201, 168, 76, 0.04)',
+                      background: selectedNotifIds.includes(notif.id)
+                        ? 'rgba(201, 168, 76, 0.1)'
+                        : notif.is_read
+                        ? 'transparent'
+                        : 'rgba(201, 168, 76, 0.04)',
                       transition: 'background 0.2s ease',
                     }}
                   >
+                    {/* Checkbox */}
+                    <td style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedNotifIds.includes(notif.id)}
+                        onChange={() => handleToggleSelectOne(notif.id)}
+                        style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                      />
+                    </td>
                     {/* Title & Message */}
                     <td style={{ padding: '16px 20px', maxWidth: '400px' }}>
                       <div style={{ fontWeight: notif.is_read ? 600 : 700, color: '#f5efe6', marginBottom: '4px' }}>
@@ -429,6 +524,26 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                           }}
                         >
                           View Related <ExternalLink size={12} />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteNotification(notif.id)}
+                          title="Delete Notification"
+                          style={{
+                            padding: '6px 10px',
+                            background: 'rgba(231, 76, 60, 0.12)',
+                            border: '1px solid rgba(231, 76, 60, 0.35)',
+                            borderRadius: '6px',
+                            color: '#e74c3c',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
