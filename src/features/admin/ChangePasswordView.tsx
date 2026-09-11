@@ -144,17 +144,11 @@ export const ChangePasswordView: React.FC = () => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '28px' }}>
+      <div className="admin-profile-layout-grid">
         {/* Main Change Password Form */}
         <form
           onSubmit={handleSubmit}
-          style={{
-            background: 'rgba(20, 16, 13, 0.85)',
-            border: '1px solid rgba(201, 168, 76, 0.2)',
-            borderRadius: '14px',
-            padding: '32px',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
-          }}
+          className="admin-profile-form-card"
         >
           <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.15rem', color: '#f5efe6', margin: '0 0 24px 0', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', paddingBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <KeyRound size={18} color="#c9a84c" />
@@ -276,25 +270,13 @@ export const ChangePasswordView: React.FC = () => {
             </div>
 
             {/* Submit Button */}
-            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="admin-profile-btn-wrap">
               <button
                 type="submit"
+                className="admin-profile-submit-btn"
                 disabled={isSubmitting || !isFormValid}
                 style={{
-                  padding: '12px 28px',
-                  background: 'linear-gradient(135deg, #c9a84c 0%, #e5c875 50%, #c9a84c 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: '#0f0c0a',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 16px rgba(201, 168, 76, 0.3)',
                   opacity: isSubmitting || !isFormValid ? 0.6 : 1,
-                  transition: 'all 0.2s ease',
                 }}
               >
                 {isSubmitting ? (
@@ -312,16 +294,7 @@ export const ChangePasswordView: React.FC = () => {
         </form>
 
         {/* Live Password Rules Checklist */}
-        <div
-          style={{
-            background: 'rgba(20, 16, 13, 0.85)',
-            border: '1px solid rgba(201, 168, 76, 0.2)',
-            borderRadius: '14px',
-            padding: '24px',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
-            height: 'fit-content',
-          }}
-        >
+        <div className="admin-profile-security-card admin-password-policy-card" style={{ height: 'fit-content' }}>
           <h4 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.05rem', color: '#f5efe6', margin: '0 0 16px 0', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', paddingBottom: '10px' }}>
             Password Policy
           </h4>

@@ -61,7 +61,7 @@ export const ProductDetails: React.FC = () => {
       updateCartQuantity(product.id, cartItem.quantity + 1);
     } else {
       if (role === 'guest') {
-        navigate('/login');
+        navigate('/login', { state: { from: location.pathname } });
       } else {
         addToCart(product, 1);
         setAddedToCartAlert(true);
@@ -82,7 +82,7 @@ export const ProductDetails: React.FC = () => {
   // Add to cart trigger
   const handleAddToCart = () => {
     if (role === 'guest') {
-      navigate('/login');
+      navigate('/login', { state: { from: location.pathname } });
     } else {
       addToCart(product, 1);
       setAddedToCartAlert(true);
@@ -93,7 +93,7 @@ export const ProductDetails: React.FC = () => {
   // Buy now trigger — adds product with selected quantity to cart and navigates to existing checkout flow
   const handleBuyNow = async () => {
     if (role === 'guest') {
-      navigate('/login');
+      navigate('/login', { state: { from: location.pathname } });
     } else {
       if (!inCart) {
         await addToCart(product, 1);
@@ -104,7 +104,7 @@ export const ProductDetails: React.FC = () => {
 
   const handleWishlistClick = () => {
     if (role === 'guest') {
-      navigate('/login');
+      navigate('/login', { state: { from: location.pathname } });
     } else {
       toggleWishlist(product);
     }

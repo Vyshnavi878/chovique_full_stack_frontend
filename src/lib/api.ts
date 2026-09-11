@@ -194,11 +194,11 @@ const fetchWithAuth = async (path: string, init: RequestInit & { _isCsrfRetry?: 
   }
 
   if (
-
     response.status === 401 && 
     !path.includes('/auth/refresh') && 
     !path.includes('/auth/login') && 
-    !path.includes('/auth/register')
+    !path.includes('/auth/register') &&
+    Boolean(getAuthToken())
   ) {
     if (!refreshPromise) {
       refreshPromise = safeFetch(`${BASE_URL}/auth/refresh`, {
@@ -218,6 +218,8 @@ const fetchWithAuth = async (path: string, init: RequestInit & { _isCsrfRetry?: 
     if (refreshSuccess) {
       // Retry original request
       response = await safeFetch(`${BASE_URL}${path}`, init);
+    } else {
+      setAuthToken(null);
     }
   }
 

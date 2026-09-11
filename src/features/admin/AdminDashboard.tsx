@@ -1943,14 +1943,9 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* PROFILE TAB */}
-        {activeTab === 'profile' && (
-          <AdminProfileView />
-        )}
-
-        {/* CHANGE PASSWORD TAB */}
-        {activeTab === 'change-password' && (
-          <ChangePasswordView />
+        {/* MY ACCOUNT (PROFILE & SECURITY) TAB */}
+        {(activeTab === 'profile' || activeTab === 'change-password') && (
+          <AdminProfileView initialSection={activeTab === 'change-password' ? 'security' : 'profile'} />
         )}
 
         {/* AUDIT / ACTIVITY LOGS TAB */}

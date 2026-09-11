@@ -8,9 +8,7 @@ import { AppProvider } from "./providers";
 
 const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim();
 
-if (!clientId || clientId.includes("your_google_client_id")) {
-  console.error("[Chovique] VITE_GOOGLE_CLIENT_ID is missing or invalid. Google Sign-In will not work.");
-}
+const isGoogleAuthEnabled = Boolean(clientId && !clientId.includes("your_google_client_id"));
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -19,20 +17,20 @@ if (!rootElement) {
 
 const root = createRoot(rootElement);
 
+const appTree = (
+  <AppProvider>
+    <App />
+  </AppProvider>
+);
+
 root.render(
   <StrictMode>
-    {clientId && !clientId.includes("your_google_client_id") ? (
+    {isGoogleAuthEnabled ? (
       <GoogleOAuthProvider clientId={clientId}>
-        <AppProvider>
-          <App />
-        </AppProvider>
+        {appTree}
       </GoogleOAuthProvider>
     ) : (
-      <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif' }}>
-        <h2>System Configuration Error</h2>
-        <p>The application is missing the required Google Client ID configuration.</p>
-        <p>Please check your environment variables.</p>
-      </div>
+      appTree
     )}
   </StrictMode>
 );

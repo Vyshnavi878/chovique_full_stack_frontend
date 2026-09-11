@@ -103,13 +103,11 @@ const CustomerMobileNav: React.FC = () => {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMobileMenuOpen]);
-
-  // Only render for logged-in customers on mobile
+  }, [isMobileMenuOpen]);  // Render on mobile for all non-admin routes (customer landing page, shop, dashboard, etc.)
   const isAuthRoute = ['/login', '/register', '/set-password', '/forgot-password'].includes(location.pathname);
   const isAdminRoute = ['/admin', '/superadmin'].includes(location.pathname);
 
-  if (!isMobile || role !== 'customer' || isAuthRoute || isAdminRoute) {
+  if (!isMobile || role === 'admin' || role === 'superadmin' || isAuthRoute || isAdminRoute) {
     return null;
   }
 
@@ -142,7 +140,7 @@ const CustomerMobileNav: React.FC = () => {
             style={{ position: 'relative' }}
           >
             {<Menu size={22} />}
-            {!isMobileMenuOpen && unreadCount > 0 && (
+            {!isMobileMenuOpen && role === 'customer' && unreadCount > 0 && (
               <span style={{ position: 'absolute', top: 4, right: 4, background: '#D6A848', color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {unreadCount}
               </span>
@@ -160,16 +158,26 @@ const CustomerMobileNav: React.FC = () => {
                 borderRadius: '8px', 
                 width: '200px', 
                 display: 'flex', 
-                flexDirection: 'column',
+                flexDirection: 'column', 
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.8)',
                 zIndex: 300,
                 overflow: 'hidden'
               }}
             >
-              <button onClick={() => { setMobileMenuOpen(false); navigate('/dashboard?section=notifications'); }} style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (role === 'customer') {
+                    navigate('/dashboard?section=notifications');
+                  } else {
+                    navigate('/login', { state: { from: '/dashboard?section=notifications' } });
+                  }
+                }}
+                style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
                 <div style={{ position: 'relative', display: 'flex' }}>
                   <Bell size={16} />
-                  {unreadCount > 0 && (
+                  {role === 'customer' && unreadCount > 0 && (
                     <span style={{ position: 'absolute', top: -6, right: -6, background: '#D6A848', color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {unreadCount}
                     </span>
@@ -177,8 +185,39 @@ const CustomerMobileNav: React.FC = () => {
                 </div>
                 Notifications
               </button>
-              <button onClick={() => { setMobileMenuOpen(false); navigate('/dashboard?section=coupons'); }} style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}><Tag size={16} /> Coupons</button>
-              <button onClick={() => { setMobileMenuOpen(false); navigate('/dashboard?section=help'); }} style={{ padding: '12px 16px', background: 'transparent', border: 'none', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}><AlertTriangle size={16} /> Help & Support</button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (role === 'customer') {
+                    navigate('/dashboard?section=coupons');
+                  } else {
+                    navigate('/login', { state: { from: '/dashboard?section=coupons' } });
+                  }
+                }}
+                style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
+                <Tag size={16} /> Coupons
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate(role === 'customer' ? '/dashboard?section=help' : '/contact');
+                }}
+                style={{ padding: '12px 16px', background: 'transparent', border: 'none', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
+                <AlertTriangle size={16} /> Help & Support
+              </button>
+              {role !== 'customer' && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/login');
+                  }}
+                  style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderTop: '1px solid rgba(201, 168, 76, 0.15)', color: '#c9a84c', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}
+                >
+                  <User size={16} /> Sign In / Register
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -202,7 +241,7 @@ const CustomerMobileNav: React.FC = () => {
           <span className="cust-mobile-logo-text">CHOVIQUE</span>
         </button>
 
-        {/* Right: Cart with badge + Coins balance pill */}
+        {/* Right: Cart with badge + Coins balance pill (coins displayed ONLY after login) */}
         <div className="cust-mobile-topnav-right">
           <button
             className="cust-mobile-topnav-btn cust-mobile-topnav-btn--badge-wrap"
@@ -214,10 +253,17 @@ const CustomerMobileNav: React.FC = () => {
               <span className="cust-mobile-topnav-badge">{cartCount > 99 ? '99+' : cartCount}</span>
             )}
           </button>
-          <button className="cust-mobile-coins-pill" aria-label={`${coinBalance} reward coins`} onClick={() => navigate('/dashboard?section=rewards')} style={{ cursor: 'pointer', background: 'rgba(201, 168, 76, 0.12)', border: '1px solid rgba(201, 168, 76, 0.35)' }}>
-            <Coins size={13} />
-            <span>{wallet?.coin_balance ?? 0}</span>
-          </button>
+          {role === 'customer' && (
+            <button
+              className="cust-mobile-coins-pill"
+              aria-label={`${coinBalance} reward coins`}
+              onClick={() => navigate('/dashboard?section=rewards')}
+              style={{ cursor: 'pointer', background: 'rgba(201, 168, 76, 0.12)', border: '1px solid rgba(201, 168, 76, 0.35)' }}
+            >
+              <Coins size={13} />
+              <span>{wallet?.coin_balance ?? 0}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -238,7 +284,13 @@ const CustomerMobileNav: React.FC = () => {
         {/* 2. Orders → dashboard orders section */}
         <button
           className={`cust-mobile-bottom-btn ${isOrders ? 'active' : ''}`}
-          onClick={() => navigate('/dashboard?section=orders')}
+          onClick={() => {
+            if (role === 'customer') {
+              navigate('/dashboard?section=orders');
+            } else {
+              navigate('/login', { state: { from: '/dashboard?section=orders' } });
+            }
+          }}
           aria-label="My Orders"
         >
           <Package size={21} />
@@ -270,17 +322,23 @@ const CustomerMobileNav: React.FC = () => {
         {/* 5. My Account → dashboard account tab */}
         <button
           className={`cust-mobile-bottom-btn ${isAccount ? 'active' : ''}`}
-          onClick={() => navigate('/dashboard')}
+          onClick={() => {
+            if (role === 'customer') {
+              navigate('/dashboard');
+            } else {
+              navigate('/login', { state: { from: '/dashboard' } });
+            }
+          }}
           aria-label="My Account"
         >
-          {user?.profile?.avatarUrl ? (
+          {role === 'customer' && user?.profile?.avatarUrl ? (
             <div style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', border: isAccount ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.4)', marginBottom: 2 }}>
               <img src={user.profile.avatarUrl} alt={user.name || 'Account'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
           ) : (
             <User size={21} />
           )}
-          <span>My Account</span>
+          <span>{role === 'customer' ? 'My Account' : 'Account'}</span>
         </button>
       </nav>
     </>
@@ -304,8 +362,9 @@ const AppContent: React.FC = () => {
   const isAdminDashboard = ['/admin', '/superadmin'].includes(location.pathname);
   const isCustomerDashboard = location.pathname === '/dashboard';
 
-  // Customer on mobile → we use our own CustomerMobileNav, hide global Navbar
-  const isCustomerMobile = role === 'customer' && isMobile && !isAuthRoute && !isAdminDashboard;
+  // Customer or guest on mobile → we use our own CustomerMobileNav, hide global Navbar
+  const isCustomerOrGuest = role !== 'admin' && role !== 'superadmin';
+  const isCustomerMobile = isCustomerOrGuest && isMobile && !isAuthRoute && !isAdminDashboard;
 
   const showNavbar = !isAuthRoute && !isAdminDashboard && !isCustomerMobile;
 

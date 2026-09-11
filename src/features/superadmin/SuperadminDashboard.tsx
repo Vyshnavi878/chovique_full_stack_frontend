@@ -2546,7 +2546,7 @@ export const SuperadminDashboard: React.FC = () => {
 
     <div style={{ minHeight: '100vh', background: 'var(--black)', color: 'var(--cream)', fontFamily: 'var(--font-body)' }}>
       {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={handleTabNavigation} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabNavigation} onRequestLogout={() => setShowLogoutConfirmModal(true)} />
 
       {/* Main content pane */}
       <div className="admin-workspace">
@@ -6086,108 +6086,121 @@ export const SuperadminDashboard: React.FC = () => {
             </div>
 
             {/* Filters Toolbar */}
-            <div
-              style={{
-                background: 'rgba(20, 16, 13, 0.85)',
-                border: '1px solid rgba(201, 168, 76, 0.25)',
-                borderRadius: '10px',
-                padding: '16px 20px',
-                marginBottom: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px',
-              }}
-            >
-              {/* Row 1: Search & Filter Dropdowns */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                {/* Search */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#14100d', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', flex: '1 1 240px', minWidth: '200px' }}>
-                  <Search size={16} color="#c9a84c" />
-                  <input
-                    type="text"
-                    placeholder="Search user, action, details..."
-                    value={auditSearch}
-                    onChange={(e) => {
-                      setAuditSearch(e.target.value);
-                      setAuditPage(1);
-                    }}
-                    style={{ background: 'transparent', border: 'none', color: '#f5efe6', fontSize: '0.82rem', width: '100%', outline: 'none' }}
-                  />
-                </div>
-
-                {/* Actions Dropdown */}
-                <select
-                  value={auditActionFilter}
-                  onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 140px' }}
-                >
-                  <option value="ALL">All Actions</option>
-                  <option value="Login">Login</option>
-                  <option value="Logout">Logout</option>
-                  <option value="Created Product">Created Product</option>
-                  <option value="Updated Product">Updated Product</option>
-                  <option value="Deleted Product">Deleted Product</option>
-                  <option value="Updated Order Status">Updated Order Status</option>
-                  <option value="Created Coupon">Created Coupon</option>
-                  <option value="Updated Coupon">Updated Coupon</option>
-                  <option value="Changed Settings">Changed Settings</option>
-                  <option value="CREATE_ADMIN">Registered Admin</option>
-                  <option value="DELETE_ADMIN">Deleted Admin</option>
-                  <option value="Offline Sale Recorded">Offline Sale Recorded</option>
-                </select>
-
-                {/* Status Dropdown */}
-                <select
-                  value={auditStatusFilter}
-                  onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 120px' }}
-                >
-                  <option value="ALL">All Status</option>
-                  <option value="SUCCESS">SUCCESS</option>
-                  <option value="FAILURE">FAILURE</option>
-                  <option value="DENIED">DENIED</option>
-                </select>
-
-                {/* User Dropdown */}
-                <select
-                  value={auditUserId}
-                  onChange={(e) => { setAuditUserId(e.target.value); setAuditPage(1); }}
-                  style={{ background: '#14100d', color: '#f5efe6', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.82rem', outline: 'none', cursor: 'pointer', flex: '1 1 130px' }}
-                >
-                  <option value="ALL">All Users</option>
-                  {displayAdmins.items.map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name}</option>
-                  ))}
-                </select>
+            <div className="audit-filters-toolbar">
+              {/* Search Box (Full Width) */}
+              <div className="audit-filter-search-wrap">
+                <Search size={16} color="#c9a84c" />
+                <input
+                  type="text"
+                  placeholder="Search user, action, details..."
+                  value={auditSearch}
+                  onChange={(e) => {
+                    setAuditSearch(e.target.value);
+                    setAuditPage(1);
+                  }}
+                  className="audit-filter-search-input"
+                />
+                {auditSearch && (
+                  <button
+                    type="button"
+                    onClick={() => { setAuditSearch(''); setAuditPage(1); }}
+                    className="audit-filter-clear-search-btn"
+                    aria-label="Clear Search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
 
-              {/* Row 2: Labeled Date Range & Clear Filters Button */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>From Date:</span>
+              {/* Dropdowns Grid */}
+              <div className="audit-filter-dropdowns-grid">
+                {/* Actions Dropdown */}
+                <div className="audit-filter-field">
+                  <label className="audit-filter-label">Action</label>
+                  <select
+                    value={auditActionFilter}
+                    onChange={(e) => { setAuditActionFilter(e.target.value); setAuditPage(1); }}
+                    className="audit-filter-select"
+                  >
+                    <option value="ALL">All Actions</option>
+                    <option value="Login">Login</option>
+                    <option value="Logout">Logout</option>
+                    <option value="Created Product">Created Product</option>
+                    <option value="Updated Product">Updated Product</option>
+                    <option value="Deleted Product">Deleted Product</option>
+                    <option value="Updated Order Status">Updated Order Status</option>
+                    <option value="Created Coupon">Created Coupon</option>
+                    <option value="Updated Coupon">Updated Coupon</option>
+                    <option value="Changed Settings">Changed Settings</option>
+                    <option value="CREATE_ADMIN">Registered Admin</option>
+                    <option value="DELETE_ADMIN">Deleted Admin</option>
+                    <option value="Offline Sale Recorded">Offline Sale Recorded</option>
+                  </select>
+                </div>
+
+                {/* Status Dropdown */}
+                <div className="audit-filter-field">
+                  <label className="audit-filter-label">Status</label>
+                  <select
+                    value={auditStatusFilter}
+                    onChange={(e) => { setAuditStatusFilter(e.target.value); setAuditPage(1); }}
+                    className="audit-filter-select"
+                  >
+                    <option value="ALL">All Status</option>
+                    <option value="SUCCESS">SUCCESS</option>
+                    <option value="FAILURE">FAILURE</option>
+                    <option value="DENIED">DENIED</option>
+                  </select>
+                </div>
+
+                {/* User Dropdown */}
+                <div className="audit-filter-field audit-filter-field--user">
+                  <label className="audit-filter-label">User</label>
+                  <select
+                    value={auditUserId}
+                    onChange={(e) => { setAuditUserId(e.target.value); setAuditPage(1); }}
+                    className="audit-filter-select"
+                  >
+                    <option value="ALL">All Users</option>
+                    {displayAdmins.items.map((u) => (
+                      <option key={u.id} value={u.id}>{u.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Labeled Date Range & Clear Filters Button */}
+              <div className="audit-filter-dates-row">
+                <div className="audit-filter-dates-grid">
+                  <div className="audit-filter-field">
+                    <label className="audit-filter-label">From Date</label>
                     <input
                       type="date"
                       value={auditDateFrom}
                       onChange={(e) => { setAuditDateFrom(e.target.value); setAuditPage(1); }}
-                      style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 10px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
+                      className="audit-filter-date-input"
                     />
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 600 }}>To Date:</span>
+                  <div className="audit-filter-field">
+                    <label className="audit-filter-label">To Date</label>
                     <input
                       type="date"
                       value={auditDateTo}
                       onChange={(e) => { setAuditDateTo(e.target.value); setAuditPage(1); }}
-                      style={{ background: '#14100d', color: '#f5efe6', colorScheme: 'dark', border: '1px solid rgba(201, 168, 76, 0.4)', borderRadius: '6px', padding: '5px 10px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
+                      className="audit-filter-date-input"
                     />
                   </div>
                 </div>
 
-                <Button variant="secondary" size="sm" onClick={handleClearAuditFilters} style={{ flexShrink: 0 }}>
-                  Clear Filters
-                </Button>
+                <button
+                  type="button"
+                  onClick={handleClearAuditFilters}
+                  className="audit-clear-filters-btn"
+                >
+                  <RotateCcw size={14} />
+                  <span>Clear Filters</span>
+                </button>
               </div>
             </div>
 
@@ -6226,7 +6239,7 @@ export const SuperadminDashboard: React.FC = () => {
             {auditLogsLoading ? (
               <DashboardCardSkeleton height="350px" />
             ) : (
-              <div className="glass-panel" style={{ padding: '24px', border: '1px solid rgba(201, 168, 76, 0.25)', borderRadius: '12px', background: 'rgba(15, 12, 10, 0.85)' }}>
+              <div className="glass-panel audit-table-card">
                 {/* Mobile scroll hint */}
                 <div className="sales-table-mobile-hint">
                   <span>&larr; Swipe table horizontally &rarr;</span>
@@ -6237,18 +6250,18 @@ export const SuperadminDashboard: React.FC = () => {
                       <col style={{ width: '170px', minWidth: '170px' }} />
                       <col style={{ width: '160px', minWidth: '160px' }} />
                       <col style={{ width: '120px', minWidth: '120px' }} />
-                      <col style={{ width: '170px', minWidth: '170px' }} />
-                      <col style={{ width: '120px', minWidth: '120px' }} />
-                      <col style={{ width: '100px', minWidth: '100px' }} />
+                      <col style={{ width: '240px', minWidth: '240px' }} />
+                      <col style={{ width: '130px', minWidth: '130px' }} />
+                      <col style={{ width: '130px', minWidth: '130px' }} />
                     </colgroup>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(201, 168, 76, 0.3)', color: '#c9a84c', textAlign: 'left' }}>
-                        <th style={{ padding: '12px 14px' }}>DATE & TIME</th>
-                        <th style={{ padding: '12px 14px' }}>USER</th>
-                        <th style={{ padding: '12px 14px' }}>ROLE</th>
-                        <th style={{ padding: '12px 14px' }}>ACTION</th>
-                        <th style={{ padding: '12px 14px' }}>STATUS</th>
-                        <th style={{ padding: '12px 14px', textAlign: 'right' }}>DETAILS</th>
+                        <th style={{ padding: '14px 16px' }}>DATE &amp; TIME</th>
+                        <th style={{ padding: '14px 16px' }}>USER</th>
+                        <th style={{ padding: '14px 16px' }}>ROLE</th>
+                        <th style={{ padding: '14px 16px' }}>ACTION</th>
+                        <th style={{ padding: '14px 16px' }}>STATUS</th>
+                        <th style={{ padding: '14px 16px', textAlign: 'right' }}>DETAILS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -6259,17 +6272,18 @@ export const SuperadminDashboard: React.FC = () => {
                             onClick={() => setSelectedAuditLog(log)}
                             style={{
                               borderBottom: '1px solid rgba(255,255,255,0.05)',
-                              background: idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                              background: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
                               cursor: 'pointer',
+                              transition: 'background 0.2s ease',
                             }}
                           >
-                            <td style={{ padding: '12px', color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
                               {log.created_at}
                             </td>
-                            <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
+                            <td style={{ padding: '14px 16px', fontWeight: 600, color: '#f5efe6' }}>
                               {log.user_name && log.user_name !== 'System Process' ? log.user_name : 'Enterprise Chief'}
                             </td>
-                            <td style={{ padding: '12px' }}>
+                            <td style={{ padding: '14px 16px' }}>
                               <span
                                 style={{
                                   display: 'inline-block',
@@ -6285,35 +6299,59 @@ export const SuperadminDashboard: React.FC = () => {
                                 {log.user_role === 'superadmin' ? 'Super Admin' : log.user_role === 'admin' ? 'Admin' : 'Super Admin'}
                               </span>
                             </td>
-                            <td style={{ padding: '12px', fontWeight: 600, color: '#f5efe6' }}>
-                              {formatActionLabel(log.action)}
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                              <span
+                            <td style={{ padding: '14px 16px', fontWeight: 600, color: '#f5efe6' }}>
+                              <div
                                 style={{
+                                  maxWidth: '220px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={formatActionLabel(log.action)}
+                              >
+                                {formatActionLabel(log.action)}
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span
+                                className={`audit-status-badge audit-status-${log.status?.toLowerCase() || 'unknown'}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '4px 10px',
+                                  borderRadius: '20px',
+                                  fontSize: '0.74rem',
                                   fontWeight: 700,
-                                  fontSize: '0.82rem',
+                                  letterSpacing: '0.5px',
+                                  whiteSpace: 'nowrap',
+                                  background: log.status === 'SUCCESS' ? 'rgba(46, 204, 113, 0.15)' : log.status === 'DENIED' ? 'rgba(230, 126, 34, 0.15)' : 'rgba(231, 76, 60, 0.15)',
                                   color: log.status === 'SUCCESS' ? '#2ecc71' : log.status === 'DENIED' ? '#e67e22' : '#e74c3c',
+                                  border: log.status === 'SUCCESS' ? '1px solid rgba(46, 204, 113, 0.35)' : log.status === 'DENIED' ? '1px solid rgba(230, 126, 34, 0.35)' : '1px solid rgba(231, 76, 60, 0.35)',
                                 }}
                               >
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
                                 {log.status}
                               </span>
                             </td>
-                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedAuditLog(log);
                                 }}
+                                className="audit-view-btn"
                                 style={{
-                                  background: 'rgba(201, 168, 76, 0.1)',
-                                  border: '1px solid rgba(201, 168, 76, 0.3)',
+                                  background: 'rgba(201, 168, 76, 0.12)',
+                                  border: '1px solid rgba(201, 168, 76, 0.35)',
                                   color: '#c9a84c',
                                   borderRadius: '6px',
-                                  padding: '4px 10px',
+                                  padding: '6px 14px',
                                   fontSize: '0.78rem',
-                                  fontWeight: 600,
+                                  fontWeight: 700,
                                   cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  transition: 'all 0.2s ease',
                                 }}
                               >
                                 View Details
@@ -7337,8 +7375,8 @@ export const SuperadminDashboard: React.FC = () => {
                           </td>
 
                           {/* Actions */}
-                          <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                               <Button
                                 variant="glass"
                                 size="sm"
@@ -7475,14 +7513,9 @@ export const SuperadminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* PROFILE TAB */}
-        {activeTab === 'profile' && (
-          <AdminProfileView />
-        )}
-
-        {/* CHANGE PASSWORD TAB */}
-        {activeTab === 'change-password' && (
-          <ChangePasswordView />
+        {/* MY ACCOUNT (PROFILE & SECURITY) TAB */}
+        {(activeTab === 'profile' || activeTab === 'change-password') && (
+          <AdminProfileView initialSection={activeTab === 'change-password' ? 'security' : 'profile'} />
         )}
 
         {/* REPORTS & ANALYTICS TAB */}

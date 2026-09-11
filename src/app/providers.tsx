@@ -22,7 +22,7 @@ import { ticketService } from '../services/ticketService';
 import { userService } from '../services/userService';
 import { notificationService } from '../services/notificationService';
 import { walletService, UserWallet } from '../services/walletService';
-import { ApiError } from '../lib/api';
+import { ApiError, getAuthToken } from '../lib/api';
 
 // =============================================================================
 // CONTEXT INTERFACE
@@ -188,12 +188,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    */
   useEffect(() => {
     const rehydrate = async () => {
+      const token = getAuthToken();
+      if (!token) {
+        // No saved session token — visitor is a guest, avoid unnecessary 401 network calls
+        setUser(null);
+        setRole('guest');
+        setIsAuthLoading(false);
+        return;
+      }
+
       try {
         const freshUser = await authService.getMe();
         setUser(freshUser);
         setRole(freshUser.role as UserRole);
       } catch {
-        // 401 = no valid session — guest mode
+        // 401 or invalid token = no valid session — guest mode
         setUser(null);
         setRole('guest');
       } finally {

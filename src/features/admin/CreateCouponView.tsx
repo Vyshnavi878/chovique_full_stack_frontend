@@ -265,7 +265,7 @@ export const CreateCouponView: React.FC<CreateCouponViewProps> = ({
       </div>
 
       {/* ── Main Two Column Layout ──────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', alignItems: 'start' }}>
+      <div className="admin-coupon-layout-grid">
         
         {/* ── Left Form Column ──────────────────────────────────────── */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>

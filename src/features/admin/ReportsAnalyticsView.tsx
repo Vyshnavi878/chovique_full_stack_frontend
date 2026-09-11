@@ -479,36 +479,35 @@ export const ReportsAnalyticsView: React.FC = () => {
         </div>
       )}
 
-      {/* Report Type Selector Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '28px' }}>
-        {reportTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = reportType === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setReportType(tab.id)}
-              style={{
-                padding: '12px 18px',
-                borderRadius: '8px',
-                border: isActive ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)',
-                background: isActive ? 'rgba(201, 168, 76, 0.12)' : 'rgba(20, 16, 13, 0.85)',
-                color: isActive ? '#f5efe6' : 'rgba(255,255,255,0.6)',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Icon size={16} color={isActive ? '#c9a84c' : 'rgba(255,255,255,0.45)'} />
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* Report Type Selector Tabs Card */}
+      <div className="reports-tabs-card">
+        <div className="reports-tabs-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BarChart3 size={15} color="#c9a84c" />
+            <span className="reports-tabs-title">REPORT CATEGORY</span>
+          </div>
+          <span className="reports-tabs-active-badge">
+            {reportTabs.find((t) => t.id === reportType)?.label}
+          </span>
+        </div>
+
+        <div className="reports-tabs-grid">
+          {reportTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = reportType === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setReportType(tab.id)}
+                className={`reports-tab-btn ${isActive ? 'active' : ''}`}
+                title={tab.label}
+              >
+                <Icon size={16} className="reports-tab-icon" />
+                <span className="reports-tab-label">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Loading Skeleton */}

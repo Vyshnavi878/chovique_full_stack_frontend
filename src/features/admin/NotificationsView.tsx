@@ -3,14 +3,6 @@ import {
   Bell,
   Check,
   CheckCheck,
-  ShoppingBag,
-  AlertTriangle,
-  Users,
-  Tag,
-  MessageSquare,
-  Coins,
-  AlertCircle,
-  ExternalLink,
   Loader2,
   Filter,
   RefreshCw,
@@ -35,6 +27,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchNotifications = async (page = 1) => {
     setIsLoading(true);
@@ -140,7 +139,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       setTimeout(() => setActionSuccess(null), 2500);
     } catch (err) {
       console.error('Failed to delete notification:', err);
-      // Fallback: local remove if endpoint not available
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     }
   };
@@ -189,7 +187,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       reward_adjustment: { label: 'Reward Adjustment', bg: 'rgba(201, 168, 76, 0.15)', color: '#c9a84c' },
     };
 
-    const style = labels[type] || { label: type, bg: 'rgba(201, 168, 76, 0.12)', color: '#c9a84c' };
+    const style = labels[type] || { label: type ? type.replace(/_/g, ' ').toUpperCase() : 'General', bg: 'rgba(201, 168, 76, 0.12)', color: '#c9a84c' };
     return (
       <span
         style={{
@@ -234,17 +232,18 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             onClick={() => fetchNotifications(currentPage)}
             disabled={isLoading}
             style={{
-              padding: '10px 16px',
-              background: 'rgba(20, 16, 13, 0.85)',
+              padding: '10px 18px',
+              background: 'rgba(201, 168, 76, 0.1)',
               border: '1px solid rgba(201, 168, 76, 0.3)',
               borderRadius: '8px',
               color: '#c9a84c',
               fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
+              fontWeight: 700,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              transition: 'all 0.2s ease',
             }}
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} /> Refresh
@@ -266,6 +265,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
+                transition: 'all 0.2s ease',
               }}
             >
               <Trash2 size={16} /> {isBatchDeleting ? 'Deleting...' : `Delete Selected (${selectedNotifIds.length})`}
@@ -288,6 +288,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 alignItems: 'center',
                 gap: '6px',
                 boxShadow: '0 4px 14px rgba(201, 168, 76, 0.25)',
+                transition: 'all 0.2s ease',
               }}
             >
               <CheckCheck size={16} /> Mark all as read ({unreadCount})
@@ -332,40 +333,76 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           gap: '16px',
         }}
       >
-        {/* Categories */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {categoryTabs.map((tab) => {
-            const isActive = activeCategory === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveCategory(tab.id)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
-                  background: isActive ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
-                  color: isActive ? '#f5efe6' : 'rgba(255,255,255,0.6)',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Categories Dropdown or Tabs */}
+        {isMobile ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <select
+              value={activeCategory}
+              onChange={(e) => {
+                setActiveCategory(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              style={{
+                padding: '6px 12px',
+                background: 'rgba(10, 8, 6, 0.8)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '6px',
+                color: '#f5efe6',
+                fontSize: '0.82rem',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {categoryTabs.map((tab) => (
+                <option key={tab.id} value={tab.id} style={{ background: '#14100d', color: '#f5efe6' }}>
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {categoryTabs.map((tab) => {
+              const isActive = activeCategory === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveCategory(tab.id);
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    background: isActive ? 'rgba(201, 168, 76, 0.15)' : 'transparent',
+                    border: `1px solid ${isActive ? '#c9a84c' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '8px',
+                    color: isActive ? '#c9a84c' : '#f5efe6',
+                    fontSize: '0.85rem',
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Read / Unread Filter */}
+        {/* Read / Unread Status Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Filter size={14} /> Status:
-          </span>
+          {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', fontWeight: 600 }}>
+              <Filter size={14} /> Status Filter
+            </div>
+          )}
           <select
             value={readFilter}
-            onChange={(e) => setReadFilter(e.target.value as any)}
+            onChange={(e) => {
+              setReadFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
             style={{
               padding: '6px 12px',
               background: 'rgba(10, 8, 6, 0.8)',
@@ -374,11 +411,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
               color: '#f5efe6',
               fontSize: '0.82rem',
               outline: 'none',
+              cursor: 'pointer',
             }}
           >
-            <option value="all">All Status</option>
-            <option value="unread">Unread Only</option>
-            <option value="read">Read Only</option>
+            <option value="all" style={{ background: '#14100d', color: '#f5efe6' }}>All Status</option>
+            <option value="unread" style={{ background: '#14100d', color: '#f5efe6' }}>Unread Only</option>
+            <option value="read" style={{ background: '#14100d', color: '#f5efe6' }}>Read Only</option>
           </select>
         </div>
       </div>
@@ -407,7 +445,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           </div>
         ) : (
           <div style={{ width: '100%', overflowX: 'auto' }}>
-            <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>              <thead>
+            <table className="notifications-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+              <thead>
                 <tr style={{ background: 'rgba(10, 8, 6, 0.9)', borderBottom: '1px solid rgba(201, 168, 76, 0.2)', color: '#c9a84c' }}>
                   <th style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
                     <input
@@ -425,130 +464,143 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 </tr>
               </thead>
               <tbody>
-                {notifications.map((notif) => (
-                  <tr
-                    key={notif.id}
-                    style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      background: selectedNotifIds.includes(notif.id)
-                        ? 'rgba(201, 168, 76, 0.1)'
-                        : notif.is_read
-                        ? 'transparent'
-                        : 'rgba(201, 168, 76, 0.04)',
-                      transition: 'background 0.2s ease',
-                    }}
-                  >
-                    {/* Checkbox */}
-                    <td style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedNotifIds.includes(notif.id)}
-                        onChange={() => handleToggleSelectOne(notif.id)}
-                        style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
-                      />
-                    </td>
-                    {/* Title & Message */}
-                    <td style={{ padding: '16px 20px', maxWidth: '400px' }}>
-                      <div style={{ fontWeight: notif.is_read ? 600 : 700, color: '#f5efe6', marginBottom: '4px' }}>
-                        {notif.title}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>
-                        {notif.message}
-                      </div>
-                    </td>
+                {notifications.map((notif) => {
+                  const isUnread = notif.is_read === false;
+                  const notifTitle = notif.title || (notif.type ? notif.type.replace(/_/g, ' ').toUpperCase() : 'Notification');
+                  const notifMsg = notif.message || '';
 
-                    {/* Type Badge */}
-                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
-                      {getTypeBadge(notif.type)}
-                    </td>
-
-                    {/* Date */}
-                    <td style={{ padding: '16px 20px', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
-                      {new Date(notif.created_at).toLocaleString('en-US', {
+                  let dateDisplay = '';
+                  if (notif.created_at) {
+                    const dt = new Date(notif.created_at);
+                    if (!isNaN(dt.getTime())) {
+                      dateDisplay = dt.toLocaleString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
-                      })}
-                    </td>
+                      });
+                    }
+                  }
 
-                    {/* Status */}
-                    <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
-                      {notif.is_read ? (
-                        <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Check size={14} color="rgba(255,255,255,0.3)" /> Read
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.78rem', color: '#c9a84c', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c' }} /> Unread
-                        </span>
-                      )}
-                    </td>
+                  return (
+                    <tr
+                      key={notif.id}
+                      style={{
+                        borderBottom: '1px solid rgba(255,255,255,0.06)',
+                        background: selectedNotifIds.includes(notif.id)
+                          ? 'rgba(201, 168, 76, 0.1)'
+                          : isUnread
+                          ? 'rgba(201, 168, 76, 0.04)'
+                          : 'transparent',
+                        transition: 'background 0.2s ease',
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <td style={{ padding: '16px 14px', width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedNotifIds.includes(notif.id)}
+                          onChange={() => handleToggleSelectOne(notif.id)}
+                          style={{ cursor: 'pointer', accentColor: '#c9a84c', width: '15px', height: '15px' }}
+                        />
+                      </td>
 
-                    {/* Actions */}
-                    <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                        {!notif.is_read && (
+                      {/* Title & Message */}
+                      <td style={{ padding: '16px 20px', maxWidth: '400px' }}>
+                        <div style={{ fontWeight: isUnread ? 700 : 600, color: '#f5efe6', marginBottom: '4px' }}>
+                          {notifTitle}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>
+                          {notifMsg}
+                        </div>
+                      </td>
+
+                      {/* Type Badge */}
+                      <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                        {getTypeBadge(notif.type)}
+                      </td>
+
+                      {/* Date & Time */}
+                      <td style={{ padding: '16px 20px', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                        {dateDisplay}
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '16px 20px', whiteSpace: 'nowrap' }}>
+                        {!isUnread ? (
+                          <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Check size={14} color="rgba(255,255,255,0.3)" /> Read
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.78rem', color: '#c9a84c', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c9a84c' }} /> Unread
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                          {isUnread && (
+                            <button
+                              onClick={() => handleMarkAsRead(notif.id)}
+                              style={{
+                                padding: '6px 12px',
+                                background: 'rgba(201, 168, 76, 0.12)',
+                                border: '1px solid rgba(201, 168, 76, 0.3)',
+                                borderRadius: '6px',
+                                color: '#c9a84c',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              Mark as read
+                            </button>
+                          )}
+
                           <button
-                            onClick={() => handleMarkAsRead(notif.id)}
+                            onClick={() => handleViewRecord(notif)}
                             style={{
                               padding: '6px 12px',
-                              background: 'rgba(201, 168, 76, 0.12)',
-                              border: '1px solid rgba(201, 168, 76, 0.3)',
+                              background: 'transparent',
+                              border: '1px solid rgba(255,255,255,0.2)',
                               borderRadius: '6px',
-                              color: '#c9a84c',
+                              color: '#f5efe6',
                               fontSize: '0.78rem',
                               fontWeight: 600,
                               cursor: 'pointer',
+                              transition: 'all 0.2s ease',
                             }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                           >
-                            Mark as read
+                            View
                           </button>
-                        )}
 
-                        <button
-                          onClick={() => handleViewRecord(notif)}
-                          style={{
-                            padding: '6px 12px',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            borderRadius: '6px',
-                            color: '#f5efe6',
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          View Related <ExternalLink size={12} />
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteNotification(notif.id)}
-                          title="Delete Notification"
-                          style={{
-                            padding: '6px 10px',
-                            background: 'rgba(231, 76, 60, 0.12)',
-                            border: '1px solid rgba(231, 76, 60, 0.35)',
-                            borderRadius: '6px',
-                            color: '#e74c3c',
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            onClick={() => handleDeleteNotification(notif.id)}
+                            title="Delete Notification"
+                            style={{
+                              padding: '6px',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'rgba(255, 255, 255, 0.45)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#e74c3c')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -572,3 +624,4 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 };
 
 export default NotificationsView;
+

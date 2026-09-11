@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -26,6 +26,7 @@ import { categoryService } from '../../services/categoryService';
 import { getImageUrl } from '../../utils/imageUrl';
 
 export const ShopPage: React.FC = () => {
+  const navigate = useNavigate();
   const { addToCart, toggleWishlist, wishlist, role } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -676,9 +677,16 @@ export const ShopPage: React.FC = () => {
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <div style={{ display: 'flex', gap: '10px' }}>
                             <button
-                              onClick={(e) => { e.stopPropagation(); toggleWishlist(prod); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (role === 'guest') {
+                                  navigate('/login', { state: { from: '/shop' } });
+                                } else {
+                                  toggleWishlist(prod);
+                                }
+                              }}
                               style={{
                                 width: '38px',
                                 height: '38px',
@@ -698,7 +706,14 @@ export const ShopPage: React.FC = () => {
                               variant="gold"
                               size="sm"
                               disabled={isOut}
-                              onClick={(e) => { e.stopPropagation(); if (!isOut) addToCart(prod, 1); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (role === 'guest') {
+                                  navigate('/login', { state: { from: '/shop' } });
+                                } else if (!isOut) {
+                                  addToCart(prod, 1);
+                                }
+                              }}
                             >
                               <ShoppingBag size={14} style={{ marginRight: '6px' }} />
                               {isOut ? 'OUT OF STOCK' : 'Add to Cart'}

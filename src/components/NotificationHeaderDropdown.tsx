@@ -35,7 +35,16 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -74,13 +83,17 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
   }, [isSuperadmin, isCustomer, role]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
@@ -312,212 +325,239 @@ export const NotificationHeaderDropdown: React.FC<NotificationHeaderDropdownProp
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 12px)',
-            width: '360px',
-            background: 'linear-gradient(135deg, rgba(20, 16, 13, 0.98) 0%, rgba(12, 9, 7, 0.98) 100%)',
-            border: '1px solid rgba(201, 168, 76, 0.35)',
-            borderRadius: '14px',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(16px)',
-            zIndex: 1000,
-            overflow: 'hidden',
-          }}
-        >
-          {/* Dropdown Header */}
+        <>
+          {/* Mobile Backdrop to cleanly close on tap outside */}
+          {isMobile && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(3px)',
+                zIndex: 9998,
+              }}
+            />
+          )}
+
           <div
+            className="chovique-notification-dropdown-card"
             style={{
-              padding: '14px 16px',
-              borderBottom: '1px solid rgba(201, 168, 76, 0.15)',
+              position: isMobile ? 'fixed' : 'absolute',
+              top: isMobile ? '60px' : 'calc(100% + 12px)',
+              left: isMobile ? '10px' : 'auto',
+              right: isMobile ? '10px' : 0,
+              width: isMobile ? 'auto' : '360px',
+              maxWidth: isMobile ? 'calc(100vw - 20px)' : '360px',
+              maxHeight: isMobile ? 'calc(100vh - 120px)' : 'auto',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              flexDirection: 'column',
+              background: 'linear-gradient(135deg, rgba(20, 16, 13, 0.98) 0%, rgba(12, 9, 7, 0.98) 100%)',
+              border: '1px solid rgba(201, 168, 76, 0.35)',
+              borderRadius: '14px',
+              boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(16px)',
+              zIndex: 9999,
+              overflow: 'hidden',
             }}
           >
-            {/* Left: Title + unread badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h4
-                style={{
-                  fontFamily: 'var(--font-display, serif)',
-                  fontSize: '1.05rem',
-                  fontWeight: 700,
-                  color: '#f5efe6',
-                  margin: 0,
-                }}
-              >
-                Notifications
-              </h4>
-              {unreadCount > 0 && (
-                <span
+            {/* Dropdown Header */}
+            <div
+              style={{
+                padding: '14px 16px',
+                borderBottom: '1px solid rgba(201, 168, 76, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0,
+              }}
+            >
+              {/* Left: Title + unread badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h4
                   style={{
-                    background: 'rgba(201, 168, 76, 0.15)',
-                    color: '#c9a84c',
-                    fontSize: '0.72rem',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
+                    fontFamily: 'var(--font-display, serif)',
+                    fontSize: '1.05rem',
                     fontWeight: 700,
+                    color: '#f5efe6',
+                    margin: 0,
                   }}
                 >
-                  {unreadCount} new
-                </span>
+                  Notifications
+                </h4>
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      background: 'rgba(201, 168, 76, 0.15)',
+                      color: '#c9a84c',
+                      fontSize: '0.72rem',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {unreadCount} new
+                  </span>
+                )}
+              </div>
+
+              {/* Right: Clear All button — always visible when there are notifications */}
+              {notifications.length > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  title="Clear all notifications"
+                  style={{
+                    background: 'rgba(231, 76, 60, 0.08)',
+                    border: '1px solid rgba(231, 76, 60, 0.25)',
+                    borderRadius: '8px',
+                    color: '#e74c3c',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    padding: '4px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.18s ease',
+                    letterSpacing: '0.3px',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.18)';
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.08)';
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.25)';
+                  }}
+                >
+                  <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>×</span>
+                  Clear All
+                </button>
               )}
             </div>
 
-            {/* Right: Clear All button — always visible when there are notifications */}
-            {notifications.length > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                title="Clear all notifications"
-                style={{
-                  background: 'rgba(231, 76, 60, 0.08)',
-                  border: '1px solid rgba(231, 76, 60, 0.25)',
-                  borderRadius: '8px',
-                  color: '#e74c3c',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: '4px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.18s ease',
-                  letterSpacing: '0.3px',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.18)';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.5)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231, 76, 60, 0.08)';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(231, 76, 60, 0.25)';
-                }}
-              >
-                <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>×</span>
-                Clear All
-              </button>
-            )}
-          </div>
+            {/* Notifications List */}
+            <div style={{ maxHeight: isMobile ? 'calc(100vh - 210px)' : '340px', overflowY: 'auto', flex: 1 }}>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
+                  No notifications found.
+                </div>
+              ) : (
+                notifications.map((notif) => {
+                  const notifTitle = notif.title || (notif.type ? notif.type.replace('_', ' ').toUpperCase() : 'Notification');
+                  const notifMsg = notif.message || notif.text || '';
+                  const isUnread = notif.is_read === false || notif.read === false;
+                  const notifDate = notif.created_at ? formatTimeAgo(notif.created_at) : (notif.date || '');
 
-          {/* Notifications List */}
-          <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-            {notifications.length === 0 ? (
-              <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
-                No notifications found.
-              </div>
-            ) : (
-              notifications.map((notif) => {
-                const notifTitle = notif.title || (notif.type ? notif.type.replace('_', ' ').toUpperCase() : 'Notification');
-                const notifMsg = notif.message || notif.text || '';
-                const isUnread = notif.is_read === false || notif.read === false;
-                const notifDate = notif.created_at ? formatTimeAgo(notif.created_at) : (notif.date || '');
-
-                return (
-                  <div
-                    key={notif.id}
-                    onClick={() => handleNotificationClick(notif)}
-                    style={{
-                      padding: '14px 20px',
-                      borderBottom: '1px solid rgba(255,255,255,0.05)',
-                      background: isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '12px',
-                      transition: 'background 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent';
-                    }}
-                  >
-                    {/* Icon Circle */}
+                  return (
                     <div
+                      key={notif.id}
+                      onClick={() => handleNotificationClick(notif)}
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        background: 'rgba(201, 168, 76, 0.12)',
-                        border: '1px solid rgba(201, 168, 76, 0.25)',
+                        padding: '14px 20px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        background: isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent',
+                        cursor: 'pointer',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: '2px',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        transition: 'background 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = isUnread ? 'rgba(201, 168, 76, 0.06)' : 'transparent';
                       }}
                     >
-                      {getNotificationIcon(notif)}
-                    </div>
-
-                    {/* Body */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: isUnread ? 700 : 500, color: '#f5efe6' }}>
-                          {notifTitle}
-                        </span>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', flexShrink: 0, marginLeft: '8px' }}>
-                          {notifDate}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.4 }}>
-                        {notifMsg}
-                      </p>
-                    </div>
-
-                    {/* Unread Indicator Dot */}
-                    {isUnread && (
+                      {/* Icon Circle */}
                       <div
                         style={{
-                          width: '7px',
-                          height: '7px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
-                          background: '#c9a84c',
-                          marginTop: '6px',
+                          background: 'rgba(201, 168, 76, 0.12)',
+                          border: '1px solid rgba(201, 168, 76, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           flexShrink: 0,
-                          boxShadow: '0 0 6px rgba(201, 168, 76, 0.8)',
+                          marginTop: '2px',
                         }}
-                      />
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+                      >
+                        {getNotificationIcon(notif)}
+                      </div>
 
-          {/* Footer Link */}
-          <div
-            style={{
-              padding: '12px 20px',
-              borderTop: '1px solid rgba(201, 168, 76, 0.15)',
-              textAlign: 'center',
-              background: 'rgba(10, 8, 6, 0.6)',
-            }}
-          >
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                onNavigateTab('notifications');
-              }}
+                      {/* Body */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: isUnread ? 700 : 500, color: '#f5efe6' }}>
+                            {notifTitle}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', flexShrink: 0, marginLeft: '8px' }}>
+                            {notifDate}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', margin: 0, lineHeight: 1.4 }}>
+                          {notifMsg}
+                        </p>
+                      </div>
+
+                      {/* Unread Indicator Dot */}
+                      {isUnread && (
+                        <div
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            background: '#c9a84c',
+                            marginTop: '6px',
+                            flexShrink: 0,
+                            boxShadow: '0 0 6px rgba(201, 168, 76, 0.8)',
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Link */}
+            <div
               style={{
-                background: 'none',
-                border: 'none',
-                color: '#c9a84c',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
+                padding: '12px 20px',
+                borderTop: '1px solid rgba(201, 168, 76, 0.15)',
+                textAlign: 'center',
+                background: 'rgba(10, 8, 6, 0.6)',
+                flexShrink: 0,
               }}
             >
-              View All Notifications →
-            </button>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  onNavigateTab('notifications');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#c9a84c',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                View All Notifications →
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

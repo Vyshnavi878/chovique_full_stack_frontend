@@ -188,6 +188,41 @@ export const CartPage: React.FC = () => {
     }
   };
 
+  if (role === 'guest') {
+    return (
+      <motion.div
+        variants={pageTransition}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        style={{
+          paddingTop: '120px',
+          minHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          background: 'var(--gradient-hero)',
+          padding: '120px 20px 60px 20px',
+        }}
+      >
+        <ShoppingBag size={64} style={{ color: 'var(--gold)', marginBottom: '24px' }} />
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--cream)', marginBottom: '10px' }}>
+          Please Log In
+        </h2>
+        <p style={{ color: 'var(--beige)', marginBottom: '30px', maxWidth: '420px', fontSize: '1rem', lineHeight: 1.6 }}>
+          You must be logged in to view and manage your shopping cart and place orders.
+        </p>
+        <Link to="/login" state={{ from: '/cart' }}>
+          <Button variant="gold" size="lg" glow>
+            Log In to Continue
+          </Button>
+        </Link>
+      </motion.div>
+    );
+  }
+
   if (cart.length === 0) {
     return (
       <motion.div

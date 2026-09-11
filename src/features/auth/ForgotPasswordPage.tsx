@@ -8,6 +8,9 @@ import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/authService';
 import { ApiError } from '../../lib/api';
 
+const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+const isGoogleAuthEnabled = Boolean(googleClientId && !googleClientId.includes('your_google_client_id'));
+
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
   const { googleLogin } = useApp();
@@ -368,52 +371,56 @@ export const ForgotPasswordPage: React.FC = () => {
               )}
             </Button>
 
-            <div className="auth-divider" style={{ margin: '24px 0' }}>Or continue with</div>
+            {isGoogleAuthEnabled && (
+              <>
+                <div className="auth-divider" style={{ margin: '24px 0' }}>Or continue with</div>
 
-            <div className="social-login-group">
-              <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                <GoogleLogin
-                  onSuccess={async (credentialResponse) => {
-                    if (credentialResponse.credential) {
-                      setIsGoogleLoading(true);
-                      setError('');
-                      try {
-                        const result = await googleLogin(credentialResponse.credential);
-                        if (result.success) {
-                          if (result.user && result.user.has_password === false) {
-                            navigate('/set-password');
-                          } else if (result.role === 'admin') {
-                            navigate('/admin');
-                          } else if (result.role === 'superadmin') {
-                            navigate('/superadmin');
-                          } else {
-                            navigate('/');
+                <div className="social-login-group">
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <GoogleLogin
+                      onSuccess={async (credentialResponse) => {
+                        if (credentialResponse.credential) {
+                          setIsGoogleLoading(true);
+                          setError('');
+                          try {
+                            const result = await googleLogin(credentialResponse.credential);
+                            if (result.success) {
+                              if (result.user && result.user.has_password === false) {
+                                navigate('/set-password');
+                              } else if (result.role === 'admin') {
+                                navigate('/admin');
+                              } else if (result.role === 'superadmin') {
+                                navigate('/superadmin');
+                              } else {
+                                navigate('/');
+                              }
+                            } else {
+                              setError(result.error || 'Google Sign-In failed.');
+                            }
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : 'Google Sign-In failed.';
+                            setError(msg);
+                          } finally {
+                            setIsGoogleLoading(false);
                           }
-                        } else {
-                          setError(result.error || 'Google Sign-In failed.');
                         }
-                      } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : 'Google Sign-In failed.';
-                        setError(msg);
-                      } finally {
-                        setIsGoogleLoading(false);
-                      }
-                    }
-                  }}
-                  onError={() => {
-                    setError(`Google Sign-In failed: Origin (${window.location.origin}) is not authorized.`);
-                  }}
-                  theme="filled_black"
-                  shape="rectangular"
-                  size="large"
-                  text="continue_with"
-                />
-              </div>
-            </div>
-            {isGoogleLoading && (
-              <p style={{ textAlign: 'center', color: 'var(--gold)', fontSize: '0.85rem', marginTop: '8px' }}>
-                Signing in with Google...
-              </p>
+                      }}
+                      onError={() => {
+                        console.warn(`[Chovique] Google Sign-In origin (${window.location.origin}) is not authorized.`);
+                      }}
+                      theme="filled_black"
+                      shape="rectangular"
+                      size="large"
+                      text="continue_with"
+                    />
+                  </div>
+                </div>
+                {isGoogleLoading && (
+                  <p style={{ textAlign: 'center', color: 'var(--gold)', fontSize: '0.85rem', marginTop: '8px' }}>
+                    Signing in with Google...
+                  </p>
+                )}
+              </>
             )}
           </form>
         )}

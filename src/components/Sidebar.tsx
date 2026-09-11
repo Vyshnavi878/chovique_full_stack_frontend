@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -21,6 +21,20 @@ import {
   Mail,
   BarChart3,
   Bell,
+  Home,
+  ExternalLink,
+  User as UserIcon,
+  KeyRound,
+  LogOut,
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  Sparkles,
+  Receipt,
+  TrendingUp,
+  IndianRupee,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { NotificationHeaderDropdown } from './NotificationHeaderDropdown';
 import { useApp } from '../app/providers';
@@ -32,14 +46,16 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onRequestLogout }) => {
-  const { role, logout } = useApp();
+  const { role, logout, user } = useApp();
   const navigate = useNavigate();
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [isOpen, setIsOpen] = useState(false);
+  const [showAllModules, setShowAllModules] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth <= 1024;
+      const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
       if (!mobile) {
         setIsOpen(false);
@@ -50,14 +66,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Admin tab items
-  const adminItems = [
+  // Close drawer on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (isOpen && drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Close drawer on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  // Full Admin items for Desktop
+  const adminDesktopItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'products', label: 'Products', icon: ShoppingBag },
     { id: 'categories', label: 'Categories', icon: FolderTree },
     { id: 'orders', label: 'Order Management', icon: ListOrdered },
     { id: 'customers', label: 'Customer Directory', icon: Users },
-    { id: 'offline-sales', label: 'Offline Sales', icon: Coins },
+    { id: 'offline-sales', label: 'Offline Sales', icon: Receipt },
     { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
     { id: 'reward-settings', label: 'Reward Coins System', icon: Coins },
     { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
@@ -66,12 +106,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     { id: 'complaints', label: 'Customer Complaints', icon: AlertTriangle },
   ];
 
-  // Superadmin tab items
-  const superadminItems = [
+  // Full Superadmin items for Desktop
+  const superadminDesktopItems = [
     { id: 'enterprise', label: 'Enterprise', icon: ShieldCheck },
-    { id: 'revenue', label: 'Revenue Analytics', icon: Coins },
-    { id: 'sales-comparison', label: 'Sales Analytics', icon: Database },
-    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
+    { id: 'revenue', label: 'Revenue Analytics', icon: IndianRupee },
+    { id: 'sales-comparison', label: 'Sales Analytics', icon: TrendingUp },
+    { id: 'reports', label: 'Reports & Analytics', icon: FileSpreadsheet },
     { id: 'admin-mgmt', label: 'Admin Management', icon: Users },
     { id: 'customers', label: 'Customer Directory', icon: Users },
     { id: 'audit-logs', label: 'Audit Logs', icon: FileClock },
@@ -79,60 +119,354 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
     { id: 'platform-settings', label: 'Platform Settings', icon: Settings },
   ];
 
-  const items = role === 'superadmin' ? superadminItems : adminItems;
+  // Mobile Bottom Nav Primary Items (5 items)
+  const adminBottomItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'orders', label: 'Orders', icon: ListOrdered },
+    { id: 'products', label: 'Products', icon: ShoppingBag, isFab: true },
+    { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'offline-sales', label: 'Offline Sales', icon: Receipt },
+  ];
+
+  const superadminBottomItems = [
+    { id: 'enterprise', label: 'Overview', icon: ShieldCheck },
+    { id: 'revenue', label: 'Revenue Analytics', icon: IndianRupee },
+    { id: 'reports', label: 'Report Analytics', icon: FileSpreadsheet, isFab: true },
+    { id: 'sales-comparison', label: 'Sales Analytics', icon: TrendingUp },
+    { id: 'platform-settings', label: 'Settings', icon: Settings },
+  ];
+
+  // Mobile Remaining Items for Hamburger Toggle
+  const adminRemainingItems = [
+    { id: 'categories', label: 'Categories', icon: FolderTree },
+    { id: 'coupons', label: 'Coupons & Discounts', icon: Tag },
+    { id: 'reward-settings', label: 'Reward Coins System', icon: Coins },
+    { id: 'home-mgmt', label: 'Banner & Carousel', icon: Image },
+    { id: 'testimonials', label: 'Reviews & Testimonials', icon: Star },
+    { id: 'contact-messages', label: 'Contact Messages', icon: Mail },
+    { id: 'complaints', label: 'Customer Complaints', icon: AlertTriangle },
+  ];
+
+  const superadminRemainingItems = [
+    { id: 'admin-mgmt', label: 'Admins Management', icon: Users },
+    { id: 'customers', label: 'Customer Directory', icon: Users },
+    { id: 'audit-logs', label: 'Audit Logs', icon: FileClock },
+    { id: 'theme-builder', label: 'Theme Builder', icon: Palette },
+  ];
+
+  const desktopItems = role === 'superadmin' ? superadminDesktopItems : adminDesktopItems;
+  const bottomItems = role === 'superadmin' ? superadminBottomItems : adminBottomItems;
+  const remainingItems = role === 'superadmin' ? superadminRemainingItems : adminRemainingItems;
+
+  const handleTabSelect = (tabId: string) => {
+    setActiveTab(tabId);
+    setIsOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLogout = () => {
+    setIsOpen(false);
+    if (onRequestLogout) {
+      onRequestLogout();
+    } else {
+      setActiveTab('logout');
+    }
+  };
+
+  const avatarUrl = user?.profile?.avatarUrl || (user?.profile as any)?.avatar_url || (user as any)?.avatar_url;
+  const initial = user?.name ? user.name.charAt(0).toUpperCase() : (role === 'superadmin' ? 'S' : 'A');
+  const roleLabel = role === 'superadmin' ? 'Super Admin' : 'Admin';
 
   return (
     <>
-      {/* Mobile Header Bar */}
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE TOP NAVBAR (Fixed, height 56px, ≤ 768px only)
+          ══════════════════════════════════════════════════════════════ */}
       {isMobile && (
-        <div className="admin-mobile-header">
+        <div className="admin-mobile-topnav" role="banner" aria-label="Admin mobile navigation">
+          {/* Left: Hamburger button → toggles remaining items drawer */}
           <button
-            onClick={() => setIsOpen(true)}
-            style={{ color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px' }}
-            aria-label="Open Sidebar Menu"
+            className="admin-mobile-topnav-btn"
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={isOpen}
           >
-            <Menu size={24} />
+            <Menu size={22} color="#c9a84c" />
           </button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          {/* Center: Brand logo + "CHOVIQUE" + Role Badge */}
+          <div
+            className="admin-mobile-topnav-logo"
+            onClick={() => handleTabSelect(role === 'superadmin' ? 'enterprise' : 'dashboard')}
+            style={{ cursor: 'pointer' }}
+          >
             <img
               src="/assets/logo.png"
-              alt="Logo"
-              style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--gold)' }}
+              alt="Chovique Logo"
+              className="admin-mobile-logo-img"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?auto=format&fit=crop&w=100&q=80';
               }}
             />
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 700,
-              fontSize: '1rem',
-              letterSpacing: '1px',
-              color: 'var(--cream)'
-            }}>
-              CHOVIQUE
-            </span>
+            <span className="admin-mobile-logo-text">CHOVIQUE</span>
+            <span className="admin-mobile-role-pill">{roleLabel}</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--gold)', textTransform: 'uppercase', fontWeight: 600 }}>
-              {role === 'superadmin' ? 'S.Admin' : 'Admin'}
-            </span>
-            <NotificationHeaderDropdown onNavigateTab={setActiveTab} isSuperadmin={role === 'superadmin'} />
+          {/* Right: Notification dropdown + User avatar link */}
+          <div className="admin-mobile-topnav-right">
+            <NotificationHeaderDropdown
+              onNavigateTab={handleTabSelect}
+              isSuperadmin={role === 'superadmin'}
+            />
+            <button
+              onClick={() => handleTabSelect('profile')}
+              className="admin-mobile-avatar-btn"
+              title="My Profile"
+              aria-label="My Profile"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={user?.name || 'Admin'} className="admin-mobile-avatar-img" />
+              ) : (
+                <span>{initial}</span>
+              )}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Sidebar Overlay Backdrop */}
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE DRAWER BACKDROP
+          ══════════════════════════════════════════════════════════════ */}
       {isMobile && (
         <div
           className={`admin-sidebar-backdrop ${isOpen ? 'open' : ''}`}
           onClick={() => setIsOpen(false)}
+          aria-hidden={!isOpen}
         />
       )}
 
-      {/* Sidebar Main Layout */}
-      <div
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE HAMBURGER DRAWER (Remaining Items + Account Tools)
+          ══════════════════════════════════════════════════════════════ */}
+      {isMobile && (
+        <aside
+          ref={drawerRef}
+          className={`admin-mobile-drawer ${isOpen ? 'open' : ''}`}
+          aria-label="Admin mobile drawer"
+        >
+          {/* Drawer Header */}
+          <div className="admin-drawer-header">
+            <div className="admin-drawer-user-info">
+              <div className="admin-drawer-avatar">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={user?.name || 'Admin'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  initial
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span className="admin-drawer-user-name">
+                  {user?.name || 'Administrator'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <span className="admin-mobile-role-pill">{roleLabel}</span>
+                  {user?.email && (
+                    <span className="admin-drawer-user-email">
+                      {user.email}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              className="admin-drawer-close-btn"
+              onClick={() => setIsOpen(false)}
+              aria-label="Close menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Drawer Scrollable Content */}
+          <div className="admin-drawer-body">
+            {/* Section 1: Remaining Workspace Modules */}
+            <div className="admin-drawer-section">
+              <div className="admin-drawer-section-title">
+                <span>REMAINING MODULES</span>
+                <span className="admin-drawer-badge">{remainingItems.length}</span>
+              </div>
+              <div className="admin-drawer-items-list">
+                {remainingItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabSelect(item.id)}
+                      className={`admin-drawer-item ${isActive ? 'active' : ''}`}
+                    >
+                      <div className="admin-drawer-item-icon">
+                        <Icon size={18} />
+                      </div>
+                      <span className="admin-drawer-item-label">{item.label}</span>
+                      {isActive && <div className="admin-drawer-item-dot" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section 2: All Workspace Modules (Collapsible) */}
+            <div className="admin-drawer-section">
+              <button
+                type="button"
+                className="admin-drawer-section-toggle"
+                onClick={() => setShowAllModules(!showAllModules)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={14} color="#c9a84c" />
+                  <span>ALL MODULES ({desktopItems.length})</span>
+                </div>
+                {showAllModules ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {showAllModules && (
+                <div className="admin-drawer-items-list" style={{ marginTop: '8px' }}>
+                  {desktopItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={`all-${item.id}`}
+                        onClick={() => handleTabSelect(item.id)}
+                        className={`admin-drawer-item ${isActive ? 'active' : ''}`}
+                      >
+                        <div className="admin-drawer-item-icon">
+                          <Icon size={18} />
+                        </div>
+                        <span className="admin-drawer-item-label">{item.label}</span>
+                        {isActive && <div className="admin-drawer-item-dot" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Account & Quick Navigation */}
+            <div className="admin-drawer-section">
+              <div className="admin-drawer-section-title">
+                <span>ACCOUNT & STORE</span>
+              </div>
+              <div className="admin-drawer-items-list">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/');
+                  }}
+                  className="admin-drawer-item"
+                >
+                  <div className="admin-drawer-item-icon">
+                    <ExternalLink size={18} />
+                  </div>
+                  <span className="admin-drawer-item-label">View Public Store</span>
+                </button>
+
+                <button
+                  onClick={() => handleTabSelect('notifications')}
+                  className={`admin-drawer-item ${activeTab === 'notifications' ? 'active' : ''}`}
+                >
+                  <div className="admin-drawer-item-icon">
+                    <Bell size={18} />
+                  </div>
+                  <span className="admin-drawer-item-label">Notifications</span>
+                  {activeTab === 'notifications' && <div className="admin-drawer-item-dot" />}
+                </button>
+
+                <button
+                  onClick={() => handleTabSelect('profile')}
+                  className={`admin-drawer-item ${(activeTab === 'profile' || activeTab === 'change-password') ? 'active' : ''}`}
+                >
+                  <div className="admin-drawer-item-icon">
+                    <UserIcon size={18} />
+                  </div>
+                  <span className="admin-drawer-item-label">My Account</span>
+                  {(activeTab === 'profile' || activeTab === 'change-password') && <div className="admin-drawer-item-dot" />}
+                </button>
+
+                <button
+                  onClick={() => handleTabSelect(role === 'superadmin' ? 'audit-logs' : 'activity-logs')}
+                  className={`admin-drawer-item ${(activeTab === 'audit-logs' || activeTab === 'activity-logs') ? 'active' : ''}`}
+                >
+                  <div className="admin-drawer-item-icon">
+                    <FileClock size={18} />
+                  </div>
+                  <span className="admin-drawer-item-label">Activity & Audit Logs</span>
+                  {(activeTab === 'audit-logs' || activeTab === 'activity-logs') && <div className="admin-drawer-item-dot" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Drawer Footer: Logout */}
+          <div className="admin-drawer-footer">
+            <button
+              onClick={handleLogout}
+              className="admin-drawer-logout-btn"
+            >
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE FIXED BOTTOM NAVBAR (Height 64px, ≤ 768px only)
+          ══════════════════════════════════════════════════════════════ */}
+      {isMobile && (
+        <nav className="admin-mobile-bottom-nav" aria-label="Admin mobile bottom navigation">
+          {bottomItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            if (item.isFab) {
+              return (
+                <button
+                  key={item.id}
+                  className={`admin-mobile-bottom-btn admin-mobile-bottom-btn--fab ${isActive ? 'active' : ''}`}
+                  onClick={() => handleTabSelect(item.id)}
+                  aria-label={item.label}
+                >
+                  <div className="admin-fab-wrapper">
+                    <Icon size={24} />
+                  </div>
+                  <span>{item.label}</span>
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={item.id}
+                className={`admin-mobile-bottom-btn ${isActive ? 'active' : ''}`}
+                onClick={() => handleTabSelect(item.id)}
+                aria-label={item.label}
+              >
+                <Icon size={21} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          DESKTOP STATIONARY SIDEBAR (> 768px only)
+          ══════════════════════════════════════════════════════════════ */}
+      <aside
+        className="admin-desktop-sidebar"
         style={{
           width: '260px',
           height: '100vh',
@@ -141,18 +475,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
           position: 'fixed',
           top: 0,
           left: 0,
-          display: 'flex',
+          display: isMobile ? 'none' : 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-start',
           padding: '24px 16px',
           zIndex: 110,
           fontFamily: 'var(--font-body)',
-          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflow: 'hidden' }}>
-          {/* Brand Header & Optional Mobile Close Button */}
+          {/* Brand Header */}
           <div
             style={{
               display: 'flex',
@@ -162,10 +494,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
             }}
           >
             <div
-              onClick={() => {
-                if (isMobile) setIsOpen(false);
-                navigate('/');
-              }}
+              onClick={() => navigate('/')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -195,16 +524,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
                 CHOVIQUE
               </span>
             </div>
-
-            {isMobile && (
-              <button
-                onClick={() => setIsOpen(false)}
-                style={{ color: 'var(--rose-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
-                aria-label="Close menu"
-              >
-                <X size={20} />
-              </button>
-            )}
           </div>
 
           {/* Navigation Items List */}
@@ -223,16 +542,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
               {role} Workspace
             </span>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '4px' }}>
-              {items.map((item) => {
+              {desktopItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      if (isMobile) setIsOpen(false);
-                    }}
+                    onClick={() => setActiveTab(item.id)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -257,8 +573,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onReq
             </div>
           </nav>
         </div>
-      </div>
+      </aside>
     </>
   );
 };
 export default Sidebar;
+

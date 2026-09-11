@@ -108,7 +108,7 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
             padding: '8px 0',
           }}
         >
-          {/* My Profile */}
+          {/* My Account */}
           <button
             onClick={() => handleSelect(() => onNavigateTab('profile'))}
             style={{
@@ -130,32 +130,7 @@ export const AdminUserDropdown: React.FC<AdminUserDropdownProps> = ({ onNavigate
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <UserIcon size={18} color="#c9a84c" />
-            <span>My Profile</span>
-          </button>
-
-          {/* Change Password */}
-          <button
-            onClick={() => handleSelect(() => onNavigateTab('change-password'))}
-            style={{
-              width: '100%',
-              padding: '12px 20px',
-              background: 'transparent',
-              border: 'none',
-              color: '#f5efe6',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(201, 168, 76, 0.12)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <KeyRound size={18} color="#c9a84c" />
-            <span>Change Password</span>
+            <span>My Account</span>
           </button>
 
           {/* Activity Log — Admin only (Super Admin uses dedicated Audit Logs sidebar page) */}
