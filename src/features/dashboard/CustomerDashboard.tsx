@@ -5224,8 +5224,8 @@ export const CustomerDashboard: React.FC = () => {
                                   </td>
 
                                   {/* Actions */}
-                                  <td style={{ padding: '16px 20px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                  <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                                       {isUnread && (
                                         <button
                                           onClick={() => handleMarkSingleRead(notif.id)}

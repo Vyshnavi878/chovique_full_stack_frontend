@@ -398,36 +398,38 @@ export const Navbar: React.FC = () => {
             )}
 
             {/* 2. Quick Action Buttons Row (Cart, Wishlist, Dashboard) */}
-            <div className="mobile-drawer-quick-bar">
-              <Link
-                to="/cart"
-                className="mobile-drawer-quick-btn"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <ShoppingBag size={18} />
-                <span>Cart ({cartCount})</span>
-              </Link>
-
-              <Link
-                to="/wishlist"
-                className="mobile-drawer-quick-btn"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Heart size={18} />
-                <span>Wishlist ({wishlist.length})</span>
-              </Link>
-
-              {role === 'customer' && (
-                <button
-                  type="button"
-                  className="mobile-drawer-quick-btn gold"
-                  onClick={() => handleCustomerNav('overview')}
+            {user && (
+              <div className="mobile-drawer-quick-bar">
+                <Link
+                  to="/cart"
+                  className="mobile-drawer-quick-btn"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  <LayoutDashboard size={18} />
-                  <span>Dashboard</span>
-                </button>
-              )}
-            </div>
+                  <ShoppingBag size={18} />
+                  <span>Cart ({cartCount})</span>
+                </Link>
+
+                <Link
+                  to="/wishlist"
+                  className="mobile-drawer-quick-btn"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Heart size={18} />
+                  <span>Wishlist ({wishlist.length})</span>
+                </Link>
+
+                {role === 'customer' && (
+                  <button
+                    type="button"
+                    className="mobile-drawer-quick-btn gold"
+                    onClick={() => handleCustomerNav('overview')}
+                  >
+                    <LayoutDashboard size={18} />
+                    <span>Dashboard</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* 3. Primary Store Navigation Links */}
             <div className="mobile-drawer-nav-section">

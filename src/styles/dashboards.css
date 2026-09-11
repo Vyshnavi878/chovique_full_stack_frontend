@@ -2157,11 +2157,7 @@
     padding-bottom: 72px !important;
   }
 
-  /* Global top padding for all customer pages on mobile (our 56px top nav
-     replaces the global Navbar which was 85px) */
-  body.customer-mobile-active main > * {
-    /* Each page's own top padding/margin will handle the rest */
-  }
+
 }
 
 /* Global top padding for ALL customer pages on mobile — applies when
