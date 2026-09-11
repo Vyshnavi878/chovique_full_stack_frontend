@@ -1,10 +1,17 @@
 {
+  "id": "/",
   "name": "Chovique Chocolate Store",
   "short_name": "Chovique",
   "description": "Chovique — Premium Handmade Chocolates. Discover artisan chocolates crafted with the finest cocoa beans, delivered to your doorstep.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "window-controls-overlay"
+  ],
   "orientation": "any",
   "dir": "ltr",
   "background_color": "#ffffff",
@@ -38,11 +45,6 @@
       "sizes": "762x762",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/favicon.ico",
-      "sizes": "48x48 32x32 16x16",
-      "type": "image/x-icon"
     }
   ]
 }
