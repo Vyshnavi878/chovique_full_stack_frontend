@@ -5,6 +5,7 @@ import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ChatbotWidget } from '../components/ChatbotWidget';
 import {
   Home,
   ShoppingBag,
@@ -46,6 +47,7 @@ import '../styles/products.css';
 import '../styles/forms.css';
 import '../styles/dashboards.css';
 import '../styles/admin.css';
+import '../styles/chatbot.css';
 
 // Scroll Restoration helper
 const ScrollToTop: React.FC = () => {
@@ -474,6 +476,9 @@ const AppContent: React.FC = () => {
       </main>
 
       {showFooter && <Footer />}
+
+      {/* Chovique AI Assistant — Coco (hidden on admin/auth routes) */}
+      <ChatbotWidget />
     </div>
   );
 };

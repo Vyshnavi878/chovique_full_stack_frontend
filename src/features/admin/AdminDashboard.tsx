@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -107,9 +107,40 @@ export const AdminDashboard: React.FC = () => {
     logout
   } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+
+  // Sync activeTab with URL query parameter (e.g. /admin?section=products or /admin?tab=orders)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = (params.get('tab') || params.get('section') || '').toLowerCase().trim();
+    if (tabParam) {
+      const mapping: Record<string, string> = {
+        'inventory': 'products',
+        'products': 'products',
+        'orders': 'orders',
+        'customers': 'customers',
+        'offline-sales': 'offline-sales',
+        'offline': 'offline-sales',
+        'coupons': 'coupons',
+        'reward-settings': 'reward-settings',
+        'rewards': 'reward-settings',
+        'coins': 'reward-settings',
+        'tickets': 'complaints',
+        'complaints': 'complaints',
+        'support': 'complaints',
+        'contact-messages': 'contact-messages',
+        'dashboard': 'dashboard',
+        'reports': 'reports',
+        'analytics': 'reports',
+      };
+      if (mapping[tabParam]) {
+        setActiveTab(mapping[tabParam]);
+      }
+    }
+  }, [location.search]);
 
   // --- Logout Modal State ---
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);

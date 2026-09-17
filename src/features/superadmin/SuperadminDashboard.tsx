@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck,
@@ -224,9 +224,37 @@ const builtInPresets: ThemePreset[] = [
 export const SuperadminDashboard: React.FC = () => {
   const { user, theme, updateThemeColors, offlineSales, orders, banners, updateBanner, products, setProducts, addBanner, deleteBannerState, refreshBanners, logout } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('enterprise');
   const [isMobileGrid, setIsMobileGrid] = useState(window.innerWidth <= 768);
+
+  // Sync activeTab with URL query parameter (e.g. /superadmin?section=revenue or /superadmin?tab=reports)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = (params.get('tab') || params.get('section') || '').toLowerCase().trim();
+    if (tabParam) {
+      const mapping: Record<string, string> = {
+        'overview': 'enterprise',
+        'enterprise': 'enterprise',
+        'revenue': 'revenue',
+        'sales': 'sales-comparison',
+        'sales-comparison': 'sales-comparison',
+        'reports': 'reports',
+        'analytics': 'reports',
+        'admin-mgmt': 'admin-mgmt',
+        'admins': 'admin-mgmt',
+        'customers': 'customers',
+        'audit-logs': 'audit-logs',
+        'platform-settings': 'platform-settings',
+        'settings': 'platform-settings',
+        'stores': 'enterprise',
+      };
+      if (mapping[tabParam]) {
+        setActiveTab(mapping[tabParam]);
+      }
+    }
+  }, [location.search]);
 
   // --- Enterprise Overview Panel Pagination State ---
   const TOP_SELLING_PER_PAGE = 3;

@@ -523,8 +523,13 @@ export const CheckoutPage: React.FC = () => {
           methodPrefill = 'netbanking';
         }
 
+        const razorpayKey = initData.key_id || ((import.meta as any).env?.VITE_RAZORPAY_KEY_ID as string | undefined)?.trim();
+        if (!razorpayKey) {
+          throw new Error('Payment gateway configuration is temporarily unavailable. Please select Cash on Delivery or contact concierge.');
+        }
+
         const options = {
-          key: initData.key_id || (import.meta as any).env?.VITE_RAZORPAY_KEY_ID || 'rzp_test_TZZZYdiXYpVTA5',
+          key: razorpayKey,
           amount: initData.amount,
           currency: initData.currency || 'INR',
           name: 'CHOVIQUE',
