@@ -44,85 +44,93 @@ import '../styles/chatbot.css';
 export const RobotChatbotIcon: React.FC<{ size?: number; className?: string }> = ({
   size = 34,
   className = '',
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 36 36"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-    aria-hidden="true"
-    style={{ overflow: 'visible' }}
-  >
-    <defs>
-      <linearGradient id="chvRobotGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FFF2B2" />
-        <stop offset="50%" stopColor="#D4AF37" />
-        <stop offset="100%" stopColor="#9E782F" />
-      </linearGradient>
-      <radialGradient id="chvRobotEyeCyan" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#A5F3FC" />
-        <stop offset="60%" stopColor="#22D3EE" />
-        <stop offset="100%" stopColor="#0891B2" />
-      </radialGradient>
-      <filter id="chvEyeGlow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="0.8" result="blur" />
-        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-      </filter>
-    </defs>
+}) => {
+  const instanceId = React.useId().replace(/[^a-zA-Z0-9]/g, '');
+  const goldGradId = `chvGold-${instanceId}`;
+  const eyeGradId = `chvEye-${instanceId}`;
+  const glowId = `chvGlow-${instanceId}`;
 
-    {/* Antenna stalk */}
-    <line x1="18" y1="3.5" x2="18" y2="8" stroke="url(#chvRobotGoldGrad)" strokeWidth="2.4" strokeLinecap="round" />
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 36 36"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+      style={{ overflow: 'visible' }}
+    >
+      <defs>
+        <linearGradient id={goldGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFF4B8" />
+          <stop offset="50%" stopColor="#E2BD44" />
+          <stop offset="100%" stopColor="#A87B28" />
+        </linearGradient>
+        <radialGradient id={eyeGradId} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#A5F3FC" />
+          <stop offset="60%" stopColor="#22D3EE" />
+          <stop offset="100%" stopColor="#0891B2" />
+        </radialGradient>
+        <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="0.8" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
 
-    {/* Antenna glowing beacon sphere */}
-    <circle cx="18" cy="3" r="2.5" fill="url(#chvRobotGoldGrad)" />
+      {/* Antenna stalk */}
+      <line x1="18" y1="3.5" x2="18" y2="8" stroke={`url(#${goldGradId})`} strokeWidth="2.4" strokeLinecap="round" />
 
-    {/* Robot Side Ears / Sensors */}
-    <rect x="2" y="14" width="3" height="7" rx="1.5" fill="url(#chvRobotGoldGrad)" />
-    <rect x="31" y="14" width="3" height="7" rx="1.5" fill="url(#chvRobotGoldGrad)" />
+      {/* Antenna glowing beacon sphere */}
+      <circle cx="18" cy="3" r="2.5" fill={`url(#${goldGradId})`} />
 
-    {/* Robot Head Body */}
-    <rect
-      x="5"
-      y="8"
-      width="26"
-      height="21"
-      rx="6"
-      fill="#140E0A"
-      stroke="url(#chvRobotGoldGrad)"
-      strokeWidth="2.2"
-    />
+      {/* Robot Side Ears / Sensors */}
+      <rect x="2" y="14" width="3" height="7" rx="1.5" fill={`url(#${goldGradId})`} />
+      <rect x="31" y="14" width="3" height="7" rx="1.5" fill={`url(#${goldGradId})`} />
 
-    {/* Visor Screen */}
-    <rect
-      x="8"
-      y="11.5"
-      width="20"
-      height="13.5"
-      rx="4"
-      fill="#070503"
-      stroke="rgba(212, 175, 55, 0.4)"
-      strokeWidth="1"
-    />
+      {/* Robot Head Body */}
+      <rect
+        x="5"
+        y="8"
+        width="26"
+        height="21"
+        rx="6"
+        fill="#26170E"
+        stroke={`url(#${goldGradId})`}
+        strokeWidth="2.2"
+      />
 
-    {/* Left Eye (Expressive Glowing AI Cyan) */}
-    <rect x="11" y="14.5" width="4.5" height="5" rx="1.5" fill="url(#chvRobotEyeCyan)" filter="url(#chvEyeGlow)" />
-    <circle cx="12.2" cy="15.7" r="0.8" fill="#FFFFFF" />
+      {/* Visor Screen */}
+      <rect
+        x="8"
+        y="11.5"
+        width="20"
+        height="13.5"
+        rx="4"
+        fill="#0E0805"
+        stroke="#E2BD44"
+        strokeOpacity="0.6"
+        strokeWidth="1.2"
+      />
 
-    {/* Right Eye (Expressive Glowing AI Cyan) */}
-    <rect x="20.5" y="14.5" width="4.5" height="5" rx="1.5" fill="url(#chvRobotEyeCyan)" filter="url(#chvEyeGlow)" />
-    <circle cx="21.7" cy="15.7" r="0.8" fill="#FFFFFF" />
+      {/* Left Eye (Expressive Glowing AI Cyan) */}
+      <rect x="11" y="14.5" width="4.5" height="5" rx="1.5" fill={`url(#${eyeGradId})`} filter={`url(#${glowId})`} />
+      <circle cx="12.2" cy="15.7" r="0.8" fill="#FFFFFF" />
 
-    {/* Friendly Robot Smile */}
-    <path
-      d="M13.5 21.8 C15.5 23.5 20.5 23.5 22.5 21.8"
-      stroke="url(#chvRobotGoldGrad)"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-  </svg>
-);
+      {/* Right Eye (Expressive Glowing AI Cyan) */}
+      <rect x="20.5" y="14.5" width="4.5" height="5" rx="1.5" fill={`url(#${eyeGradId})`} filter={`url(#${glowId})`} />
+      <circle cx="21.7" cy="15.7" r="0.8" fill="#FFFFFF" />
+
+      {/* Friendly Robot Smile */}
+      <path
+        d="M13.5 21.8 C15.5 23.5 20.5 23.5 22.5 21.8"
+        stroke={`url(#${goldGradId})`}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -768,7 +776,7 @@ export const ChatbotWidget: React.FC = () => {
           {/* Robot AI Chatbot Avatar */}
           <div className="chv-chat-avatar" aria-hidden="true">
             <div className="chv-chat-header-robot-wrap">
-              <RobotChatbotIcon size={26} />
+              <RobotChatbotIcon size={30} />
             </div>
             <span className="chv-chat-avatar-dot" />
           </div>

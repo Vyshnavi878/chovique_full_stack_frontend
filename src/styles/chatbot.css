@@ -101,8 +101,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 40%, #2a1c12 0%, #0d0906 85%);
-  border-radius: 50%;
+  background: transparent;
+  filter: drop-shadow(0 0 5px rgba(201, 168, 76, 0.65));
 }
 
 .chv-chat-welcome-robot-wrap {
@@ -122,8 +122,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 40%, #25180f 0%, #0d0906 85%);
-  border-radius: 50%;
+  background: transparent;
+  filter: drop-shadow(0 0 4px rgba(201, 168, 76, 0.55));
 }
 
 .chv-chat-fab-badge-img {
@@ -419,12 +419,17 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 2px solid rgba(201, 168, 76, 0.7);
+  border: 2px solid #ECC870;
+  background: radial-gradient(circle at 50% 35%, #382215 0%, #140d08 85%);
   flex-shrink: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow:
-    0 0 0 3px rgba(201, 168, 76, 0.15),
+    0 0 0 2px rgba(201, 168, 76, 0.25),
+    0 0 16px rgba(201, 168, 76, 0.4),
     0 4px 16px rgba(0, 0, 0, 0.6);
 }
 
@@ -438,14 +443,16 @@
 
 .chv-chat-avatar-dot {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
+  bottom: 0px;
+  right: 0px;
   width: 11px;
   height: 11px;
   background: #48bb78;
   border-radius: 50%;
-  border: 2px solid #000;
+  border: 2px solid #140E0A;
+  box-shadow: 0 0 6px rgba(72, 187, 120, 0.8);
   animation: chv-chat-online-pulse 3s infinite;
+  z-index: 5;
 }
 
 @keyframes chv-chat-online-pulse {
@@ -741,16 +748,22 @@
   flex-direction: row-reverse;
 }
 
-/* Avatar — logo badge */
+/* Avatar — logo badge for chat messages */
 .chv-chat-msg-avatar {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   margin-bottom: 2px;
-  border: 1.5px solid rgba(201, 168, 76, 0.4);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #ECC870;
+  background: radial-gradient(circle at 50% 35%, #382215 0%, #140d08 85%);
+  box-shadow:
+    0 0 10px rgba(201, 168, 76, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .chv-chat-msg-avatar-img {
