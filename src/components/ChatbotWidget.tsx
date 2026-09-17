@@ -35,6 +35,7 @@ import {
   BarChart3,
   FileSpreadsheet,
   ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 import '../styles/chatbot.css';
 
@@ -393,18 +394,28 @@ const renderFormattedContent = (content: string, onNavigate?: (url: string) => v
 
 // ─── Send SVG Icon ────────────────────────────────────────────────
 
-const SendIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13"/>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+const SendIcon: React.FC<{ active?: boolean }> = ({ active = false }) => (
+  <svg
+    width="17"
+    height="17"
+    viewBox="0 0 24 24"
+    fill={active ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={active ? '1.5' : '2.2'}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ transform: 'translateX(1px)' }}
+    aria-hidden="true"
+  >
+    <path d="M22 2L11 13" />
+    <path d="M22 2L15 22L11 13L2 9L22 2Z" />
   </svg>
 );
 
 const CloseIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 
@@ -412,9 +423,9 @@ const CloseIcon = () => (
 
 export const ChatbotWidget: React.FC = () => {
   // ALL hooks first — never after a conditional return
-  const location  = useLocation();
-  const navigate  = useNavigate();
-  const { user, role }  = useApp();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, role } = useApp();
 
   const handleActionClick = (url: string) => {
     navigate(url);
@@ -422,18 +433,18 @@ export const ChatbotWidget: React.FC = () => {
     setIsOpen(false);
   };
 
-  const [isOpen,    setIsOpen]    = useState(false);
-  const [messages,  setMessages]  = useState<DisplayMessage[]>([]);
-  const [input,     setInput]     = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [showTeaser, setShowTeaser] = useState(false);
   const [hasDismissedTeaser, setHasDismissedTeaser] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLTextAreaElement>(null);
-  const panelRef       = useRef<HTMLDivElement>(null);
-  const fabRef         = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
 
   // Authenticated user detection
   const displayName = user?.name?.trim() || '';
@@ -521,7 +532,10 @@ export const ChatbotWidget: React.FC = () => {
 
   const resetInput = () => {
     setInput('');
-    if (inputRef.current) inputRef.current.style.height = '22px';
+    if (inputRef.current) {
+      inputRef.current.style.height = '24px';
+      inputRef.current.focus();
+    }
   };
 
   // ─── Send message ─────────────────────────────────────────────
@@ -533,6 +547,11 @@ export const ChatbotWidget: React.FC = () => {
     setMessages((prev) => [...prev, userMsg]);
     resetInput();
     setIsLoading(true);
+
+    // Keep input field always focused and ready for next typing
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
 
     try {
       const history: ChatMessage[] = messages
@@ -556,11 +575,20 @@ export const ChatbotWidget: React.FC = () => {
       setMessages((prev) => [...prev, { id: uid(), role: 'error', content: detail, timestamp: new Date() }]);
     } finally {
       setIsLoading(false);
+      // Ensure input field is immediately active & focused after message sends
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend) {
+        sendMessage(input);
+      }
+    }
   };
 
   const togglePanel = () => { setIsOpen((p) => !p); if (!isOpen) setHasUnread(false); };
@@ -575,72 +603,72 @@ export const ChatbotWidget: React.FC = () => {
     role === 'superadmin'
       ? SUPERADMIN_SUGGESTIONS
       : role === 'admin'
-      ? ADMIN_SUGGESTIONS
-      : isLoggedIn
-      ? CUSTOMER_SUGGESTIONS
-      : GUEST_SUGGESTIONS;
+        ? ADMIN_SUGGESTIONS
+        : isLoggedIn
+          ? CUSTOMER_SUGGESTIONS
+          : GUEST_SUGGESTIONS;
 
   const teaserTitle =
     role === 'superadmin'
       ? `Welcome, Superadmin ${firstName || displayName}! 📊`
       : role === 'admin'
-      ? `Welcome, Admin ${firstName || displayName}! ⚙️`
-      : isLoggedIn
-      ? `Welcome back, ${firstName || displayName}! 👋`
-      : "Hi, I'm Coco Chatbot! 👋";
+        ? `Welcome, Admin ${firstName || displayName}! ⚙️`
+        : isLoggedIn
+          ? `Welcome back, ${firstName || displayName}! 👋`
+          : "Hi, I'm Coco Chatbot! 👋";
 
   const teaserSub =
     role === 'superadmin'
       ? "Review today's sales, revenue analytics, or executive reports ✨"
       : role === 'admin'
-      ? "Check live inventory, stock levels, or manage products ✨"
-      : isLoggedIn
-      ? "Looking for chocolates or checking your orders? Chat with me ✨"
-      : "Looking for chocolates or need help? Click to chat with me ✨";
+        ? "Check live inventory, stock levels, or manage products ✨"
+        : isLoggedIn
+          ? "Looking for chocolates or checking your orders? Chat with me ✨"
+          : "Looking for chocolates or need help? Click to chat with me ✨";
 
   const headerTitle =
     role === 'superadmin'
       ? 'Coco · Superadmin Analytics'
       : role === 'admin'
-      ? 'Coco · Admin Assistant'
-      : 'Coco · Chovique AI';
+        ? 'Coco · Admin Assistant'
+        : 'Coco · Chovique AI';
 
   const headerStatus = isLoading
     ? 'Thinking…'
     : role === 'superadmin'
-    ? `Online · Executive Insights for ${firstName || 'you'} 📊`
-    : role === 'admin'
-    ? `Online · Store Operations for ${firstName || 'you'} ⚙️`
-    : isLoggedIn
-    ? `Online · Helping ${firstName || 'you'} ✨`
-    : 'Online · Here to help ✨';
+      ? `Online · Executive Insights for ${firstName || 'you'} 📊`
+      : role === 'admin'
+        ? `Online · Store Operations for ${firstName || 'you'} ⚙️`
+        : isLoggedIn
+          ? `Online · Helping ${firstName || 'you'} ✨`
+          : 'Online · Here to help ✨';
 
   const welcomeHeroBubble =
     role === 'superadmin'
       ? `Welcome, Superadmin ${firstName || displayName}! 📊`
       : role === 'admin'
-      ? `Welcome, Admin ${firstName || displayName}! ⚙️`
-      : isLoggedIn
-      ? `Welcome back, ${firstName || displayName}! 👋`
-      : "Welcome to Chovique! 👋";
+        ? `Welcome, Admin ${firstName || displayName}! ⚙️`
+        : isLoggedIn
+          ? `Welcome back, ${firstName || displayName}! 👋`
+          : "Welcome to Chovique! 👋";
 
   const welcomeHeroSub =
     role === 'superadmin'
       ? "I'm Coco, your executive analytics assistant. Ask me about today's sales, specific date reports (e.g. September 14th sales), or revenue trends directly from the database ✨"
       : role === 'admin'
-      ? "I'm Coco, your store operations assistant. Ask me about live inventory stocks, low-stock alerts, or steps to add new products ✨"
-      : isLoggedIn
-      ? "I'm Coco, your personal chocolate assistant. Ask me anything about our chocolates, your orders, or gift hampers ✨"
-      : "I'm Coco, your personal Chovique chocolate assistant. Ask me anything about our products, orders, or gifts ✨";
+        ? "I'm Coco, your store operations assistant. Ask me about live inventory stocks, low-stock alerts, or steps to add new products ✨"
+        : isLoggedIn
+          ? "I'm Coco, your personal chocolate assistant. Ask me anything about our chocolates, your orders, or gift hampers ✨"
+          : "I'm Coco, your personal Chovique chocolate assistant. Ask me anything about our products, orders, or gifts ✨";
 
   const fabTitle =
     role === 'superadmin'
       ? `Chat with Coco · Superadmin Analytics (${firstName})`
       : role === 'admin'
-      ? `Chat with Coco · Admin Operations (${firstName})`
-      : isLoggedIn
-      ? `Chat with Coco · Welcome ${firstName}`
-      : 'Chat with Coco — Chovique AI Chatbot';
+        ? `Chat with Coco · Admin Operations (${firstName})`
+        : isLoggedIn
+          ? `Chat with Coco · Welcome ${firstName}`
+          : 'Chat with Coco — Chovique AI Chatbot';
 
   // ─── Render ───────────────────────────────────────────────────
   return (
@@ -669,7 +697,7 @@ export const ChatbotWidget: React.FC = () => {
           >
             <CloseIcon />
           </button>
-          
+
           <div className="chv-chat-teaser-badge-row">
             <span className="chv-chat-teaser-dot" />
             <span className="chv-chat-teaser-badge">Coco · AI Chatbot</span>
@@ -705,12 +733,12 @@ export const ChatbotWidget: React.FC = () => {
           </div>
         </span>
 
-        {/* Close X — shown when open */}
+        {/* Close X — shown when open on desktop */}
         <span className="chv-chat-fab-icon chv-chat-fab-icon--close" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
             stroke="white" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </span>
 
@@ -885,18 +913,22 @@ export const ChatbotWidget: React.FC = () => {
               placeholder="Ask Coco anything…"
               rows={1}
               maxLength={2000}
-              disabled={isLoading}
               aria-label="Type your message"
             />
             <button
               id="chv-chat-send"
-              className="chv-chat-send"
+              type="button"
+              className={`chv-chat-send${canSend ? ' active' : ''}${isLoading ? ' loading' : ''}`}
               onClick={() => sendMessage(input)}
-              disabled={!canSend}
-              aria-label="Send message"
-              title={canSend ? 'Send (Enter)' : 'Type a message first'}
+              disabled={!canSend && !isLoading}
+              aria-label={isLoading ? 'Coco is thinking…' : canSend ? 'Send message' : 'Type a message to send'}
+              title={isLoading ? 'Coco is thinking…' : canSend ? 'Send (Enter)' : 'Type a message first'}
             >
-              <SendIcon />
+              {isLoading ? (
+                <Loader2 size={17} className="chv-chat-send-spinner" />
+              ) : (
+                <SendIcon active={canSend} />
+              )}
             </button>
           </div>
           <p className="chv-chat-powered">
