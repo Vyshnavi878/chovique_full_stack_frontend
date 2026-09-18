@@ -183,16 +183,27 @@ export const CustomerDashboard: React.FC = () => {
         setActiveTab('notifications');
       } else if (lower === 'overview') {
         setActiveTab('overview');
-      }
-    }
-
-    // 2. Check location.state
-    const navState = location.state as { tab?: CustomerTab } | null;
-    if (navState?.tab) {
-      setActiveTab(navState.tab);
-      if (navState.tab === 'orders') {
+      } else if (lower === 'account' || lower === 'my-account') {
+        setActiveTab('account');
         setSelectedOrder(null);
-        setOrderSubView('list');
+      }
+    } else {
+      // 2. Check location.state if no query param
+      const navState = location.state as { tab?: CustomerTab } | null;
+      if (navState?.tab) {
+        setActiveTab(navState.tab);
+        if (navState.tab === 'orders') {
+          setSelectedOrder(null);
+          setOrderSubView('list');
+        }
+      } else {
+        // Fallback when navigating to bare /dashboard without params
+        if (window.innerWidth <= 768) {
+          setActiveTab('account');
+          setSelectedOrder(null);
+        } else {
+          setActiveTab('overview');
+        }
       }
     }
   }, [location.search, location.state]);
@@ -2591,7 +2602,7 @@ export const CustomerDashboard: React.FC = () => {
                           </div>
                           <div>India</div>
                           <div style={{ marginTop: '8px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Phone size={13} color="#c9a84c" /> {selectedOrder.shippingAddress?.phone || '9876543210'}
+                            <Phone size={13} color="#c9a84c" /> {selectedOrder.shippingAddress?.phone || '+91 83098 54870'}
                           </div>
                         </div>
                       </div>
@@ -2696,6 +2707,33 @@ export const CustomerDashboard: React.FC = () => {
                       )}
                       <button
                         type="button"
+                        onClick={() => {
+                          const custPhone = selectedOrder.shippingAddress?.phone || '';
+                          const cleanCust = custPhone.replace(/\D/g, '');
+                          const normPhone = cleanCust.length === 10 ? `91${cleanCust}` : cleanCust;
+                          const itemsText = (selectedOrder.items || []).map((it: any) => `• ${it.product?.name || 'Artisanal Chocolate'} × ${it.quantity} (₹${((it.price || 0) * (it.quantity || 1)).toLocaleString('en-IN')})`).join('\n');
+                          const msg = `🍫 *CHOVIQUE — Order Confirmation*\n\nOrder ID: ${selectedOrder.id}\nDate: ${selectedOrder.date}\nTotal: ₹${(selectedOrder.total || 0).toLocaleString('en-IN')}\nStatus: ${selectedOrder.status}\n\nShipping To: ${selectedOrder.shippingAddress?.name || user.name}\n${selectedOrder.shippingAddress?.street || ''}, ${selectedOrder.shippingAddress?.city || ''}\nPhone: ${custPhone}\n\nItems:\n${itemsText}\n\nHelpline: +91 83098 54870`;
+                          const targetUrl = selectedOrder.customer_whatsapp_url || (normPhone ? `https://wa.me/${normPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/918309854870?text=${encodeURIComponent(msg)}`);
+                          window.open(targetUrl, '_blank');
+                        }}
+                        style={{
+                          padding: '11px 20px',
+                          borderRadius: '8px',
+                          background: 'rgba(37, 211, 102, 0.12)',
+                          border: '1px solid rgba(37, 211, 102, 0.45)',
+                          color: '#25D366',
+                          fontSize: '0.9rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <MessageSquare size={16} /> WhatsApp Receipt
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setOrderSubView('invoice')}
                         style={{
                           padding: '11px 22px',
@@ -2798,7 +2836,7 @@ export const CustomerDashboard: React.FC = () => {
                               <div>Chovique Chocolates Pvt. Ltd.</div>
                               <div>123, Chocolate Lane, Hitec City</div>
                               <div>Hyderabad, Telangana - 500081, India</div>
-                              <div>Email: hello@chovique.com | Phone: +91 98765 43210</div>
+                              <div>Email: hello@chovique.com | Phone: +91 83098 54870</div>
                               <div>GSTIN: 36ABCDE1234F1ZS</div>
                             </div>
                           </div>
@@ -2825,7 +2863,7 @@ export const CustomerDashboard: React.FC = () => {
                             <div>{selectedOrder.shippingAddress?.street || '12-34, MG Road, Block A'}</div>
                             <div>{selectedOrder.shippingAddress?.city || 'Hyderabad'}, {selectedOrder.shippingAddress?.state || 'Telangana'} - {selectedOrder.shippingAddress?.zip || '500001'}</div>
                             <div>India</div>
-                            <div>{selectedOrder.shippingAddress?.phone || '9876543210'}</div>
+                            <div>{selectedOrder.shippingAddress?.phone || '+91 83098 54870'}</div>
                           </div>
                         </div>
 

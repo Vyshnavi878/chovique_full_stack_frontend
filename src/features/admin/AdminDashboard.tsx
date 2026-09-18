@@ -1704,15 +1704,15 @@ export const AdminDashboard: React.FC = () => {
 
   // Customer Support contact details state
   const [supportContactData, setSupportContactData] = useState({
-    phone: '+91 98765 43210',
-    whatsapp: '+91 98765 43210',
+    phone: '+91 83098 54870',
+    whatsapp: '+91 83098 54870',
     email: 'support@chovique.com',
     support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
     address: '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
   });
   const [supportFormData, setSupportFormData] = useState({
-    phone: '+91 98765 43210',
-    whatsapp: '+91 98765 43210',
+    phone: '+91 83098 54870',
+    whatsapp: '+91 83098 54870',
     email: 'support@chovique.com',
     support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
     address: '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
@@ -1729,8 +1729,8 @@ export const AdminDashboard: React.FC = () => {
     adminService.getContactInfo().then((res) => {
       if (res) {
         const initial = {
-          phone: res.phone || '+91 98765 43210',
-          whatsapp: res.whatsapp || res.phone || '+91 98765 43210',
+          phone: res.phone || '+91 83098 54870',
+          whatsapp: res.whatsapp || res.phone || '+91 83098 54870',
           email: res.email || 'support@chovique.com',
           support_hours: res.support_hours || 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
           address: res.address || '42, MG Road, Indiranagar, Bangalore, Karnataka 560038',
@@ -1913,7 +1913,7 @@ export const AdminDashboard: React.FC = () => {
     const nameToMatch = inspectedCustomer ? inspectedCustomer.name.toLowerCase() : '';
     return orders.filter((o: any) =>
       o.shippingAddress.name.toLowerCase() === nameToMatch ||
-      o.shippingAddress.phone.includes('98765') // Fallback matching
+      o.shippingAddress.phone.includes('83098') // Fallback matching
     );
   };
 

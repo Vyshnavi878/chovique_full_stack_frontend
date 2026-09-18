@@ -14,6 +14,10 @@ import {
   Smartphone,
   Timer,
   RefreshCw,
+  MessageSquare,
+  Phone,
+  Send,
+  ExternalLink,
 } from 'lucide-react';
 import { useQrPaymentPoller } from './useQrPaymentPoller';
 import { useApp } from '../../app/providers';
@@ -1819,6 +1823,116 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* WHATSAPP ORDER UPDATES CARD */}
+                {(() => {
+                  const custPhone = createdOrder.shippingAddress?.phone || '';
+                  const cleanCust = custPhone.replace(/\D/g, '');
+                  const normPhone = cleanCust.length === 10 ? `91${cleanCust}` : cleanCust;
+                  const ownerCleanPhone = '918309854870';
+
+                  const waReceiptText = `🍫 *CHOVIQUE — Order Confirmation*\n\nThank you for ordering with Chovique Luxury Chocolates!\n\n📦 *Order Reference:* ${createdOrder.id}\n📅 *Date:* ${createdOrder.date || new Date().toLocaleDateString()}\n💳 *Payment Method:* ${createdOrder.paymentMethod || 'UPI'}\n💰 *Total Amount:* ₹${createdOrder.total.toLocaleString()}\n🚚 *Delivery:* ${createdOrder.deliveryOption || 'Standard Delivery'}\n\n📍 *Shipping Address:*\n${createdOrder.shippingAddress?.name}\n${createdOrder.shippingAddress?.street}, ${createdOrder.shippingAddress?.city}, ${createdOrder.shippingAddress?.state} - ${createdOrder.shippingAddress?.zip}\nPhone: ${custPhone}\n\nFor support, contact Chovique Concierge at +91 83098 54870 or hello@chovique.com.`;
+
+                  const custWaUrl = createdOrder.customer_whatsapp_url || (normPhone ? `https://wa.me/${normPhone}?text=${encodeURIComponent(waReceiptText)}` : null);
+                  const conciergeWaUrl = createdOrder.owner_whatsapp_url || `https://wa.me/${ownerCleanPhone}?text=${encodeURIComponent(waReceiptText)}`;
+
+                  return (
+                    <div
+                      style={{
+                        maxWidth: '560px',
+                        margin: '0 auto 32px auto',
+                        padding: '22px 24px',
+                        background: 'linear-gradient(145deg, rgba(20, 35, 25, 0.5) 0%, rgba(15, 12, 10, 0.7) 100%)',
+                        border: '1px solid rgba(37, 211, 102, 0.4)',
+                        borderRadius: '10px',
+                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35)',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'rgba(37, 211, 102, 0.18)',
+                            border: '1px solid rgba(37, 211, 102, 0.45)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#25D366',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <MessageSquare size={20} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, color: '#f5efe6', fontSize: '1.05rem', fontWeight: 700 }}>
+                            Instant WhatsApp Order Updates
+                          </h4>
+                          <p style={{ margin: '2px 0 0 0', color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.84rem' }}>
+                            Order receipt prepared for customer phone:{' '}
+                            <strong style={{ color: '#25D366' }}>{custPhone || 'Your Mobile Number'}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <p style={{ margin: '0 0 16px 0', fontSize: '0.88rem', color: 'var(--beige)', lineHeight: 1.5 }}>
+                        Your artisanal order confirmation is ready. Open WhatsApp to receive and view your receipt on your mobile, or message our private concierge desk.
+                      </p>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                        {custWaUrl && (
+                          <a
+                            href={custWaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '10px 18px',
+                              borderRadius: '6px',
+                              background: '#25D366',
+                              color: '#0a1d10',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              textDecoration: 'none',
+                              boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
+                              transition: 'all 0.2s ease',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Send size={15} /> Send / Open on My WhatsApp
+                          </a>
+                        )}
+
+                        <a
+                          href={conciergeWaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 18px',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(201, 168, 76, 0.5)',
+                            color: 'var(--gold)',
+                            fontWeight: 600,
+                            fontSize: '0.88rem',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Phone size={14} /> Chovique Concierge (+91 83098 54870)
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
                   <Button variant="glass" onClick={() => window.print()}>

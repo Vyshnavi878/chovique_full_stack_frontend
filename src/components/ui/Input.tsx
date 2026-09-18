@@ -213,3 +213,110 @@ export const Select: React.FC<SelectProps> = ({
     </div>
   );
 };
+
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+  fullWidth?: boolean;
+  charCount?: number;
+}
+
+export const Textarea: React.FC<TextareaProps> = ({
+  label,
+  error,
+  fullWidth = true,
+  className = '',
+  id,
+  charCount,
+  maxLength,
+  style,
+  onFocus,
+  onBlur,
+  ...props
+}) => {
+  const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+  const [isFocused, setIsFocused] = React.useState(false);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        width: fullWidth ? '100%' : 'auto',
+        marginBottom: '15px',
+        fontFamily: 'var(--font-body)',
+      }}
+    >
+      {label && (() => {
+        const hasAsterisk = label.includes('*') || props.required;
+        const cleanLabel = label.replace(/\s*\*+\s*$/, '');
+        return (
+          <label
+            htmlFor={textareaId}
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--beige)',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontWeight: 500,
+            }}
+          >
+            {cleanLabel}
+            {hasAsterisk && <span style={{ color: '#e74c3c', marginLeft: '4px', fontWeight: 600 }}>*</span>}
+          </label>
+        );
+      })()}
+      <textarea
+        id={textareaId}
+        maxLength={maxLength}
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          background: 'rgba(255, 255, 255, 0.08)',
+          border: error ? '1px solid var(--rose-gold)' : isFocused ? '1px solid var(--gold)' : '1px solid var(--gold)',
+          borderRadius: '4px',
+          color: 'var(--cream)',
+          fontFamily: 'inherit',
+          fontSize: '0.95rem',
+          outline: 'none',
+          transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+          boxSizing: 'border-box',
+          boxShadow: isFocused ? '0 0 12px rgba(201, 168, 76, 0.45)' : '0 0 8px rgba(201, 168, 76, 0.25)',
+          resize: 'vertical',
+          ...style,
+        }}
+        className={`luxury-input ${className}`}
+        onFocus={(e) => {
+          setIsFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          onBlur?.(e);
+        }}
+        {...props}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {error ? (
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--rose-gold)',
+              marginTop: '2px',
+            }}
+          >
+            {error}
+          </span>
+        ) : (
+          <span />
+        )}
+        {maxLength !== undefined && charCount !== undefined && (
+          <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', textAlign: 'right' }}>
+            {charCount}/{maxLength}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};

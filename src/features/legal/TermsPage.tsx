@@ -239,7 +239,7 @@ export const TermsPage: React.FC = () => {
               <p><strong>Chovique Confectionery Legal & Compliance</strong></p>
               <p>Email: <span style={{ color: 'var(--gold)' }}>legal@chovique.com</span></p>
               <p>Customer Concierge: <span style={{ color: 'var(--gold)' }}>support@chovique.com</span></p>
-              <p>Phone: +91 98765 43210</p>
+              <p>Phone: +91 83098 54870</p>
             </div>
           </section>
         </div>

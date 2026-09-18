@@ -132,7 +132,7 @@ export const Contact: React.FC = () => {
                     Call Us
                   </h5>
                   <p style={{ color: 'var(--grey-light)', fontSize: '0.88rem', margin: 0 }}>
-                    +91 98765 43210
+                    +91 83098 54870
                     <br />
                     Mon - Sat, 10 AM - 7 PM
                   </p>

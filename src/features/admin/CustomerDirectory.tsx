@@ -16,10 +16,165 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  CheckCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { exportToCSV } from '../../utils/exportCsv';
+import { getImageUrl } from '../../utils/imageUrl';
 import { SystemUser } from '../../types';
+
+interface CustomerAvatarProps {
+  avatarUrl?: string | null;
+  name: string;
+  size?: number;
+  fontSize?: string;
+  border?: string;
+  glow?: boolean;
+}
+
+export const CustomerAvatar: React.FC<CustomerAvatarProps> = ({
+  avatarUrl,
+  name,
+  size = 40,
+  fontSize = '0.82rem',
+  border = '1px solid rgba(201, 168, 76, 0.4)',
+  glow = false,
+}) => {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [avatarUrl]);
+
+  const initials = name
+    ? name
+        .split(' ')
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase()
+    : 'CU';
+
+  const isUrlLike = (val?: string | null) => {
+    if (!val || typeof val !== 'string') return false;
+    const v = val.trim();
+    return (
+      v.startsWith('http://') ||
+      v.startsWith('https://') ||
+      v.startsWith('data:') ||
+      v.startsWith('blob:') ||
+      v.startsWith('/') ||
+      v.includes('.jpg') ||
+      v.includes('.jpeg') ||
+      v.includes('.png') ||
+      v.includes('.webp') ||
+      v.includes('googleusercontent.com') ||
+      v.includes('cloudinary.com') ||
+      v.includes('/static/') ||
+      v.includes('avatars')
+    );
+  };
+
+  const resolved = isUrlLike(avatarUrl) && !hasError ? getImageUrl(avatarUrl) : null;
+
+  if (resolved) {
+    return (
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          border,
+          boxShadow: glow ? '0 0 16px rgba(201, 168, 76, 0.45)' : '0 2px 8px rgba(0, 0, 0, 0.35)',
+          background: 'rgba(20, 16, 13, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+        }}
+      >
+        <img
+          src={resolved}
+          alt={name || 'Customer Avatar'}
+          referrerPolicy="no-referrer"
+          onError={() => setHasError(true)}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: '50%',
+        flexShrink: 0,
+        background: glow
+          ? 'linear-gradient(135deg, #c9a84c 0%, #e5c875 100%)'
+          : 'linear-gradient(135deg, #c9a84c 0%, #8a7028 100%)',
+        color: '#0a0806',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 800,
+        fontSize,
+        fontFamily: 'var(--font-display)',
+        border,
+        boxShadow: glow ? '0 0 16px rgba(201, 168, 76, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.25)',
+        userSelect: 'none',
+      }}
+    >
+      {initials}
+    </div>
+  );
+};
+
+export const extractCustomerAvatar = (cust: any): string | null => {
+  if (!cust) return null;
+  const candidates = [
+    cust.avatar_url,
+    cust.avatarUrl,
+    cust.profile?.avatarUrl,
+    cust.profile?.avatar_url,
+    cust.user?.avatar_url,
+    cust.user?.avatarUrl,
+    cust.user?.profile?.avatarUrl,
+    cust.user?.profile?.avatar_url,
+    cust.avatar,
+  ];
+  for (const c of candidates) {
+    if (
+      typeof c === 'string' &&
+      (c.startsWith('http://') ||
+        c.startsWith('https://') ||
+        c.startsWith('data:') ||
+        c.startsWith('blob:') ||
+        c.startsWith('/') ||
+        c.includes('.jpg') ||
+        c.includes('.jpeg') ||
+        c.includes('.png') ||
+        c.includes('.webp') ||
+        c.includes('googleusercontent.com') ||
+        c.includes('cloudinary.com') ||
+        c.includes('/static/') ||
+        c.includes('avatars'))
+    ) {
+      return c;
+    }
+  }
+  return null;
+};
 
 interface CustomerDirectoryProps {
   systemUsers?: SystemUser[];
@@ -408,17 +563,14 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '38px', height: '38px', borderRadius: '50%', flexShrink: 0,
-                          background: isSelected ? 'var(--gold)' : 'rgba(255,255,255,0.08)',
-                          color: isSelected ? '#000' : 'var(--gold)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: '0.82rem', fontFamily: 'var(--font-display)',
-                        }}
-                      >
-                        {cust.name ? cust.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'CU'}
-                      </div>
+                      <CustomerAvatar
+                        avatarUrl={extractCustomerAvatar(cust)}
+                        name={cust.name}
+                        size={38}
+                        fontSize="0.82rem"
+                        border={isSelected ? '2px solid var(--gold)' : '1px solid rgba(201, 168, 76, 0.35)'}
+                        glow={isSelected}
+                      />
                       <div>
                         <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: '0.9rem', fontWeight: 600 }}>{cust.name}</h4>
                         <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>{cust.email}</div>
@@ -491,12 +643,19 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg, #c9a84c 0%, #8a7028 100%)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    {selectedCust.name ? selectedCust.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'CU'}
-                  </div>
+                  <CustomerAvatar
+                    avatarUrl={extractCustomerAvatar(customerDetails?.user) || extractCustomerAvatar(selectedCust)}
+                    name={selectedCust.name}
+                    size={54}
+                    fontSize="1.15rem"
+                    border="2px solid var(--gold)"
+                    glow
+                  />
                   <div>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--cream)', margin: 0 }}>{selectedCust.name}</h2>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)' }}>Customer since {customerDetails?.joined_date || 'Aug 2024'}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--grey-light)', marginTop: '2px' }}>
+                      Customer since {customerDetails?.joined_date || selectedCust.joined_date || 'Member'}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -541,6 +700,134 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
               <div style={{ flex: 1 }}>
                 {activeTab === 'profile' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.84rem' }}>
+                    {/* Customer Identity & Profile DP Showcase */}
+                    {(() => {
+                      const activeAvatar =
+                        extractCustomerAvatar(customerDetails?.user) ||
+                        extractCustomerAvatar(selectedCust);
+                      const isGoogle = Boolean(
+                        activeAvatar && activeAvatar.includes('googleusercontent.com')
+                      );
+                      const isCustom = Boolean(activeAvatar && !isGoogle);
+
+                      return (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '14px',
+                            padding: '14px 16px',
+                            background:
+                              'linear-gradient(135deg, rgba(201,168,76,0.09) 0%, rgba(255,255,255,0.02) 100%)',
+                            border: '1px solid rgba(201,168,76,0.25)',
+                            borderRadius: '10px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ position: 'relative' }}>
+                              <CustomerAvatar
+                                avatarUrl={activeAvatar}
+                                name={selectedCust.name}
+                                size={56}
+                                fontSize="1.2rem"
+                                border="2px solid var(--gold)"
+                                glow
+                              />
+                              {isGoogle && (
+                                <div
+                                  title="Google Profile DP"
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: '-2px',
+                                    right: '-2px',
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    background: '#ffffff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
+                                    border: '1px solid rgba(0,0,0,0.1)',
+                                  }}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+                                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.98 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+                                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: 'var(--cream)', fontSize: '0.96rem' }}>
+                                  {selectedCust.name}
+                                </span>
+                                {isGoogle ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: 'rgba(66, 133, 244, 0.12)',
+                                      border: '1px solid rgba(66, 133, 244, 0.35)',
+                                      color: '#6ba5ff',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    Google Synced DP
+                                  </span>
+                                ) : isCustom ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: 'rgba(46, 204, 113, 0.12)',
+                                      border: '1px solid rgba(46, 204, 113, 0.35)',
+                                      color: '#2ecc71',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    <CheckCircle size={10} /> Verified Avatar
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: 'rgba(201, 168, 76, 0.12)',
+                                      border: '1px solid rgba(201, 168, 76, 0.35)',
+                                      color: 'var(--gold)',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    Gold Monogram DP
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--beige)', marginTop: '3px' }}>
+                                Customer ID: <span style={{ fontFamily: 'monospace', color: 'var(--gold)' }}>{selectedCust.id}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Mail size={15} color="var(--gold)" />

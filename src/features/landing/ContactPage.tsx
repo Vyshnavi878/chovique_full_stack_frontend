@@ -20,7 +20,7 @@ import {
   ArrowRight,
   Lock,
 } from 'lucide-react';
-import { Input, Select } from '../../components/ui/Input';
+import { Input, Select, Textarea } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Footer } from '../../components/Footer';
 import { slideInLeft, slideInRight } from '../../lib/framer';
@@ -41,6 +41,7 @@ export const ContactPage: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedWhatsappUrl, setSubmittedWhatsappUrl] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
@@ -58,8 +59,8 @@ export const ContactPage: React.FC = () => {
   }, [location.hash]);
 
   const [contactInfo, setContactInfo] = useState({
-    phone: '+91 98765 43210',
-    whatsapp: '+91 98765 43210',
+    phone: '+91 83098 54870',
+    whatsapp: '+91 83098 54870',
     email: 'support@chovique.com',
     support_hours: 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
   });
@@ -69,8 +70,8 @@ export const ContactPage: React.FC = () => {
       .then((res) => {
         if (res) {
           setContactInfo({
-            phone: res.phone || '+91 98765 43210',
-            whatsapp: res.whatsapp || res.phone || '+91 98765 43210',
+            phone: res.phone || '+91 83098 54870',
+            whatsapp: res.whatsapp || res.phone || '+91 83098 54870',
             email: res.email || 'support@chovique.com',
             support_hours: res.support_hours || 'Mon - Sat: 10:00 AM - 8:00 PM | Sunday: 11:00 AM - 6:00 PM',
           });
@@ -85,7 +86,7 @@ export const ContactPage: React.FC = () => {
     setSubmitError('');
 
     try {
-      await apiPost<{ message: string }>('/contact', {
+      const res = await apiPost<{ message: string; whatsapp_url?: string }>('/contact', {
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
@@ -94,6 +95,14 @@ export const ContactPage: React.FC = () => {
         message: `${formData.orderNumber ? `[Order #${formData.orderNumber}] ` : ''}${formData.message}`,
       });
 
+      const cleanPhone = (contactInfo.whatsapp || '+91 83098 54870').replace(/\D/g, '');
+      const defaultWaUrl = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+            `🍫 *New Customer Inquiry - CHOVIQUE*\n\n👤 *From:* ${formData.firstName} ${formData.lastName}\n✉️ *Email:* ${formData.email}\n📞 *Phone:* ${formData.phone || 'Not provided'}\n📋 *Subject:* ${formData.reason || 'General Inquiry'}\n\n💬 *Message:*\n${formData.message}`
+          )}`
+        : null;
+
+      setSubmittedWhatsappUrl(res.whatsapp_url || defaultWaUrl);
       setSubmitted(true);
       setFormData({
         firstName: '',
@@ -104,7 +113,7 @@ export const ContactPage: React.FC = () => {
         orderNumber: '',
         message: '',
       });
-      setTimeout(() => setSubmitted(false), 5000);
+      setTimeout(() => setSubmitted(false), 20000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to send message. Please try again.';
       setSubmitError(msg);
@@ -160,6 +169,7 @@ export const ContactPage: React.FC = () => {
     <div style={{ background: 'var(--black)', color: 'var(--cream)', minHeight: '100vh', overflowX: 'hidden' }}>
       {/* HERO SECTION */}
       <section
+        className="contact-hero-section"
         style={{
           position: 'relative',
           padding: '95px 0 36px 0',
@@ -167,14 +177,7 @@ export const ContactPage: React.FC = () => {
         }}
       >
         <div className="container">
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '40px',
-              alignItems: 'center',
-            }}
-          >
+          <div className="contact-hero-grid">
             {/* Left Content */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
               <span
@@ -193,7 +196,7 @@ export const ContactPage: React.FC = () => {
               <h1
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+                  fontSize: 'clamp(2.2rem, 5vw, 4rem)',
                   color: 'var(--cream)',
                   margin: '0 0 16px 0',
                   lineHeight: 1.15,
@@ -208,7 +211,7 @@ export const ContactPage: React.FC = () => {
               <p
                 style={{
                   color: 'var(--beige)',
-                  fontSize: '1.1rem',
+                  fontSize: '1.05rem',
                   lineHeight: 1.6,
                   maxWidth: '540px',
                   marginBottom: '35px',
@@ -219,7 +222,7 @@ export const ContactPage: React.FC = () => {
               </p>
 
               {/* 3 Pill Badges */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
                 <div
                   style={{
                     display: 'flex',
@@ -281,7 +284,7 @@ export const ContactPage: React.FC = () => {
                 overflow: 'hidden',
                 boxShadow: 'var(--glass-shadow)',
                 border: '1px solid var(--glass-border)',
-                height: '380px',
+                height: '340px',
                 position: 'relative',
               }}
             >
@@ -367,26 +370,14 @@ export const ContactPage: React.FC = () => {
       {/* MAIN 2-COLUMN SPLIT: FORM & SUPPORT CHANNELS */}
       <section id="send-us-a-message" style={{ padding: '36px 0 50px 0', background: 'var(--black)' }}>
         <div className="container">
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-              gap: '40px',
-              alignItems: 'start',
-            }}
-          >
+          <div className="contact-split-grid">
             {/* LEFT COLUMN: SEND US A MESSAGE FORM */}
             <motion.div
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
               variants={slideInLeft}
-              style={{
-                background: 'rgba(20, 10, 5, 0.6)',
-                border: '1px solid var(--glass-border)',
-                borderRadius: '12px',
-                padding: '36px',
-              }}
+              className="contact-card-box"
             >
               <h3
                 style={{
@@ -402,7 +393,7 @@ export const ContactPage: React.FC = () => {
               </h3>
 
               <form onSubmit={handleSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="contact-form-row">
                   <Input
                     label="First Name *"
                     placeholder="First Name *"
@@ -419,7 +410,7 @@ export const ContactPage: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="contact-form-row">
                   <Input
                     label="Email Address *"
                     type="email"
@@ -451,49 +442,16 @@ export const ContactPage: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
                 />
 
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    marginBottom: '24px',
-                    fontFamily: 'var(--font-body)',
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: '0.8rem',
-                      color: 'var(--beige)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Your Message *
-                  </label>
-                  <textarea
-                    placeholder="Your Message *"
-                    required
-                    rows={5}
-                    maxLength={1000}
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    style={{
-                      padding: '12px 16px',
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: '4px',
-                      color: 'var(--cream)',
-                      fontFamily: 'inherit',
-                      fontSize: '0.95rem',
-                      outline: 'none',
-                      resize: 'none',
-                    }}
-                  />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--grey-light)', textAlign: 'right' }}>
-                    {formData.message.length}/1000
-                  </span>
-                </div>
+                <Textarea
+                  label="Your Message *"
+                  placeholder="Type your message here..."
+                  required
+                  rows={5}
+                  maxLength={1000}
+                  charCount={formData.message.length}
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                />
 
                 {submitError && (
                   <div
@@ -516,22 +474,52 @@ export const ContactPage: React.FC = () => {
                 )}
 
                 {submitted ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      background: 'rgba(46, 204, 113, 0.2)',
-                      border: '1px solid #2ecc71',
-                      borderRadius: '4px',
-                      color: '#2ecc71',
-                      padding: '14px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <CheckCircle size={20} />
-                    <span>Message Sent Successfully!</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '16px 0' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        background: 'rgba(46, 204, 113, 0.15)',
+                        border: '1px solid #2ecc71',
+                        borderRadius: '6px',
+                        color: '#2ecc71',
+                        padding: '14px 16px',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                      }}
+                    >
+                      <CheckCircle size={20} />
+                      <span>Message Sent Successfully! We'll reply within 24 hours.</span>
+                    </div>
+
+                    {submittedWhatsappUrl && (
+                      <a
+                        href={submittedWhatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '10px',
+                          background: '#25D366',
+                          color: '#ffffff',
+                          borderRadius: '6px',
+                          padding: '14px 18px',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          boxShadow: '0 4px 16px rgba(37, 211, 102, 0.35)',
+                          transition: 'all 0.2s ease',
+                          fontSize: '0.95rem',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        <MessageSquare size={18} />
+                        <span>Notify Owner on WhatsApp</span>
+                      </a>
+                    )}
                   </div>
                 ) : (
                   <Button variant="gold" fullWidth type="submit" disabled={submitting} glow>
@@ -562,12 +550,7 @@ export const ContactPage: React.FC = () => {
               whileInView="animate"
               viewport={{ once: true }}
               variants={slideInRight}
-              style={{
-                background: 'rgba(20, 10, 5, 0.6)',
-                border: '1px solid var(--glass-border)',
-                borderRadius: '12px',
-                padding: '36px',
-              }}
+              className="contact-card-box"
             >
               <h3
                 style={{
@@ -587,7 +570,10 @@ export const ContactPage: React.FC = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {/* Call Us */}
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <a
+                  href={`tel:${contactInfo.phone.replace(/[^\d+]/g, '')}`}
+                  style={{ display: 'flex', gap: '16px', alignItems: 'center', textDecoration: 'none' }}
+                >
                   <div
                     style={{
                       width: '46px',
@@ -614,10 +600,15 @@ export const ContactPage: React.FC = () => {
                       {contactInfo.support_hours}
                     </p>
                   </div>
-                </div>
+                </a>
 
                 {/* WhatsApp Us */}
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <a
+                  href={`https://wa.me/${contactInfo.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('Hello Chovique, I would like to inquire about your luxury chocolates.')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'flex', gap: '16px', alignItems: 'center', textDecoration: 'none' }}
+                >
                   <div
                     style={{
                       width: '46px',
@@ -634,8 +625,8 @@ export const ContactPage: React.FC = () => {
                     <MessageSquare size={20} />
                   </div>
                   <div>
-                    <h5 style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600, margin: '0 0 2px 0' }}>
-                      WhatsApp Us
+                    <h5 style={{ color: 'var(--cream)', fontSize: '1rem', fontWeight: 600, margin: '0 0 2px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      WhatsApp Us <span style={{ fontSize: '0.72rem', background: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', padding: '2px 8px', borderRadius: '20px' }}>Chat Now</span>
                     </h5>
                     <p style={{ color: '#2ecc71', fontSize: '0.95rem', fontWeight: 600, margin: '0 0 2px 0' }}>
                       {contactInfo.whatsapp}
@@ -644,10 +635,13 @@ export const ContactPage: React.FC = () => {
                       {contactInfo.support_hours}
                     </p>
                   </div>
-                </div>
+                </a>
 
                 {/* Email Us */}
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <a
+                  href={`mailto:${contactInfo.email}`}
+                  style={{ display: 'flex', gap: '16px', alignItems: 'center', textDecoration: 'none' }}
+                >
                   <div
                     style={{
                       width: '46px',
@@ -672,7 +666,7 @@ export const ContactPage: React.FC = () => {
                     </p>
                     <p style={{ color: 'var(--grey-light)', fontSize: '0.8rem', margin: 0 }}>Replies within 24 hours</p>
                   </div>
-                </div>
+                </a>
 
                 {/* Support Hours */}
                 <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>

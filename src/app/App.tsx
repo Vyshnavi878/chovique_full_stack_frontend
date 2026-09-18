@@ -19,6 +19,9 @@ import {
   Tag,
   AlertTriangle,
   Settings,
+  BookOpen,
+  Mail,
+  LogOut,
 } from 'lucide-react';
 
 // Pages
@@ -80,7 +83,7 @@ const SuperadminRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
  * It does NOT affect desktop, admin, or super-admin views.
  */
 const CustomerMobileNav: React.FC = () => {
-  const { role, cart, wallet, user, notifications } = useApp();
+  const { role, cart, wallet, user, notifications, logout } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -125,7 +128,7 @@ const CustomerMobileNav: React.FC = () => {
   const isOrders = pathname === '/dashboard' && ['orders', 'order-history', 'track'].includes(section.toLowerCase());
   const isShop = pathname === '/shop' || pathname.startsWith('/product');
   const isWishlist = pathname === '/wishlist';
-  const isAccount = pathname === '/dashboard' && !isOrders && !['notifications', 'coupons', 'help', 'rewards', 'overview'].includes(section.toLowerCase());
+  const isAccount = pathname === '/dashboard' && (section.toLowerCase() === 'account' || section.toLowerCase() === 'my-account' || (!isOrders && !['notifications', 'coupons', 'help', 'rewards', 'overview'].includes(section.toLowerCase())));
 
   return (
     <>
@@ -158,7 +161,7 @@ const CustomerMobileNav: React.FC = () => {
                 background: 'rgba(10, 7, 5, 0.98)', 
                 border: '1px solid rgba(201, 168, 76, 0.25)', 
                 borderRadius: '8px', 
-                width: '200px', 
+                width: '210px', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.8)',
@@ -166,59 +169,104 @@ const CustomerMobileNav: React.FC = () => {
                 overflow: 'hidden'
               }}
             >
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (role === 'customer') {
-                    navigate('/dashboard?section=notifications');
-                  } else {
-                    navigate('/login', { state: { from: '/dashboard?section=notifications' } });
-                  }
-                }}
-                style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
-              >
-                <div style={{ position: 'relative', display: 'flex' }}>
-                  <Bell size={16} />
-                  {role === 'customer' && unreadCount > 0 && (
-                    <span style={{ position: 'absolute', top: -6, right: -6, background: '#D6A848', color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {unreadCount}
-                    </span>
-                  )}
-                </div>
-                Notifications
-              </button>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (role === 'customer') {
-                    navigate('/dashboard?section=coupons');
-                  } else {
-                    navigate('/login', { state: { from: '/dashboard?section=coupons' } });
-                  }
-                }}
-                style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
-              >
-                <Tag size={16} /> Coupons
-              </button>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  navigate(role === 'customer' ? '/dashboard?section=help' : '/contact');
-                }}
-                style={{ padding: '12px 16px', background: 'transparent', border: 'none', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
-              >
-                <AlertTriangle size={16} /> Help & Support
-              </button>
-              {role !== 'customer' && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    navigate('/login');
-                  }}
-                  style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderTop: '1px solid rgba(201, 168, 76, 0.15)', color: '#c9a84c', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}
-                >
-                  <User size={16} /> Sign In / Register
-                </button>
+              {role === 'customer' ? (
+                <>
+                  {/* Logged in customer: notifications, coupons, help/complaints, about, contact, logout */}
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/dashboard?section=notifications');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <div style={{ position: 'relative', display: 'flex' }}>
+                      <Bell size={16} />
+                      {unreadCount > 0 && (
+                        <span style={{ position: 'absolute', top: -6, right: -6, background: '#D6A848', color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    Notifications
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/dashboard?section=coupons');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <Tag size={16} /> Coupons
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/dashboard?section=help');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <AlertTriangle size={16} /> Help & Support
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/our-story');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <BookOpen size={16} /> About Us
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/contact');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <Mail size={16} /> Contact Us
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                      navigate('/');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', color: '#e74c3c', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}
+                  >
+                    <LogOut size={16} /> Log Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Guest before login: About Us, Contact Us, Sign In / Register */}
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/our-story');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <BookOpen size={16} /> About Us
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/contact');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(201, 168, 76, 0.15)', color: '#f5efe6', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <Mail size={16} /> Contact Us
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/login');
+                    }}
+                    style={{ padding: '12px 16px', background: 'transparent', border: 'none', color: '#c9a84c', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}
+                  >
+                    <User size={16} /> Sign In / Register
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -326,9 +374,9 @@ const CustomerMobileNav: React.FC = () => {
           className={`cust-mobile-bottom-btn ${isAccount ? 'active' : ''}`}
           onClick={() => {
             if (role === 'customer') {
-              navigate('/dashboard');
+              navigate('/dashboard?section=account');
             } else {
-              navigate('/login', { state: { from: '/dashboard' } });
+              navigate('/login', { state: { from: '/dashboard?section=account' } });
             }
           }}
           aria-label="My Account"

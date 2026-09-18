@@ -182,7 +182,7 @@ export const RefundPolicyPage: React.FC = () => {
             </p>
             <ol style={{ paddingLeft: '20px', color: 'rgba(255, 255, 255, 0.82)', marginBottom: '16px' }}>
               <li>Take 2 to 3 clear photos or a short video of the damaged chocolates and external courier box with shipping label visible.</li>
-              <li>Email our concierge at <span style={{ color: 'var(--gold)' }}>support@chovique.com</span> or message our WhatsApp helpline at <strong>+91 98765 43210</strong>.</li>
+              <li>Email our concierge at <span style={{ color: 'var(--gold)' }}>support@chovique.com</span> or message our WhatsApp helpline at <strong>+91 83098 54870</strong>.</li>
               <li>Include your <strong>Order ID</strong> (e.g. #CHOV-1024) and a brief description of the issue.</li>
             </ol>
             <p style={{ color: 'rgba(255, 255, 255, 0.82)' }}>
@@ -247,7 +247,7 @@ export const RefundPolicyPage: React.FC = () => {
             >
               <p><strong>Chovique Customer Care & Concierge</strong></p>
               <p>Email: <span style={{ color: 'var(--gold)' }}>support@chovique.com</span></p>
-              <p>WhatsApp / Call: +91 98765 43210 (Mon &ndash; Sat, 9:00 AM &ndash; 8:00 PM IST)</p>
+              <p>WhatsApp / Call: +91 83098 54870 (Mon &ndash; Sat, 9:00 AM &ndash; 8:00 PM IST)</p>
               <p>Boutique Studio: Jubilee Hills, Hyderabad, Telangana, India</p>
             </div>
           </section>

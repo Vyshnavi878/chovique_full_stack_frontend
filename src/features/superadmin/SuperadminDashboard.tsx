@@ -1671,7 +1671,7 @@ export const SuperadminDashboard: React.FC = () => {
   const defaultPs = {
     store_front_name: 'Chovique Luxury Chocolates',
     support_email: 'support@chovique.com',
-    support_phone: '+91 98765 43210',
+    support_phone: '+91 83098 54870',
     store_address: '',
     city: '',
     state: '',
@@ -2564,7 +2564,7 @@ export const SuperadminDashboard: React.FC = () => {
     return Array.isArray(superOrders)
       ? superOrders.filter((o: any) =>
           (o?.shippingAddress?.name?.toLowerCase() || '').includes(nameToMatch) ||
-          (o?.shippingAddress?.phone || '').includes('98765')
+          (o?.shippingAddress?.phone || '').includes('83098')
         )
       : [];
   };
@@ -5678,7 +5678,7 @@ export const SuperadminDashboard: React.FC = () => {
                           label="Phone Number *"
                           type="tel"
                           required
-                          placeholder="e.g. +91 98765 43210"
+                          placeholder="e.g. +91 83098 54870"
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value)}
                         />
@@ -5790,7 +5790,7 @@ export const SuperadminDashboard: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
                         <Input label="Full Name" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} required />
                         <Input label="Email Address" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} required />
-                        <Input label="Phone Number" type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+91 98765 43210" />
+                        <Input label="Phone Number" type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+91 83098 54870" />
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: false ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>

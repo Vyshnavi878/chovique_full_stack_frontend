@@ -148,6 +148,8 @@ export interface Order {
   delivered_at?: string;
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
+  customer_whatsapp_url?: string;
+  owner_whatsapp_url?: string;
 }
 
 export interface Banner {
@@ -401,6 +403,9 @@ export interface SystemUser {
   phone?: string;
   is_active?: boolean;
   role: 'customer' | 'admin' | 'superadmin';
+  avatar_url?: string;
+  avatar?: string;
+  avatarUrl?: string;
   /** Permissions object — derived from role on the backend */
   permissions: {
     viewAnalytics: boolean;
